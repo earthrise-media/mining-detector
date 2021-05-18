@@ -1,7 +1,7 @@
 import ee
 import geemap
 from multiprocessing.dummy import Pool as ThreadPool
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from datetime import datetime
 from functools import partial
 import json
@@ -179,8 +179,8 @@ def get_patches(site_names, site_coords, rect_width, image, scale):
     Exports each band in image to a dictionary organized by [site name][band][band_img]
     """
     patch_dict = {}
-    for name, site in zip(site_names, site_coords):
-        print("Downloading", name)
+    for name, site in tqdm(zip(site_names, site_coords), total=len(site_coords)):
+        #print("Downloading", name)
         pool = ThreadPool(12)
         roi = create_rect(site[0], site[1], rect_width)
         images = {}
@@ -230,7 +230,8 @@ def get_history(coords, name, width, num_months=22, start_date='2019-01-01', clo
     roi = ee.Geometry.Rectangle((np.min(lons), np.min(lats), np.max(lons), np.max(lats)))
     #roi = create_rect(np.mean([coord[0] for coord in coords]), np.mean([coord[1] for coord in coords]), 6.5)
     date = ee.Date(start_date)
-    for month in tqdm(range(num_months)):
+    for month in range(num_months):
+        print("Downloading month", month + 1, "of", num_months)
         s2_data = get_s2_sr_cld_col(roi, date, date.advance(1, 'month'))
         if cloud_mask:
             s2_sr_median = s2_data.map(add_cld_shdw_mask) \

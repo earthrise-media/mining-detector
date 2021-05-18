@@ -4,3 +4,5 @@
 __pycache__/
 data
 notebooks/scratch_paper
+figures
+outputs
