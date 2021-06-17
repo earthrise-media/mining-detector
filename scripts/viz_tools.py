@@ -39,17 +39,19 @@ def create_rgb(img_array):
         rgb_img.append(rgb)
     return rgb_img
 
-def plot_similar_images(img_stack, title, save=True):
+def plot_similar_images(img_stack, title, save=True, labels=False):
     reducer = TSNE(n_components=1)
-    reduced = reducer.fit_transform(normalize(create_img_vectors(img_stack)))
+    reduced = reducer.fit_transform(normalize([img.flatten() for img in img_stack]))
     input_img = create_rgb(img_stack)
     num_img = int(np.ceil(np.sqrt(len(input_img))))
 
-    plt.figure(figsize=(num_img, num_img), dpi=100)
+    plt.figure(figsize=(num_img, num_img), dpi=150)
     for img_index, sort_index in enumerate(reduced[:,0].argsort()):
         plt.subplot(num_img, num_img, img_index + 1)
         plt.imshow(input_img[sort_index])
         plt.axis('off')
+        if labels:
+            plt.title(labels[img_index])
     plt.tight_layout()
     plt.suptitle(title, size = num_img * 12 / 7, y=1.02)
     if save:

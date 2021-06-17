@@ -1,0 +1,31 @@
+Input Data:
+	amazonas_2020_thresh_0.5postraining_patches_2020-01-01_2020-07-01_28px
+	amazonas_2020_thresh_0.5negtraining_patches_2020-01-01_2020-07-01_28px
+	MinesNeg2018-2020Sentinel_patches_2020-01-01_2020-07-01_28px
+	MinesPos2018-2020Sentinel_patches_2020-01-01_2020-07-01_28px
+	bolivar_2020_thresh_0.8negtraining_patches_2020-01-01_2020-07-01_28px
+	bolivar_2020_thresh_0.8postraining_patches_2020-01-01_2020-07-01_28px
+	bolivar_2020-06_negatives_patches_2020-01-01_2020-07-01_28px
+	28_px_bolivar_amazonas_v7_validated_cloudy_negatives_448
+	28_px_corrupted
+
+
+Augmentation Parameters:
+	featurewise_center: False
+	rotation_range: 360
+	vertical_flip: True
+	horizontal_flip: True
+	fill_mode: reflect
+
+Batch Size: 16
+Training Epochs: 16
+
+Classification Report at 0.8
+              precision    recall  f1-score   support
+
+     No Mine       0.95      0.98      0.97       412
+        Mine       0.95      0.86      0.90       141
+
+    accuracy                           0.95       553
+   macro avg       0.95      0.92      0.93       553
+weighted avg       0.95      0.95      0.95       553

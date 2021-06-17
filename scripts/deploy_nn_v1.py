@@ -60,7 +60,7 @@ def main(*args):
     parser.add_argument('--pad',
                         type=int,
                         help='Padding in pixels',
-                        default=16)
+                        default=0)
     parser.add_argument('--model_file',
                         type=str,
                         help='Local path to model file to upload',

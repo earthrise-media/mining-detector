@@ -5,8 +5,10 @@ import os
 
 import descarteslabs as dl
 from dateutil.relativedelta import relativedelta
+import geopandas as gpd
 import numpy as np
 import shapely
+from shapely.geometry import Polygon
 from tensorflow import keras
 
 SENTINEL_BANDS = ['coastal-aerosol',
@@ -121,7 +123,8 @@ def pad_patch(patch, width):
     h, w, c = patch.shape
     if h < width or w < width:
         patch = np.pad(patch, width - np.min([h, w]), mode='reflect')
-    patch = patch[:width, :width, :12]
+    patch = patch[int(np.floor((h - width) / 2)) : h - int(np.ceil((h - width) / 2)),
+                  int(np.floor((w - width) / 2)) : w - int(np.ceil((w - width) / 2)), :12]
     return patch
 
 def download_batches(polygon, start_date, end_date, batch_months):
@@ -268,6 +271,51 @@ def predict_spectrogram(image_gram, model):
     output_img = preds_to_image(preds, image_gram)
     return output_img
 
+def patches_from_tile(tile, raster_info, model):
+    """
+    Break a larger tile of Sentinel data into a set of patches that
+    a model can process.
+    Inputs:
+        - tile: Sentinel data. Typically a numpy masked array
+        - raster_info: Descartes metadata for the tile
+        - model: keras model
+    Outputs:
+        - patches: A list of numpy arrays of the shape the model requires
+        - patch_coords: A list of shapely polygon features describing the patch bounds
+    """
+    patch_coords = raster_info[0]['wgs84Extent']['coordinates'][0]
+    delta_lon = patch_coords[2][0] - patch_coords[0][0]
+    delta_lat = patch_coords[1][1] - patch_coords[0][1]
+    top_left = patch_coords[0]
+
+    # The tile is broken into the number of whole patches
+    # Regions extending beyond will not be padded and processed
+    _, model_l, model_w, _ = model.input_shape
+    num_steps_lon = np.shape(tile)[0] // model_l
+    num_steps_lat = np.shape(tile)[1] // model_w
+
+    patch_coords = []
+    patches = []
+    for i in range(num_steps_lon):
+        for j in range(num_steps_lat):
+            patch = tile[j * model_l : model_l + j * model_l,
+                         i * model_w : model_l + i * model_w]
+            patches.append(patch)
+
+            nw_coord = [top_left[0] + i * delta_lon / num_steps_lon,
+                        top_left[1] + j * delta_lat / num_steps_lat]
+
+            tile_geometry = [nw_coord,
+                             [nw_coord[0], nw_coord[1] + delta_lat / num_steps_lat],
+                             [nw_coord[0] + delta_lon / num_steps_lon,
+                              nw_coord[1] + delta_lat / num_steps_lat],
+                             [nw_coord[0] + delta_lon / num_steps_lon, nw_coord[1]],
+                             nw_coord
+                            ]
+            patch_coords.append(shapely.geometry.Polygon(tile_geometry))
+
+    return patches, patch_coords
+
 class DescartesRun(object):
     """Class to manage bulk model prediction on the Descartes Labs platform.
 
@@ -313,7 +361,6 @@ class DescartesRun(object):
             self.product_id = f'earthrise:{product_id}'
         self.product_name = product_name if product_name else self.product_id
         self.nodata = nodata
-        self.product = self.init_product()
 
         self.model_name = model_name
         if model_file:
@@ -324,14 +371,28 @@ class DescartesRun(object):
         self.spectrogram_interval = spectrogram_interval
         self.spectrogram_length = self._get_gram_length()
 
+        self.product = self.init_product()
+
         self.input_bands = input_bands
 
     def init_product(self):
         """Create or get DL catalog product."""
-        product = dl.catalog.Product.get_or_create(id=self.product_id,
-                                                   name=self.product_name)
-        product.save()
-        print(f'Got product {self.product_id}')
+        fc_ids = [fc.id for fc in dl.vectors.FeatureCollection.list()]
+        product_id = None
+        for fc in fc_ids:
+            if self.product_id in fc:
+                product_id = fc
+
+        if not product_id:
+            print("Creating product", self.product_id)
+            product = dl.vectors.FeatureCollection.create(product_id=self.product_id,
+                                                          title=self.product_name,
+                                                          description=self.model_name)
+        else:
+            print(f"Product {self.product_id} already exists...")
+            product = dl.vectors.FeatureCollection(product_id)
+        #dl.vectors.FeatureCollection(fc).delete()
+
         return product
 
     def reset_bands(self):
@@ -377,23 +438,47 @@ class DescartesRun(object):
 
         Returns: None. (Uploads raster output to DL storage.)
         """
-        tile = dl.scenes.DLTile.from_key(dlkey)
+        s2_tile = dl.scenes.DLTile.from_key(dlkey)
 
         mosaics, raster_info = download_mosaics(
-            tile, start_date, end_date, self.mosaic_period, self.mosaic_method)
-        image_grams = n_gram(mosaics, self.spectrogram_interval)
+            s2_tile, start_date, end_date, self.mosaic_period, self.mosaic_method)
 
-        preds = [self.predict(gram) for gram in image_grams]
-        preds.append(mosaic(preds, 'median'))
-        preds = np.ma.stack(preds)
+        preds_stack = []
+        for tile in mosaics:
+            patches, patch_coords = patches_from_tile(tile, raster_info, self.model)
+            preds = self.model.predict(np.array(patches) / 3000)[:,1]
+            preds_stack.append(preds)
 
-        self.band_names = get_starts(
-            start_date, end_date, self.mosaic_period, self.spectrogram_length)
-        self.band_names.append('median')
-        for band_name in self.band_names:
-            self.add_band(band_name)
-        self.upload_raster(
-            preds, next(iter(raster_info)), dlkey.replace(':', '_'))
+
+        feature_list = []
+        for coords, preds in zip(patch_coords, np.array(preds_stack).T):
+            geometry = shapely.geometry.mapping(coords)
+            properties = {
+                'mean': np.mean(preds, axis=0).astype('float'),
+                'median': np.median(preds, axis=0).astype('float'),
+                'min': np.min(preds, axis=0).astype('float'),
+                'max': np.max(preds, axis=0).astype('float'),
+                'std': np.std(preds, axis=0).astype('float'),
+            }
+            if properties['mean'] > 0.01:
+                feature_list.append(dl.vectors.Feature(geometry = geometry, properties = properties))
+        print(len(feature_list), 'features generated')
+        if len(feature_list) > 0:
+            self.product.add(feature_list)
+
+        """
+        pred_dict = {
+            'mean': np.mean(preds_stack, axis=0),
+            'median': np.median(preds_stack, axis=0),
+            'min': np.min(preds_stack, axis=0),
+            'max': np.max(preds_stack, axis=0),
+            'std': np.std(preds_stack, axis=0),
+            'geometry': patch_coords
+        }
+        gdf = gpd.GeoDataFrame(pred_dict)
+        gdf.to_file('output.geojson', driver='GeoJSON')
+        self.product.upload('output.geojson')
+        """
 
     def predict(self, image_gram):
         """Predict on image-mosaic spectrograms."""
