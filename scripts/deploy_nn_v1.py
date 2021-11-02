@@ -13,7 +13,7 @@ DL_SYSTEM_PARAMS = {
     'cpus': 1,
     'maximum_concurrency': 60,
     'memory': '24Gi',
-    'retry_count': 2,
+    'retry_count': 4,
     'task_timeout': 20000,
     'include_modules': ['scripts.dl_utils']
 }
@@ -45,10 +45,10 @@ def main(*args):
                         type=str,
                         help='GeoJSON file with ROI to deploy over',
                         default='../data/bali.json')
-    parser.add_argument('--product_id',
+    parser.add_argument('--patch_product_id',
                         type=str,
                         help='ID of catalog product',
-                        default='earthrise:tpa_nn_toa')
+                        default='')
     parser.add_argument('--product_name',
                         type=str,
                         help='Name of catalog product',
@@ -60,14 +60,19 @@ def main(*args):
     parser.add_argument('--pad',
                         type=int,
                         help='Padding in pixels',
-                        default=0)
-    parser.add_argument('--model_file',
+                        default=16)
+    parser.add_argument('--patch_model_file',
                         type=str,
                         help='Local path to model file to upload',
                         default='')
-    parser.add_argument('--model_name',
+    parser.add_argument('--patch_model_name',
                         type=str,
-                        help='Model name in DL Storage')
+                        help='Model name in DL Storage',
+                        default='')
+    parser.add_argument('--patch_stride',
+                        type=int,
+                        help='Stride width in pixels for patch classifier',
+                        default=None)
     parser.add_argument('--mosaic_period',
                         type=int,
                         help='Months over which to mosaic image data',
