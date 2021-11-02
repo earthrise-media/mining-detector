@@ -5,10 +5,9 @@ import os
 
 import descarteslabs as dl
 from dateutil.relativedelta import relativedelta
-import geopandas as gpd
 import numpy as np
+from scipy.stats import mode
 import shapely
-from shapely.geometry import Polygon
 from tensorflow import keras
 
 SENTINEL_BANDS = ['coastal-aerosol',
@@ -37,7 +36,8 @@ def rect_from_point(coord, rect_height):
     lon, lat = coord
     lat_w = rect_height / 2
     lon_w = lat_w / np.cos(np.deg2rad(lat))
-    rect = shapely.geometry.box(lon - lon_w, lat - lat_w, lon + lon_w, lat + lat_w)
+    rect = shapely.geometry.mapping(shapely.geometry.box(
+        lon - lon_w, lat - lat_w, lon + lon_w, lat + lat_w))
     return rect
 
 def get_tiles_from_roi(roi_file, tilesize, pad):
@@ -63,7 +63,7 @@ def get_tiles_from_roi(roi_file, tilesize, pad):
     return all_keys
 
 def download_patch(polygon, start_date, end_date, s2_id='sentinel-2:L1C',
-                   s2cloud_id='sentinel-2:L1C:dlcloud:v1',):
+                   s2cloud_id='sentinel-2:L1C:dlcloud:v1'):
     """
     Download a stack of cloud-masked Sentinel data
     Inputs:
@@ -77,13 +77,15 @@ def download_patch(polygon, start_date, end_date, s2_id='sentinel-2:L1C',
         products=[s2cloud_id],
         start_datetime=start_date,
         end_datetime=end_date,
+        limit=None
     )
 
     scenes, geoctx = dl.scenes.search(
         polygon,
         products=[s2_id],
         start_datetime=start_date,
-        end_datetime=end_date
+        end_datetime=end_date,
+        limit=None
     )
 
     # select only scenes that have a cloud mask
@@ -107,12 +109,13 @@ def download_patch(polygon, start_date, end_date, s2_id='sentinel-2:L1C',
     img_stack.mask[cloud_masks.data == 0] = True
 
     # Remove fully masked images and reorder to channels last
+    # TODO: remove raster infor for fully masked images too
     img_stack = [np.moveaxis(img, 0, -1) for img in img_stack
                      if np.sum(img) > 0]
 
     return img_stack, raster_info
 
-def pad_patch(patch, width):
+def pad_patch(patch, height, width=None):
     """
     Depending on how a polygon falls across pixel boundaries, it can be slightly
     bigger or smaller than intended.
@@ -121,10 +124,18 @@ def pad_patch(patch, width):
     edge by reflecting the values.
     """
     h, w, c = patch.shape
-    if h < width or w < width:
-        patch = np.pad(patch, width - np.min([h, w]), mode='reflect')
-    patch = patch[int(np.floor((h - width) / 2)) : h - int(np.ceil((h - width) / 2)),
-                  int(np.floor((w - width) / 2)) : w - int(np.ceil((w - width) / 2)), :12]
+    if width:
+        if h < height:
+            patch = np.pad(patch, (height - h, 0), mode='reflect')
+        if w < width:
+            patch = np.pad(patch, (0, width - w), mode='reflect')
+        patch = patch[:height, :width, :12]
+    else:
+        if h < height or w < height:
+            print(width)
+            print(np.min([h, w]))
+            patch = np.pad(patch, height - np.min([h, w]), mode='reflect')
+        patch = patch[:height, :height, :12]
     return patch
 
 def download_batches(polygon, start_date, end_date, batch_months):
@@ -149,8 +160,10 @@ def download_batches(polygon, start_date, end_date, batch_months):
         except IndexError as e:
             print(f'Failed to retreive month {start.isoformat()}: {repr(e)}')
             batch, raster_info = [], []
-        batches.append(batch)
-        raster_infos.append(raster_info)
+        # Sometimes there are patches with no data. Ignore those
+        if len(np.shape(batch)) > 1:
+            batches.append(batch)
+            raster_infos.append(raster_info)
         start += delta
         end += delta
     return batches, raster_infos
@@ -182,6 +195,15 @@ def download_mosaics(polygon, start_date, end_date, mosaic_period=1,
     batches, raster_infos = download_batches(polygon, start_date, end_date,
                                                  mosaic_period)
     mosaics = [mosaic(batch, method) for batch in batches]
+    # There are cases where some patches are sized differently
+    # If that is the case, pad/clip them to the same shape
+    heights = [np.shape(img)[0] for img in mosaics]
+    widths = [np.shape(img)[1] for img in mosaics]
+    if len(np.unique(heights)) > 1 or len(np.unique(widths)) > 1:
+        h = mode(heights).mode[0]
+        w = mode(widths).mode[0]
+        mosaics = [np.ma.masked_array(pad_patch(img.data, h, w),
+                                        pad_patch(img.mask, h, w)) for img in mosaics]
     mosaic_info = [next(iter(r)) for r in raster_infos]
     return mosaics, mosaic_info
 
@@ -214,18 +236,26 @@ def mosaic(arrays, method):
 
     return reduced
 
-def pair(mosaics, interval=6):
+def pair(mosaics, interval=6, dates=None):
     """Pair image mosaics from a list.
 
     Args:
         mosaics: A list of masked arrays
         interval: Integer interval between mosaics, in number of mosaic periods
+        dates: Optional arg to return the dates of the pairs
 
     Returns: A list of lists of images.
     """
     pairs = [[a, b] for a, b in zip(mosaics, mosaics[interval:])
                   if a is not None and b is not None]
-    return pairs
+    if dates:
+        date_list = []
+        for date, a,b in zip(dates, mosaics, mosaics[interval:]):
+            if a is not None and b is not None:
+                date_list.append(date)
+        return pairs, date_list
+    else:
+        return pairs
 
 # WIP: Eventually we want to generalize from pairs to n-grams.
 # This is a placeholder in the name-space for an eventual maker of n_grams.
@@ -254,6 +284,35 @@ def shape_gram_as_pixels(gram):
 def normalize(x):
     return np.array(x) / NORMALIZATION
 
+def unit_norm_pixel(samples):
+    """
+    Channel-wise normalization of pixels in a vector.
+    Means and deviations are constants generated from an earlier dataset.
+    If changed, models will need to be retrained
+    Input: (12) numpy array or list.
+    Returns: normalized numpy array
+    """
+    means = [1367.8407, 1104.4116, 1026.8099, 856.1295, 1072.1476, 1880.3287, 2288.875, 2104.5999, 2508.7764, 305.3795, 1686.0194, 946.1319]
+    deviations = [249.14418, 317.69983, 340.8048, 467.8019, 390.11594, 529.972, 699.90826, 680.56006, 798.34937, 108.10846, 651.8683, 568.5347]
+    normalized_samples = ((samples - np.reshape(means, (1, 12, 1))) / (np.reshape(deviations, (1, 12, 1))))
+    return normalized_samples
+
+def unit_norm(samples):
+    """
+    Channel-wise normalization of pixels in a patch.
+    Means and deviations are constants generated from an earlier dataset.
+    If changed, models will need to be retrained
+    Input: (n,n,12) numpy array or list.
+    Returns: normalized numpy array
+    """
+    means = [1367.8407, 1104.4116, 1026.8099, 856.1295, 1072.1476, 1880.3287, 2288.875, 2104.5999, 2508.7764, 305.3795, 1686.0194, 946.1319]
+    deviations = [249.14418, 317.69983, 340.8048, 467.8019, 390.11594, 529.972, 699.90826, 680.56006, 798.34937, 108.10846, 651.8683, 568.5347]
+    normalized_samples = np.zeros_like(samples).astype('float32')
+    for i in range(0, 12):
+        #normalize each channel to global unit norm
+        normalized_samples[:,:,i] = (np.array(samples)[:,:,i] - means[i]) / deviations[i]
+    return normalized_samples
+
 # WIP: needs to be generalized pairs -> grams
 def preds_to_image(preds, input_pair):
     """Reshape and mask spectrogram model predictions."""
@@ -263,15 +322,40 @@ def preds_to_image(preds, input_pair):
     mask = channel00.mask | channel10.mask | np.isnan(img)
     return np.ma.array(img, mask=mask)
 
-def predict_spectrogram(image_gram, model):
+def predict_spectrogram(image_gram, model, unit_norm=False):
     """Run a spectrogram model on a pair of images."""
     pixels = shape_gram_as_pixels(image_gram)
-    input_array = np.expand_dims(normalize(pixels), -1)
+    if unit_norm:
+        input_array = np.expand_dims(unit_norm_pixel(pixels), -1)
+    else:
+        input_array = np.expand_dims(normalize(pixels), -1)
     preds = model.predict(input_array)[:,1]
     output_img = preds_to_image(preds, image_gram)
     return output_img
 
-def patches_from_tile(tile, raster_info, model):
+def load_ensemble(folder_path):
+    """Load all models in a directory. Outputs a list of models"""
+    model_files = [file for file in os.listdir(folder_path) if '.h5' in file]
+    model_list = []
+    for file in model_files:
+        model_list.append(keras.models.load_model(os.path.join(folder_path,file)))
+    return model_list
+
+def predict_ensemble(pairs, model_list, method='median'):
+    """Given a list of models and list of pairs, output a combined prediction output"""
+    ensemble_preds = []
+    for pair in pairs:
+        pred_stack = []
+        for ensemble_model in model_list:
+            pred_stack.append(predict_spectrogram(pair, ensemble_model, unit_norm=True))
+        if method == 'median':
+            ensemble_preds.append(np.median(pred_stack, axis=0))
+        if method == 'mean':
+            ensemble_preds.append(np.mean(pred_stack, axis=0))
+    return ensemble_preds
+
+
+def patches_from_tile(tile, raster_info, width, stride):
     """
     Break a larger tile of Sentinel data into a set of patches that
     a model can process.
@@ -279,6 +363,7 @@ def patches_from_tile(tile, raster_info, model):
         - tile: Sentinel data. Typically a numpy masked array
         - raster_info: Descartes metadata for the tile
         - model: keras model
+        - stride: number of pixels between each patch
     Outputs:
         - patches: A list of numpy arrays of the shape the model requires
         - patch_coords: A list of shapely polygon features describing the patch bounds
@@ -286,34 +371,32 @@ def patches_from_tile(tile, raster_info, model):
     patch_coords = raster_info[0]['wgs84Extent']['coordinates'][0]
     delta_lon = patch_coords[2][0] - patch_coords[0][0]
     delta_lat = patch_coords[1][1] - patch_coords[0][1]
+    lon_degrees_per_pixel = delta_lon / np.shape(tile)[0]
+    lat_degrees_per_pixel = delta_lat / np.shape(tile)[1]
     top_left = patch_coords[0]
 
     # The tile is broken into the number of whole patches
     # Regions extending beyond will not be padded and processed
-    _, model_l, model_w, _ = model.input_shape
-    num_steps_lon = np.shape(tile)[0] // model_l
-    num_steps_lat = np.shape(tile)[1] // model_w
-
     patch_coords = []
     patches = []
-    for i in range(num_steps_lon):
-        for j in range(num_steps_lat):
-            patch = tile[j * model_l : model_l + j * model_l,
-                         i * model_w : model_l + i * model_w]
+
+    # Extract patches and create a shapely polygon for each patch
+    for i in range(0, np.shape(tile)[0] - width, stride):
+        for j in range(0, np.shape(tile)[1] - width, stride):
+            patch = tile[j : j + width,
+                         i : i + width]
             patches.append(patch)
 
-            nw_coord = [top_left[0] + i * delta_lon / num_steps_lon,
-                        top_left[1] + j * delta_lat / num_steps_lat]
-
-            tile_geometry = [nw_coord,
-                             [nw_coord[0], nw_coord[1] + delta_lat / num_steps_lat],
-                             [nw_coord[0] + delta_lon / num_steps_lon,
-                              nw_coord[1] + delta_lat / num_steps_lat],
-                             [nw_coord[0] + delta_lon / num_steps_lon, nw_coord[1]],
-                             nw_coord
-                            ]
+            nw_coord = [top_left[0] + i * lon_degrees_per_pixel,
+                        top_left[1] + j * lat_degrees_per_pixel]
+            ne_coord = [top_left[0] + (i + width) * lon_degrees_per_pixel,
+                        top_left[1] + j * lat_degrees_per_pixel]
+            sw_coord = [top_left[0] + i * lon_degrees_per_pixel,
+                        top_left[1] + (j + width) * lat_degrees_per_pixel]
+            se_coord = [top_left[0] + (i + width) * lon_degrees_per_pixel,
+                        top_left[1] + (j + width) * lat_degrees_per_pixel]
+            tile_geometry = [nw_coord, sw_coord, se_coord, ne_coord, nw_coord]
             patch_coords.append(shapely.geometry.Polygon(tile_geometry))
-
     return patches, patch_coords
 
 class DescartesRun(object):
@@ -335,7 +418,7 @@ class DescartesRun(object):
         input_bands: List of DL names identifying Sentinel bands
 
     External methods:
-        init_prodcut: Create or get DL catalog product with specified bands.
+        init_product: Create or get DL catalog product with specified bands.
         reset_bands: Delete existing output bands.
         upload_model: Upload model to DL storage.
         init_model: Instantiate model from DL storage.
@@ -345,81 +428,86 @@ class DescartesRun(object):
         upload_raster: Upload a raster to DL storage.
     """
     def __init__(self,
-                 product_id,
-                 model_name,
+                 patch_product_id,
                  product_name='',
-                 model_file='',
+                 patch_model_file='',
+                 patch_model_name='',
+                 patch_stride=None,
                  mosaic_period=1,
                  mosaic_method='min',
-                 spectrogram_interval=6,
                  nodata=-1,
                  input_bands=SENTINEL_BANDS,
                  **kwargs):
-        if product_id.startswith('earthrise:'):
-            self.product_id = product_id
+
+        if patch_product_id.startswith('earthrise:'):
+            self.patch_product_id = patch_product_id
         else:
-            self.product_id = f'earthrise:{product_id}'
+            self.patch_product_id = f'earthrise:{patch_product_id}'
         self.product_name = product_name if product_name else self.product_id
         self.nodata = nodata
 
-        self.model_name = model_name
-        if model_file:
-            self.upload_model(model_file)
-        self.model = self.init_model()
+        self.patch_model_name = patch_model_name
+        self.upload_patch_model(patch_model_file)
+        self.patch_model = self.init_patch_model()
+        self.patch_product = self.init_patch_product()
+        if patch_stride:
+            self.patch_stride = patch_stride
+        else:
+            self.patch_stride = self.patch_model.input_shape[1]
+
         self.mosaic_period = mosaic_period
         self.mosaic_method = mosaic_method
-        self.spectrogram_interval = spectrogram_interval
-        self.spectrogram_length = self._get_gram_length()
-
-        self.product = self.init_product()
 
         self.input_bands = input_bands
 
-    def init_product(self):
+    def init_patch_product(self):
         """Create or get DL catalog product."""
         fc_ids = [fc.id for fc in dl.vectors.FeatureCollection.list()]
         product_id = None
         for fc in fc_ids:
-            if self.product_id in fc:
+            if self.patch_product_id in fc:
                 product_id = fc
 
         if not product_id:
-            print("Creating product", self.product_id)
-            product = dl.vectors.FeatureCollection.create(product_id=self.product_id,
-                                                          title=self.product_name,
-                                                          description=self.model_name)
+            print("Creating product", self.patch_product_id + '_patches')
+            product = dl.vectors.FeatureCollection.create(product_id=self.patch_product_id + '_patches',
+                                                          title=self.product_name + '_patches',
+                                                          description=self.patch_model_name)
         else:
-            print(f"Product {self.product_id} already exists...")
+            print(f"Product {self.patch_product_id}_patches already exists...")
             product = dl.vectors.FeatureCollection(product_id)
-        #dl.vectors.FeatureCollection(fc).delete()
-
         return product
 
-    def reset_bands(self):
-        """Delete existing output bands.
 
-        It is probably best to avoid reusing product_ids with different
-        input parameters. Calling this function manually would avoid confusion
-        in that case.
-        """
-        for band in self.product.bands():
-            band.delete()
-
-    def upload_model(self, model_file):
+    def upload_patch_model(self, patch_model_file):
         """Upload model to DL storage."""
-        if dl.Storage().exists(self.model_name):
-            print(f'Model {self.model_name} found in DLStorage.')
+        if dl.Storage().exists(self.patch_model_name):
+            print(f'Model {self.patch_model_name} found in DLStorage.')
         else:
-            dl.Storage().set_file(self.model_name, model_file)
-            print(f'Model {model_file} uploaded with key {self.model_name}.')
+            dl.Storage().set_file(self.patch_model_name, patch_model_file)
+            print(f'Model {patch_model_file} uploaded with key {self.patch_model_name}.')
 
     def init_model(self):
         """Instantiate model from DL storage."""
         temp_file = 'tmp-' + self.model_name
         dl.Storage().get_file(self.model_name, temp_file)
-        model = keras.models.load_model(temp_file)
+        model = keras.models.load_model(temp_file, custom_objects={'LeakyReLU': keras.layers.LeakyReLU,
+                                                                         'ELU': keras.layers.ELU,
+                                                                         'ReLU': keras.layers.ReLU
+                                                                         })
         os.remove(temp_file)
         return model
+
+    def init_patch_model(self):
+        """Instantiate model from DL storage."""
+        temp_file = 'tmp-' + self.patch_model_name
+        dl.Storage().get_file(self.patch_model_name, temp_file)
+        patch_model = keras.models.load_model(temp_file, custom_objects={'LeakyReLU': keras.layers.LeakyReLU,
+                                                                         'ELU': keras.layers.ELU,
+                                                                         'ReLU': keras.layers.ReLU
+                                                                         })
+        os.remove(temp_file)
+        return patch_model
 
     def _get_gram_length(self):
         """Compute the length of the spectrogram in months."""
@@ -438,51 +526,83 @@ class DescartesRun(object):
 
         Returns: None. (Uploads raster output to DL storage.)
         """
-        s2_tile = dl.scenes.DLTile.from_key(dlkey)
-
+        tile = dl.scenes.DLTile.from_key(dlkey)
         mosaics, raster_info = download_mosaics(
-            s2_tile, start_date, end_date, self.mosaic_period, self.mosaic_method)
+            tile, start_date, end_date, self.mosaic_period, self.mosaic_method)
 
-        preds_stack = []
-        for tile in mosaics:
-            patches, patch_coords = patches_from_tile(tile, raster_info, self.model)
-            preds = self.model.predict(np.array(patches) / 3000)[:,1]
-            preds_stack.append(preds)
+        # Spatial patch classifier prediction
 
+        # Generate a list of coordinates for the patches within the tile
+        _, patch_coords = patches_from_tile(mosaics[0], raster_info, self.patch_model.input_shape[2], self.patch_stride)
 
+        # Initialize a dictionary where the patch coordinate boundaries are the keys
+        # Each value is an empty list where predictions will be appended
+        pred_dict = {tuple(coord.bounds): [] for coord in patch_coords}
+
+        # Set a threshold for acceptable cloudiness within a patch for a prediction to be valid
+        patch_cloud_threshold = 0.1
+        input_h = self.patch_model.input_shape[1]
+        input_w = self.patch_model.input_shape[2]
+
+        for image in mosaics:
+            # generate patches for first image in pair
+            print("image shape", image.shape)
+            patches, _ = patches_from_tile(image, raster_info, input_h, self.patch_stride)
+
+            patch_stack = []
+            cloud_free = []
+            for patch in patches:
+                model_input = pad_patch(patch.filled(0), input_h, input_w)
+                patch_stack.append(np.clip(normalize(model_input), 0, 1))
+
+                # Evaluate whether both patches in a sample are below cloud limit
+                cloudiness = np.sum(patch.mask) / np.size(patch.mask)
+                if cloudiness < patch_cloud_threshold:
+                    cloud_free.append(True)
+                else:
+                    cloud_free.append(False)
+
+            preds = self.patch_model.predict(np.array(patch_stack))[:,1]
+
+            # If patches were cloud free, append the prediction to the dictionary
+            for coord, pred, cloud_bool in zip(patch_coords, preds, cloud_free):
+                if  cloud_bool == True:
+                    pred_dict[tuple(coord.bounds)].append(pred)
+
+        # Create dictionary for outputs.
+        # In the future, patch classifier outputs should be a geotiff instead of geojson
         feature_list = []
-        for coords, preds in zip(patch_coords, np.array(preds_stack).T):
+        for coords, key in zip(patch_coords, pred_dict):
+            preds = [round(pred, 4) for pred in pred_dict[key]]
             geometry = shapely.geometry.mapping(coords)
-            properties = {
-                'mean': np.mean(preds, axis=0).astype('float'),
-                'median': np.median(preds, axis=0).astype('float'),
-                'min': np.min(preds, axis=0).astype('float'),
-                'max': np.max(preds, axis=0).astype('float'),
-                'std': np.std(preds, axis=0).astype('float'),
-            }
-            if properties['mean'] > 0.01:
+            if len(preds) > 0:
+                properties = {
+                    'mean': np.mean(preds, axis=0).astype('float'),
+                    'median': np.median(preds, axis=0).astype('float'),
+                    'min': np.min(preds, axis=0).astype('float'),
+                    'max': np.max(preds, axis=0).astype('float'),
+                    'std': np.std(preds, axis=0).astype('float'),
+                    'count': np.shape(preds)[0],
+                }
+            else:
+                properties = {
+                    'mean': -1,
+                    'median': -1,
+                    'min': -1,
+                    'max': -1,
+                    'std': -1,
+                    'count': np.shape(preds)[0],
+                }
+            # only save outputs that are above a threshold
+            if properties['mean'] > 0.5:
                 feature_list.append(dl.vectors.Feature(geometry = geometry, properties = properties))
         print(len(feature_list), 'features generated')
         if len(feature_list) > 0:
-            self.product.add(feature_list)
-
-        """
-        pred_dict = {
-            'mean': np.mean(preds_stack, axis=0),
-            'median': np.median(preds_stack, axis=0),
-            'min': np.min(preds_stack, axis=0),
-            'max': np.max(preds_stack, axis=0),
-            'std': np.std(preds_stack, axis=0),
-            'geometry': patch_coords
-        }
-        gdf = gpd.GeoDataFrame(pred_dict)
-        gdf.to_file('output.geojson', driver='GeoJSON')
-        self.product.upload('output.geojson')
-        """
+            self.patch_product.add(feature_list)
 
     def predict(self, image_gram):
         """Predict on image-mosaic spectrograms."""
-        return predict_spectrogram(image_gram, self.model)
+        return predict_spectrogram(image_gram, self.model, unit_norm=False)
 
     def add_band(self, band_name):
         """Create a band in the DL product."""
