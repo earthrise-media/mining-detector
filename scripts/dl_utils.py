@@ -138,6 +138,19 @@ def pad_patch(patch, height, width=None):
         patch = patch[:height, :height, :12]
     return patch
 
+def trim_patch(patch, height, width=None):
+    """
+    Depending on how a polygon falls across pixel boundaries, it can be slightly
+    bigger or smaller than intended.
+    pad_patch trims pixels extending beyond the desired number of pixels if the
+    patch is larger than desired. If the patch is smaller, it will fill the
+    edge by reflecting the values.
+    """
+    h, w, c = patch.shape
+    margin = int(np.floor((h - height) / 2))
+    trimmed = patch[margin:margin+height, margin:margin+height]
+    return trimmed
+
 def download_batches(polygon, start_date, end_date, batch_months):
     """Download cloud-masked Sentinel imagery in time-interval batches.
 
@@ -305,8 +318,8 @@ def unit_norm(samples):
     Input: (n,n,12) numpy array or list.
     Returns: normalized numpy array
     """
-    means = [1367.8407, 1104.4116, 1026.8099, 856.1295, 1072.1476, 1880.3287, 2288.875, 2104.5999, 2508.7764, 305.3795, 1686.0194, 946.1319]
-    deviations = [249.14418, 317.69983, 340.8048, 467.8019, 390.11594, 529.972, 699.90826, 680.56006, 798.34937, 108.10846, 651.8683, 568.5347]
+    means = [1405.8951, 1175.9235, 1172.4902, 1091.9574, 1321.1304, 2181.5363, 2670.2361, 2491.2354, 2948.3846, 420.1552, 2028.0025, 1076.2417]
+    deviations = [291.9438, 398.5558, 504.557, 748.6153, 651.8549, 730.9811, 913.6062, 893.9428, 1055.297, 225.2153, 970.1915, 752.8637]
     normalized_samples = np.zeros_like(samples).astype('float32')
     for i in range(0, 12):
         #normalize each channel to global unit norm
@@ -553,7 +566,8 @@ class DescartesRun(object):
             cloud_free = []
             for patch in patches:
                 model_input = pad_patch(patch.filled(0), input_h, input_w)
-                patch_stack.append(np.clip(normalize(model_input), 0, 1))
+                #patch_stack.append(np.clip(normalize(model_input), 0, 1))
+                patch_stack.append(unit_norm(model_input))
 
                 # Evaluate whether both patches in a sample are below cloud limit
                 cloudiness = np.sum(patch.mask) / np.size(patch.mask)
