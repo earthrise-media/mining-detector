@@ -9,9 +9,11 @@ The system works by taking a 440 m² patch of data from the [Sentinel 2 L1C prod
 ## Results
 The primary output of this work is a map of likely mining locations in the Amazon basin assessed in 2020. This analysis evaluated more than 200 billion pixels and made more than 326 million neural network classifications to cover the 6.7 million square kilometers of the Amazon basin.
 
-Users should be aware of the following limitations:
+#### Users should be aware of the following limitations:
 
 Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is not current, thus some regions classified as containing mines will not appear to have mining activity in the imagery. See example below. Regions in question can be assessed by viewing recent [Sentinel 2 imagery on SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR), or Planetscope data accessible through the [Planet NICFI program](https://www.planet.com/nicfi/).
+![mining-imagery-comparison](https://user-images.githubusercontent.com/13071901/146989519-d1e537c4-7d70-438d-b4a5-06b2a41a8482.jpg)
+
 
 The results can be visualized on the [2020 Map of Mining in the Amazon Basin]() and the data can be downloaded in GeoJSON form from the [2020 Mining in the Amazon basin dataset]().
 
