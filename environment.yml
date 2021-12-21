@@ -1,0 +1,17 @@
+name: mining-detector
+channels:
+  - conda-forge
+dependencies:
+  - pandas==1.2.5
+  - geopandas
+  - matplotlib
+  - pandas
+  - tensorflow
+  - tqdm
+  - ipywidgets
+  - ipython_genutils
+  - jupyterlab_widgets
+  - pip
+  - scikit-learn
+  - pip:
+    - descarteslabs==1.7.1
