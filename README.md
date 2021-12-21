@@ -25,9 +25,7 @@ source ~/miniforge3/bin/activate
 
 Next, create a conda environment named `mining-detector` by running `conda env create -f environment.yml` from the repo root directory. Activate the environment by running `conda activate mining-detector`. Code has been developed and tested on a Mac with python version 3.9.7. Other platforms and python releases may work, but have not yet been tested.
 
-Install dependencies 
-
-If desired, the data used for model training may be accessed on s3 at `s3://mining-data.earthrise.media`.
+If desired, the data used for model training may be accessed and downloaded from s3 at `s3://mining-data.earthrise.media`.
 
 ## Notebooks
 The system runs from three core notebooks. 
@@ -55,4 +53,4 @@ The models directory contains keras neural network models saved as `.h5` files. 
 The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall. However, different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on RGB and RGB+IR data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
 
 ## Docs
-This directory does not store docs. Instead, it hosts .html files for repos github repos site. 
+This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at [https://earthrise-media.github.io/mining-detector/{file_name}.html](https://earthrise-media.github.io/mining-detector/amazon-v2.4.html).
