@@ -2,6 +2,21 @@
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 ![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)
 
+This repo contains the models, code, and outputs created for the automated detection of gold mining in the Amazon rainforest using satellite imagery.
+
+The system works by taking a 440 m² patch of data from the [Sentinel 2 L1C product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). A neural network then analyzes the patch, assessing whether recent mining activity is seen within the tile. The region of interest is shifted by 140 m, and the network makes another classification. This process is repeated to cover the entire region of interest, producing a database of likely mining locations. This system was developed for use in the Amazon, though it has also been seen to work in other tropical biomes.
+
+## Results
+The primary output of this work is a map of likely mining locations in the Amazon basin assessed in 2020. This analysis evaluated more than 200 billion pixels and made more than 326 million neural network classifications to cover the 6.7 million square kilometers of the Amazon basin.
+
+Users should be aware of the following limitations:
+
+Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is not current, thus some regions classified as containing mines will not appear to have mining activity in the imagery. See example below. Regions in question can be assessed by viewing recent [Sentinel 2 imagery on SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR), or Planetscope data accessible through the [Planet NICFI program](https://www.planet.com/nicfi/).
+
+The results can be visualized on the [2020 Map of Mining in the Amazon Basin]() and the data can be downloaded in GeoJSON form from the [2020 Mining in the Amazon basin dataset]().
+
+
+
 
 ## Setup
 
