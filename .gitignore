@@ -2,7 +2,9 @@
 */.DS_Store
 .ipynb_checkpoints
 __pycache__/
-data
+data/training_data
+data/outputs
+data/old
 notebooks/scratch_paper
 figures
-outputs
+models/old
