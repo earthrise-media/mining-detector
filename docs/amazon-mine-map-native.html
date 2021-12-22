@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Amazon Mine Map - 2020</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js'></script>
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css' rel='stylesheet' />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id='map' style='width: 100vw; height: 100vh;'></div>
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoiZWFydGhyaXNlIiwiYSI6ImNqeDExNmtrZzAwM2E0OW16eHZ1dzg1eWEifQ.8LTFXyY-n7OsZOoWN9ONPQ';
+    const map = new mapboxgl.Map({
+        container: 'map', // container ID
+        style: 'mapbox://styles/earthrise/ckxht1jfm2h9k15m7wrv5wz5w', // style URL
+        center: [-62.8, -4.5], // starting position [lng, lat]
+        zoom: 4.5, // starting zoom
+        projection: {
+          name: 'naturalEarth',
+          center: [183, 40],
+          parallels: [30, 30]
+        }
+    });
+    map.on('load', function() {
+      map.addSource('mining-data', {
+        type: 'geojson',
+        data: 'https://earthrise-media.github.io/mining-detector/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson'
+      });
+      map.addLayer(
+        {
+        'id': 'mining-stroke',
+        'type': 'line',
+        'source': 'mining-data',
+        'layout': {},
+        'minzoom': 0,
+        'paint': {
+          'line-color': '#ffce01',
+          'line-opacity': 1.0,
+          'line-width': 1,
+        }
+      });
+    });
+  </script>
+</body>
+</html>
