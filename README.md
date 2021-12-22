@@ -18,7 +18,7 @@ Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is n
 
 **Model Accuracy**
 
-In order to run across the full breadth of the Amazon basin, the model's sensitivity and precision have been reduced in order to improve generalization. This means that the model outputs have some false positives (mining classification where none is present) and false negatives (mines that are rejected by the model). Common false negative failure modes include older mining sites that may be inactive, and edges of active mining regions. False positives can at times be triggered by natural sedimented pools, manmade water bodies, and natural earth-scarring activities such as landslides.
+In order to run across the full breadth of the Amazon basin, the model's sensitivity and precision have been reduced in order to improve generalization. This means that the model outputs have some false positives (mining classification where none is present) and false negatives (mines that are rejected by the model). Common false negative failure modes include older mining sites that may be inactive, and edges of active mining regions. False positives can at times be triggered by natural sedimented pools, man made water bodies, and natural earth-scarring activities such as landslides.
 
 The aggregate assessment of mining status should be trusted, but users should attempt to validate results by eye if precise claims of mined regions are needed. The vast majority of classifications are correct, but we cannot validate each of the detections by hand. Given that mining often happens in clusters, isolated detections of mining should be validated more rigorously for false positives.
 
@@ -41,19 +41,23 @@ Mining location assessment for the full [Amazon basin](data/boundaries/amazon_ba
 * [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
-We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](models/28_px_v9.h5).
+We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
-* [Map with a lower resolution basemap generated from recent Landsat passes](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
+* [Map with a more recent Landsat basemap at lower resolution](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
 * [Tapajos mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
 
 ### 2020 Bolivar and Amazonas Hand Validated
+We analyzed and hand validated the outputs for the Venezuelan states of Bolivar and Amazonas. This map should not contain false positive sites, though may contain false negatives. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
+* [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
+* [Dataset of detections - Bolivar](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
+* [Dataset of detections - Amazonas](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
 
+## Running the Code
+This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. Though the system could be ported to open platforms, creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform.
 
-
-
-## Setup
+### Setup
 
 Download and install [Miniforge Conda env](https://github.com/conda-forge/miniforge/) if not already installed:
 
@@ -77,10 +81,8 @@ Next, create a conda environment named `mining-detector` by running `conda env c
 
 If desired, the data used for model training may be accessed and downloaded from s3 at `s3://mining-data.earthrise.media`.
 
-## Notebooks
+### Notebooks
 The system runs from three core notebooks. 
-
-As described previously, creating datasets and deploying the model require access to the [Descartes Labs](https://descarteslabs.com/) platform.
 
 #### `create_dataset.ipynb` (requires Descartes Labs access)
 Given a GeoJSON file of sampling locations, generate a dataset of Sentinel 2 images. Dataset is stored as a pickled list of numpy arrays.
@@ -91,16 +93,16 @@ Train a neural network based on the images stored in the `data/training_data/` d
 #### `deploy_model.ipynb` (requires Descartes Labs access)
 Given a model file and a GeoJSON describing a region of interest, run the model and download the results. Options exist to deploy the model on a directory of ROI files.
 
-## Data
+### Data
 The data directory contains two directories.
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
 - `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. Datasets in this directory should be considered "confirmed," and positive/negative class should be indicated in the file's title.
 - `data/outputs` will be populated with results from `deploy_model.ipynb` in a folder corresponding to the model version used in the run. By default, it is populated with GeoJSON files from our runs and analyses.
 
-## Models
+### Models
 The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on the test dataset.
 
-The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall. However, different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on RGB and RGB+IR data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
+The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on RGB and RGB+IR data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
 
-## Docs
+### Docs
 This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at [https://earthrise-media.github.io/mining-detector/{file_name}.html](https://earthrise-media.github.io/mining-detector/amazon-v2.4.html).
