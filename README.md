@@ -35,17 +35,17 @@ Building a segmentation model that operates on detected regions is a viable exte
 
 ## Results
 ### 2020 Amazon Basin Mining
-Mining location assessment for the full [Amazon basin](amazon_basin.geojson) in 2020. The [44px_v2.6_2021-11-09 model](44px_v2.6_2021-11-09.h5) was used for this analysis.
+Mining location assessment for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px_v2.6_2021-11-09 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
 
 * [2020 Map of Mining in the Amazon Basin](earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
-* [Amazon basin mining dataset (GeoJSON)](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
+* [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
-We have analyzed the [Tapajos basin region](tapajos_basin.geojson) yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](28_px_v9.h5).
+We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](models/28_px_v9.h5).
 
 * [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
 * [Map with a lower resolution basemap generated from recent Landsat passes](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
-* [Tapajos mining progression dataset (GeoJSON)](28_px_tapajos_2016-2020_thresh_0.5.geojson)
+* [Tapajos mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
 
 ### 2020 Bolivar and Amazonas Hand Validated
 
