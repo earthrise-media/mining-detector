@@ -20,23 +20,35 @@ Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is n
 
 In order to run across the full breadth of the Amazon basin, the model's sensitivity and precision have been reduced in order to improve generalization. This means that the model outputs have some false positives (mining classification where none is present) and false negatives (mines that are rejected by the model). Common false negative failure modes include older mining sites that may be inactive, and edges of active mining regions. False positives can at times be triggered by natural sedimented pools, manmade water bodies, and natural earth-scarring activities such as landslides.
 
-The aggregate assessment of mining status should be trusted, but users should attempt to validate results by eye if precise claims of mined regions are needed. Additionally, there are a few regions that we could not assess mining activity by eye in high resolution satellite imagery. We have decided to leave these regions in the output data and maps.
+The aggregate assessment of mining status should be trusted, but users should attempt to validate results by eye if precise claims of mined regions are needed. The vast majority of classifications are correct, but we cannot validate each of the detections by hand. Given that mining often happens in clusters, isolated detections of mining should be validated more rigorously for false positives.
+
+Additionally, there are a few regions that we could not assess mining activity by eye in high resolution satellite imagery. We have decided to leave these regions in the output data and maps.
 ![error types](https://user-images.githubusercontent.com/13071901/147019219-98c518fb-72d1-4e35-bf32-9fe058b5d6eb.jpg)
 
 
 **Area Overestimation**
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m² patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries.Because the polygon area overestimation is consistent, measuring relative year-to-year change is viable.
+The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m² patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Relative year-to-year change calculations are accurate since the polygon area overestimation is consistent.
+
+Building a segmentation model that operates on detected regions is a viable extension of this work.
 
 
 ## Results
 ### 2020 Amazon Basin Mining
-The results can be visualized on the [2020 Map of Mining in the Amazon Basin]() and the data can be downloaded in GeoJSON form from the [2020 Mining in the Amazon basin dataset](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
+Mining location assessment for the full [Amazon basin](amazon_basin.geojson) in 2020. The [44px_v2.6_2021-11-09 model](44px_v2.6_2021-11-09.h5) was used for this analysis.
+
+* [2020 Map of Mining in the Amazon Basin]() 
+* [Amazon basin mining dataset (GeoJSON)](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
-We have analyzed the Tapajos basin region 
+We have analyzed the [Tapajos basin region](tapajos_basin.geojson) yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](28_px_v9.h5).
 
-### 2020 Bolivar and Amazonas Validated Mining
+* [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
+* [Map with a lower resolution basemap generated from recent Landsat passes](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
+* [Tapajos mining progression dataset (GeoJSON)](28_px_tapajos_2016-2020_thresh_0.5.geojson)
+
+### 2020 Bolivar and Amazonas Hand Validated
+
 
 
 
