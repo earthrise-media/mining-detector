@@ -37,7 +37,7 @@ Building a segmentation model that operates on detected regions is a viable exte
 ### 2020 Amazon Basin Mining
 Mining location assessment for the full [Amazon basin](amazon_basin.geojson) in 2020. The [44px_v2.6_2021-11-09 model](44px_v2.6_2021-11-09.h5) was used for this analysis.
 
-* [2020 Map of Mining in the Amazon Basin]() 
+* [2020 Map of Mining in the Amazon Basin](earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [Amazon basin mining dataset (GeoJSON)](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
