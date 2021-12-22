@@ -26,9 +26,7 @@ The aggregate assessment of mining status should be trusted, but users should at
 
 **Area Overestimation**
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m² patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries.
-
-Because the polygon area estimation is consistent, measuring relative year-to-year change is a viable option.
+The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m² patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries.Because the polygon area overestimation is consistent, measuring relative year-to-year change is viable.
 
 
 ## Results
