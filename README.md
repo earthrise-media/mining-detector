@@ -41,7 +41,7 @@ Mining location assessment for the full [Amazon basin](amazon_basin.geojson) in 
 * [Amazon basin mining dataset (GeoJSON)](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
-We have analyzed the [Tapajos basin region](tapajos_basin.geojson) yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](28_px_v9.h5).
+We have analyzed the [Tapajos basin](tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the older [28px v9 model](28_px_v9.h5).
 
 * [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
 * [Map with a lower resolution basemap generated from recent Landsat passes](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
