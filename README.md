@@ -34,6 +34,7 @@ The goal of this work is mine detection rather than area estimation, and our cla
 The results can be visualized on the [2020 Map of Mining in the Amazon Basin]() and the data can be downloaded in GeoJSON form from the [2020 Mining in the Amazon basin dataset](mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
 ### 2016-2020 Tapajos Basin Mining Progression
+We have analyzed the Tapajos basin region 
 
 ### 2020 Bolivar and Amazonas Validated Mining
 
