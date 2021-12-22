@@ -9,9 +9,9 @@ The system works by taking a 440 m² patch of data from the [Sentinel 2 L1C prod
 ## Overview
 The primary output of this work is a map of likely mining locations in the Amazon basin assessed in 2020. This analysis evaluated more than 200 billion pixels and made more than 326 million neural network classifications to cover the 6.7 million square kilometers of the Amazon basin.
 
-#### Users should be aware of the following limitations:
+### Users should be aware of the following limitations:
 
-**Temporal Resolution**
+**Old Basemap Imagery**
 
 Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is not current, thus some regions classified as containing mines will not appear to have mining activity in the imagery. See example below. Regions in question can be assessed by viewing recent [Sentinel 2 imagery on SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR), or Planetscope data accessible through the [Planet NICFI program](https://www.planet.com/nicfi/).
 ![mining-imagery-comparison](https://user-images.githubusercontent.com/13071901/146989519-d1e537c4-7d70-438d-b4a5-06b2a41a8482.jpg)
@@ -34,27 +34,27 @@ Building a segmentation model that operates on detected regions is a viable exte
 
 
 ## Results
-### 2020 Amazon Basin Mining
-Mining location assessment for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
+### Assessement of Mining in the Amazon Basin in 2020
+Mining location analysis for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
 
 * [2020 Map of Mining in the Amazon Basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
-### 2016-2020 Tapajos Basin Mining Progression
+### Tapajos Basin Mining Progression 2016-2020 
 We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
 * [Map with a more recent Landsat basemap at lower resolution](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
 * [Tapajos mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
 
-### 2020 Bolivar and Amazonas Hand Validated
+### Hand Validated 2020 Bolivar and Amazonas Detections
 We analyzed and hand validated the outputs for the Venezuelan states of Bolivar and Amazonas. This map should not contain false positive sites, though may contain false negatives. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
 * [Dataset of detections - Bolivar (GeoJSON)](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
 * [Dataset of detections - Amazonas (GeoJSON)](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
 
-### Model generalization test in Ghana
+### Generalization Test in Ghana
 To test the model's ability to generalize to tropical geographies outside of the Amazon, we ran the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5) across the [Ashanti region of Ghana](data/boundaries/ghana_ashanti.geojson) in 2018 and 2020. 
 
 * [Map of detections in Ghana](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html)
