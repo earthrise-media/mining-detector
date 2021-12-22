@@ -34,27 +34,27 @@ Building a segmentation model that operates on detected regions is a viable exte
 
 
 ## Results
-### 2020 Amazon Basin Mining
-Mining location assessment for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
+### Assessement of Mining in the Amazon Basin in 2020
+Mining location analysis for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
 
 * [2020 Map of Mining in the Amazon Basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
-### 2016-2020 Tapajos Basin Mining Progression
+### Tapajos Basin Mining Progression 2016-2020 
 We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
 * [Map with a more recent Landsat basemap at lower resolution](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
 * [Tapajos mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
 
-### 2020 Bolivar and Amazonas Hand Validated
+### Hand Validated 2020 Bolivar and Amazonas Detections
 We analyzed and hand validated the outputs for the Venezuelan states of Bolivar and Amazonas. This map should not contain false positive sites, though may contain false negatives. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
 * [Dataset of detections - Bolivar (GeoJSON)](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
 * [Dataset of detections - Amazonas (GeoJSON)](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
 
-### Model generalization test in Ghana
+### Generalization Test in Ghana
 To test the model's ability to generalize to tropical geographies outside of the Amazon, we ran the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5) across the [Ashanti region of Ghana](data/boundaries/ghana_ashanti.geojson) in 2018 and 2020. 
 
 * [Map of detections in Ghana](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html)
