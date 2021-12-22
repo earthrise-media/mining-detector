@@ -35,7 +35,7 @@ Building a segmentation model that operates on detected regions is a viable exte
 
 ## Results
 ### 2020 Amazon Basin Mining
-Mining location assessment for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px_v2.6_2021-11-09 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
+Mining location assessment for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
 
 * [2020 Map of Mining in the Amazon Basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
@@ -53,6 +53,12 @@ We analyzed and hand validated the outputs for the Venezuelan states of Bolivar 
 * [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
 * [Dataset of detections - Bolivar (GeoJSON)](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
 * [Dataset of detections - Amazonas (GeoJSON)](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
+
+### Model generalization test in Ghana
+To test the model's ability to generalize to tropical geographies outside of the Amazon, we ran the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5) across the [Ashanti region of Ghana](data/boundaries/ghana_ashanti.geojson) in 2018 and 2020. 
+
+* [Map of detections in Ghana](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html)
+* [Ghanaian detections data (GeoJSON)](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson)
 
 ## Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. Though the system could be ported to open platforms, creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform.
@@ -102,7 +108,7 @@ The data directory contains two directories.
 ### Models
 The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on the test dataset.
 
-The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on RGB and RGB+IR data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
+The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on [RGB](44px_v2.6_rgb_2021-11-11.h5) and [RGB+IR](models/44px_v2.6_rgb_ir_2021-11-11.h5) data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
 
 ### Docs
 This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at [https://earthrise-media.github.io/mining-detector/{file_name}.html](https://earthrise-media.github.io/mining-detector/amazon-v2.4.html).
