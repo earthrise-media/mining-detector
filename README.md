@@ -51,8 +51,8 @@ We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) regi
 We analyzed and hand validated the outputs for the Venezuelan states of Bolivar and Amazonas. This map should not contain false positive sites, though may contain false negatives. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
-* [Dataset of detections - Bolivar](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
-* [Dataset of detections - Amazonas](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
+* [Dataset of detections - Bolivar (GeoJSON)](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson)
+* [Dataset of detections - Amazonas (GeoJSON)](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
 
 ## Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. Though the system could be ported to open platforms, creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform.
