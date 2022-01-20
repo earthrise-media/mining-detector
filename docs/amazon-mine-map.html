@@ -49,21 +49,21 @@ body { margin: 0; padding: 0; }
     border-radius: 8px;
     background-color: #dfdfdf;
 }
- 
+
 #menu a:last-child {
     border: none;
 }
- 
+
 #menu a:hover {
     background-color: #afcfe5;
     color: #404040;
 }
- 
+
 #menu a.active {
     background-color: #3887be;
     color: #ffffff;
 }
- 
+
 #menu a.active:hover {
     background: #3074a4;
 }
@@ -75,13 +75,13 @@ body { margin: 0; padding: 0; }
     <nav id="menu"></nav>
   </div>
   <script>
-  
+
     mapboxgl.accessToken = 'pk.eyJ1IjoiZWFydGhyaXNlIiwiYSI6ImNqeDExNmtrZzAwM2E0OW16eHZ1dzg1eWEifQ.8LTFXyY-n7OsZOoWN9ONPQ';
     const map = new mapboxgl.Map({
-        container: 'map', 
+        container: 'map',
         style: 'mapbox://styles/earthrise/ckxht1jfm2h9k15m7wrv5wz5w',
-        center: [-62.8, -4.5], 
-        zoom: 4.5, 
+        center: [-62.8, -4.5],
+        zoom: 4.5,
         projection: {
           name: 'naturalEarth',
           center: [183, 40],
@@ -123,7 +123,7 @@ body { margin: 0; padding: 0; }
       'Amazon Stroke'
       );
     });
-  
+
 var satLayerIds = {
   'Higher resolution': 'mapbox-satellite',
   'More recent': 'maptiler-layer'
@@ -156,14 +156,18 @@ satDefault.onclick = function (e) {
         satDefault.className = 'active';
         satOther.className = '';
         map.setLayoutProperty(satOther.idLayer, 'visibility', 'none');
-    } 
+        map.setLayoutProperty('BW Satellite', 'visibility', 'visible');
+        map.setPaintProperty('Amazon Hole', 'fill-opacity', 1.0);
+    }
 };
 satOther.onclick = function (e) {
     if (satOther.className != 'active') {
         satOther.className = 'active';
         satDefault.className = '';
         map.setLayoutProperty(satOther.idLayer, 'visibility', 'visible');
-    } 
+        map.setLayoutProperty('BW Satellite', 'visibility', 'none');
+        map.setPaintProperty('Amazon Hole', 'fill-opacity', 0.5);
+    }
 };
 
 
