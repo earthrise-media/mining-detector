@@ -1,6 +1,6 @@
-# Amazon Gold Mining
+# Amazon Gold Mining Detection and Map
 
-Code for the automated detection of gold mines in Sentinel-2 satellite imagery; a web map of gold mines in the Amazon rainforest; journalism tied to this work.
+Code for the automated detection of (largely illegal) artisanal gold mining in Sentinel-2 satellite imagery; a web map of gold mines in the Amazon rainforest; journalism tied to this work.
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
@@ -41,19 +41,16 @@ Building a segmentation model that operates on detected regions is a viable exte
 
 ![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
 
-* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), part of _InfoAmazonia_'s series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to recent sargassum seaweed blooms in the Caribbean.
+This work grew out of a series of collaborations with journalists seeking to expose illegal gold mining activity and document its impacts on the environment and local indigenous communities. At first, we found identified mines by sight in satellite imagery. Then we crowd-sourced image sleuthing with high school students. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine learned models followed from those early applications of human intelligence.
+
+Reports using the automated detection outputs: 
+* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/). The story is part of the _InfoAmazonia_ series, [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to  sargassum seaweed blooms in the Caribbean.
 * Forthcoming work with _ArmandoInfo_, _El Pais_, and the Pulitzer Center's Rainforest Investigation Network.
 
-This repository grew out of several years' collaboration with journalists to 
-
-The work in this repo grew out of several years' effort to identify illegal gold mining activity and 
-
-
-
-for which we identified mines by sight in satellite, grew our interinformed the creation of the training datasets in this repo.
-* [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), on illegal mining in protected Yanomami Ingigenous Territory, _Reuters_, 2019.
+Related reporting: 
+* [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), _Reuters_, 2019, on illegal mining in protected Yanomami Ingigenous Territory.
 * [Illegal mining sparks malaria outbreak in indigenous territories in Brazil](https://infoamazonia.org/en/2020/11/25/mineracao-ilegal-contribui-para-surto-de-malaria-em-terras-indigenas-no-para/), _InfoAmazonia_ and _Mongabay_, 2020.
-* [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/), on an irregular industrial gold mine which  _The Intercept_, 2021.
+* [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/),  _The Intercept_, 2021. Report on an industrial gold mine operating without environmental permits. Two weeks after the story appeared the mine was shut down and fined the equivalent of two million US dollars.
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
 
 ## Methodology
@@ -73,15 +70,15 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Tapajós basin mining progression, 2016-2020 
 
-[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). The output data appeared in the _InfoAmazonia_ [Tapajós pollution story](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/).
+[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). 
 
 #### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states in 2020
 
-[Venezuela mine map](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html), [Bolívar dataset](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas dataset](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson). Analysis via the [28px v9 model](models/28_px_v9.h5). 
+[Venezuela mine map](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html), [Bolívar dataset](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas dataset](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson). Analysis via the 28px v9 model. 
 
 #### Generalization Test in Ghana's Ashanti Region, 2018 and 2020
 
-[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5). 
+[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the 44px v2.8 model. 
  
 ### Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](WIP link), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
