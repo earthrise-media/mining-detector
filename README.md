@@ -1,13 +1,18 @@
-# Amazon Gold Mining Detector
+# Amazon Gold Mining Map
+
+Models and code for the automated detection of gold mines in Sentinel-2 satellite imagery; webmapped output of gold mines detected in the Amazon rainforest; links to journalism using this work. 
+
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
-![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)
+[![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
 
-This repo contains the models, code, and outputs created for the automated detection of gold mining in the Amazon rainforest using satellite imagery.
+* [**LAUNCH WEB MAP**](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
+* [**HOW TO INTERPRET THE MAP**](https://github.com/earthrise-media/mining-detector#interpreting-the-map)
+* [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
+* [**JOURNALISM**]
+  
+## Interpreting the map
 
-The system works by taking a 440 m² patch of data from the [Sentinel 2 L1C product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). A neural network then analyzes the patch, assessing whether recent mining activity is seen within the tile. The region of interest is shifted by 140 m, and the network makes another classification. This process is repeated to cover the entire region of interest, producing a database of likely mining locations. This system was developed for use in the Amazon, though it has also been seen to work in other tropical biomes.
 
-## Overview
-The primary output of this work is a map of likely mining locations in the Amazon basin assessed in 2020. This analysis evaluated more than 200 billion pixels and made more than 326 million neural network classifications to cover the 6.7 million square kilometers of the Amazon basin.
 
 ### Users should be aware of the following limitations:
 
@@ -32,22 +37,33 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 Building a segmentation model that operates on detected regions is a viable extension of this work.
 
+## Methodology
+
+The mine detector is a light-weight convolutional neural network, which we train to discrimate mines from other terrain in the Amazon basin by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 440 m x 440 m patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+
+During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 140 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 326 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
+
+The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
+
+See the discussion of the [code](https://github.com/earthrise-media/mining-detector#running-the-code), below, for more details. 
 
 ## Results
-### Assessement of Mining in the Amazon Basin in 2020
-Mining location analysis for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
+### Assessement of mining in the Amazon basin
+Mining analysis for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020. The [44px v2.6 model](models/44px_v2.6_2021-11-09.h5) was used for this analysis.
 
-* [2020 Map of Mining in the Amazon Basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
+* [2020 map of gold mines in the Amazon basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
 
-### Tapajos Basin Mining Progression 2016-2020 
-We have analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
+### Tapajós basin mining progression, 2016-2020 
+We analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the progression of mining in the area. This analysis was run with the earlier [28px v9 model](models/28_px_v9.h5).
 
-* [Map with the default Mapbox basemap](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
-* [Map with a more recent Landsat basemap at lower resolution](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
+Data were published in ["The pollution of illegal gold mining in the Tapajós River"](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), part of InfoAmazonia's series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution from waste, mining, and agriculutre in the Amazon River system and links to recent massive sargassum seaweed blooms in the Caribbean.
+
+* [Tapajós mining map, over Mapbox basemap imagery](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
+* [Tapajós mining map, over recent, lower resolution Landsat imagery](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
 * [Tapajos mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
 
-### Hand Validated 2020 Bolivar and Amazonas Detections
+### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states
 We analyzed and hand validated the outputs for the Venezuelan states of Bolivar and Amazonas. This map should not contain false positive sites, though may contain false negatives. This analysis was run with the [28px v9 model](models/28_px_v9.h5).
 
 * [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
@@ -61,7 +77,9 @@ To test the model's ability to generalize to tropical geographies outside of the
 * [Ghanaian detections data (GeoJSON)](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson)
 
 ## Running the Code
-This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. Though the system could be ported to open platforms, creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform.
+This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](WIP link), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
+
+As of January 21, 2022, the work is on hold, as we seek partners to support development toward an ongoing mine-monitoring alert system and data platform. If you are interested in partnering, please contact us at [info@earthrise.media](mailto:info@earthrise.media).
 
 ### Setup
 
@@ -85,7 +103,7 @@ source ~/miniforge3/bin/activate
 
 Next, create a conda environment named `mining-detector` by running `conda env create -f environment.yml` from the repo root directory. Activate the environment by running `conda activate mining-detector`. Code has been developed and tested on a Mac with python version 3.9.7. Other platforms and python releases may work, but have not yet been tested.
 
-If desired, the data used for model training may be accessed and downloaded from s3 at `s3://mining-data.earthrise.media`.
+The data used for model training may be accessed and downloaded from `s3://mining-data.earthrise.media`.
 
 ### Notebooks
 The system runs from three core notebooks. 
@@ -111,4 +129,4 @@ The models directory contains keras neural network models saved as `.h5` files. 
 The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on [RGB](44px_v2.6_rgb_2021-11-11.h5) and [RGB+IR](models/44px_v2.6_rgb_ir_2021-11-11.h5) data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
 
 ### Docs
-This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at [https://earthrise-media.github.io/mining-detector/{file_name}.html](https://earthrise-media.github.io/mining-detector/amazon-v2.4.html).
+This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at `http://earthrise-media.github.io/mining-detector/{file_name}.html.`
