@@ -38,8 +38,13 @@ The goal of this work is mine detection rather than area estimation, and our cla
 Building a segmentation model that operates on detected regions is a viable extension of this work.
 
 ## Journalism 
+
+![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
+
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), part of _InfoAmazonia_'s series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to recent sargassum seaweed blooms in the Caribbean.
 * Forthcoming work with _ArmandoInfo_, _El Pais_, and the Pulitzer Center's Rainforest Investigation Network.
+
+This repository grew out of several years' collaboration with journalists to 
 
 The work in this repo grew out of several years' effort to identify illegal gold mining activity and 
 
@@ -47,8 +52,8 @@ The work in this repo grew out of several years' effort to identify illegal gold
 
 for which we identified mines by sight in satellite, grew our interinformed the creation of the training datasets in this repo.
 * [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), on illegal mining in protected Yanomami Ingigenous Territory, _Reuters_, 2019.
-* [Illegal mining sparks malaria outbreak in indigenous territories in Brazil]https://infoamazonia.org/en/2020/11/25/mineracao-ilegal-contribui-para-surto-de-malaria-em-terras-indigenas-no-para/), _InfoAmazonia_, 2020.
-* [Gana por oro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/), on an irregular industrial gold mine which  _The Intercept_, 2021.
+* [Illegal mining sparks malaria outbreak in indigenous territories in Brazil](https://infoamazonia.org/en/2020/11/25/mineracao-ilegal-contribui-para-surto-de-malaria-em-terras-indigenas-no-para/), _InfoAmazonia_ and _Mongabay_, 2020.
+* [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/), on an irregular industrial gold mine which  _The Intercept_, 2021.
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
 
 ## Methodology
@@ -61,38 +66,25 @@ During run time, the network assesses each patch for signs of recent mining acti
 
 The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
 
-See the discussion of the [code](https://github.com/earthrise-media/mining-detector#running-the-code), below, for more details. 
-
 ### Results
-#### Assessement of mining in the Amazon basin
-Mining analysis for the full [Amazon basin](data/boundaries/amazon_basin.geojson) in 2020, using the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
+#### Assessement of mining in the Amazon basin in 2020
 
-* [2020 map of gold mines in the Amazon basin](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
-* [Amazon basin mining dataset (GeoJSON)](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson).
+[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and [dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson). Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
 
 #### Tapajós basin mining progression, 2016-2020 
-We analyzed the [Tapajos basin](data/boundaries/tapajos_basin.geojson) region yearly from 2016-2020 to monitor the growth of mining in the area. This analysis was run with the earlier [28px v9 model](models/28_px_v9.h5).
 
-* [Tapajós mining map, over Mapbox basemap imagery](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020.html)
-* [Tapajós mining map, over more recent, lower resolution Landsat imagery](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html)
-* [Tapajós mining progression dataset (GeoJSON)](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson)
+[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). The output data appeared in the _InfoAmazonia_ [Tapajós pollution story](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/).
 
-#### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states
-We analyzed and hand validated the outputs for the Venezuelan states of Bolívar and Amazonas, using the [28px v9 model](models/28_px_v9.h5). We allowed a few industrial mines to persist in the validation. 
+#### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states in 2020
 
-* [Map of detections](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html)
-* Datasets for [Bolívar (GeoJSON)](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas (GeoJSON)](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson)
+[Venezuela mine map](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html), [Bolívar dataset](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas dataset](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson). Analysis via the [28px v9 model](models/28_px_v9.h5). 
 
-#### Generalization Test in Ghana
-To test the model's ability to generalize to tropical geographies outside of the Amazon, we ran the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5) across the [Ashanti region of Ghana](data/boundaries/ghana_ashanti.geojson) in 2018 and 2020. 
+#### Generalization Test in Ghana's Ashanti Region, 2018 and 2020
 
-* [Map of detections in Ghana](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html)
-* [Ghanaian detections data (GeoJSON)](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson)
-
+[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](models/44px_v2.8_2021-11-11.h5). 
+ 
 ### Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](WIP link), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
-
-As of January 21, 2022, the work is on hold, as we seek partners to support development toward an ongoing mine-monitoring alert system and data platform. If you are interested in partnering, please contact us at [info@earthrise.media](mailto:info@earthrise.media).
 
 #### Setup
 
@@ -134,12 +126,8 @@ Given a model file and a GeoJSON describing a region of interest, run the model 
 The data directory contains two directories.
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
 - `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. Datasets in this directory should be considered "confirmed," and positive/negative class should be indicated in the file's title.
-- `data/outputs` will be populated with results from `deploy_model.ipynb` in a folder corresponding to the model version used in the run. By default, it is populated with GeoJSON files from our runs and analyses.
 
 #### Models
 The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on the test dataset.
 
 The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on [RGB](44px_v2.6_rgb_2021-11-11.h5) and [RGB+IR](models/44px_v2.6_rgb_ir_2021-11-11.h5) data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
-
-### Docs
-This directory does not store docs. Instead, it hosts .html files that are displayed on the repo's github pages site at `http://earthrise-media.github.io/mining-detector/{file_name}.html.`
