@@ -22,22 +22,22 @@ The characteristic mine scar is readily identifiable from satellite. On the bank
 
 (Five image sequence)
 
-Terrain features that can masquerade as mines include sandy bars in rivers, some earthen roads, farm ponds for livestock, and especially aquaculture ponds. 
+Terrain features that can masquerade as mines include sandy bars in rivers, braided rivers, some unusual badlands, farm ponds for livestock, and especially aquaculture ponds. 
 
 (image sequence)
 
 You can recongnize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are number of such ponds mistakenly identified as mines on the map, in Bolivia, especially.
 
-The automated detector is a work in progress. We rushed to expand its scope to the whole of the Amazon basin, without sampling all the new terrain features encountered outside our original working domain. There are some false positive detections on the map. It is not hard for a person to learn to distinguish these from actual mine sites. 
+The automated detector is a work in progress. We rushed to expand its scope to the whole of the Amazon basin, without sampling all the new terrain features encountered outside our original working domain. While there are some false positive detections on the map, it is not hard for a person to learn to distinguish these from actual mine sites. 
 
-
-The vast majority of detections presented in the mine map are, in fact, mines, and we hope this will be a useful resource for 
-
+On the whole, though, we are continually surprised by how reliable the detections are despite how widespread. Given some modest human discretion, this should be a useful resource to those interested in tracking mining activity in the region.
 
 
 ### Users should be aware of the following limitations:
 
 **Old Basemap Imagery**
+
+(note that map has two options for satellite imagery)
 
 Mining in the Amazon is growing rapidly. Most basemap imagery in the Amazon is not current, thus some regions classified as containing mines will not appear to have mining activity in the imagery. See example below. Regions in question can be assessed by viewing recent [Sentinel 2 imagery on SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR), or Planetscope data accessible through the [Planet NICFI program](https://www.planet.com/nicfi/).
 ![mining-imagery-comparison](https://user-images.githubusercontent.com/13071901/146989519-d1e537c4-7d70-438d-b4a5-06b2a41a8482.jpg)
@@ -52,7 +52,7 @@ Additionally, there are a few regions that we could not assess mining activity b
 ![error types](https://user-images.githubusercontent.com/13071901/147019219-98c518fb-72d1-4e35-bf32-9fe058b5d6eb.jpg)
 
 
-**Area Uncertainty**
+**Area overestimation**
 
 The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m x 440 m patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Relative year-to-year change calculations are accurate since the polygon area overestimation is consistent.
 
