@@ -14,6 +14,27 @@ Code for the automated detection of (largely illegal) artisanal gold mining in S
 
 ## Interpreting the map
 
+The mining of concern here is practiced in every country intersecting the Amazon basin. It is called _artisanal_ because it is typically practiced by individuals or small groups of individuals without heavy machinery, although miners will sometimes source financial backing to bring in an excavator. Miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the precious metal. They introduce mercury to form an amalgam with the gold, which can then be separated from other particles, and the mercury burnt off due to its relatively low boiling point. Typically miners work along streams and rivers, because of the high demand for water, and because rivers provide access deep into the rainforest.
+
+The environmental and human costs are high. Mining transforms healthy rainforest into biological wasteland of bare earth and toxic wastewater pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them new diseases and the potential for violent conflict. It has been estimated that upwards of a fifth of Yanomami people died during a mining boom in the 1980s. 
+
+The characteristic mine scar is readily identifiable from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, different shades of green, and often lurid yellows or turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines a dirt airstrip is cut to fly in miners and fly out the gold. Here are some examples of mines: 
+
+(Five image sequence)
+
+Terrain features that can masquerade as mines include sandy bars in rivers, some earthen roads, farm ponds for livestock, and especially aquaculture ponds. 
+
+(image sequence)
+
+You can recongnize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are number of such ponds mistakenly identified as mines on the map, in Bolivia, especially.
+
+The automated detector is a work in progress. We rushed to expand its scope to the whole of the Amazon basin, without sampling all the new terrain features encountered outside our original working domain. There are some false positive detections on the map. It is not hard for a person to learn to distinguish these from actual mine sites. 
+
+
+The vast majority of detections presented in the mine map are, in fact, mines, and we hope this will be a useful resource for 
+
+
+
 ### Users should be aware of the following limitations:
 
 **Old Basemap Imagery**
@@ -31,9 +52,9 @@ Additionally, there are a few regions that we could not assess mining activity b
 ![error types](https://user-images.githubusercontent.com/13071901/147019219-98c518fb-72d1-4e35-bf32-9fe058b5d6eb.jpg)
 
 
-**Area Overestimation**
+**Area Uncertainty**
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m² patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Relative year-to-year change calculations are accurate since the polygon area overestimation is consistent.
+The goal of this work is mine detection rather than area estimation, and our classification operates on the classification of 440 m x 440 m patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Relative year-to-year change calculations are accurate since the polygon area overestimation is consistent.
 
 Building a segmentation model that operates on detected regions is a viable extension of this work.
 
