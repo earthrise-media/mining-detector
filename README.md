@@ -1,12 +1,12 @@
 # Amazon Gold Mining
 
-Code for the automated detection of gold mines in Sentinel-2 satellite imagery; a web map of gold mines in the Amazon rainforest; links to journalism tied to this work.
+Code for the automated detection of gold mines in Sentinel-2 satellite imagery; a web map of gold mines in the Amazon rainforest; journalism tied to this work.
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
 
 * [**LAUNCH WEB MAP**](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
-* [**HOW TO INTERPRET THE MAP**](https://github.com/earthrise-media/mining-detector#interpreting-the-map)
+* [**INTERPRETING THE MAP**](https://github.com/earthrise-media/mining-detector#interpreting-the-map)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 
