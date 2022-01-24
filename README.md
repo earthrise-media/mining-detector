@@ -1,6 +1,6 @@
 # Gold Mine Detector and Map
 
-Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, a web map of gold mines in the Amazon rainforest, and related journalism.
+Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, a web map of gold mines in the Amazon rainforest, and links to related journalism.
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
