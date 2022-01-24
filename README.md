@@ -25,14 +25,15 @@ In the Amazon mine map, detected mines are delineated by the yellow stroke. Here
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from our original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and especially, aquaculture ponds, like so:
+The automated detector is a work in progress. With limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from our original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
 
+<!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
 (These are _not_ mines!)
 
-You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. Given that mine sites often appear in clusters, isolated detections should be validated rigorously for false positives.
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.26S, 48.06W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
 
-The model rejects some actual mine sites as well, paticularly older sites that have fallen into disuse and the edges of active mining regions.
+A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older sites that have fallen into disuse and the edges of active mining regions often fall into this category.
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
@@ -80,11 +81,11 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 ### Results
 #### Assessement of mining in the Amazon basin in 2020
 
-[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and [dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson). Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
+[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson) on which the map is based (GeoJSON format). Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
 
 #### Tapajós basin mining progression, 2016-2020 
 
-[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). 
+[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [output dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). 
 
 #### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states in 2020
 
@@ -92,7 +93,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Generalization Test in Ghana's Ashanti Region, 2018 and 2020
 
-[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
+[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [output dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
  
 ### Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](WIP link), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
