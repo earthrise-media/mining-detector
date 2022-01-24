@@ -14,33 +14,33 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 
 ## Interpreting the map
 
-The mining of concern here, called _artisanal_ when practiced by small groups of individuals without heavy machinery, now touches every country in the Amazon basin. Miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separate it from other particles. Later they burn off the mercury with a torch. Typically miners work along streams and rivers, because of the high demand for water, and because rivers provide access deep into the rainforest.
+The mining of concern here touches every country in the Amazon basin. Miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to amalgamate with the gold, thereby separating it from other particles. Later they burn off the mercury with a torch. This type of mining is called _artisanal_ because it is practiced by small groups of individuals without heavy machinery. Typically, the mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
 The environmental and human costs are high. Mining transforms healthy rainforest into a biological wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them diseases and the potential for violent conflict. It has been estimated that upwards of a fifth of Yanomami people died during a mining boom in their territory the 1980s. 
 
-One can readily identify mine scars from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, different shades of green, and often lurid yellows or turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines a dirt airstrip is cut to fly in miners and fly out the gold. 
+Mine scars are easily seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines, a dirt airstrip is cut to fly in miners and to fly out the gold. 
 
-In the Amazon mine map, detected mines are delineated by the yellow stroke. These are characteristic examples of mines:
+In the Amazon mine map, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines:
 
-(Five image sequence)
+![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
+(These are mines.)
 
-The automated detector is a work in progress. We rushed to expand its scope to the whole of the Amazon basin, without sampling all the new terrain features encountered outside our original working domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandy bars in rivers, braided rivers, some unusual badlands, farm ponds for livestock, and especially, aquaculture ponds, like so:
+The automated detector is a work in progress. With limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from our original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and especially, aquaculture ponds, like so:
 
-(image sequence)
+![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
+(These are _not_ mines!)
 
-You can recongnize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are number of such ponds mistakenly identified as mines in Bolivia, especially.
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. Given that mine sites often appear in clusters, isolated detections should be validated rigorously for false positives.
 
-Given that mine sites often appear in clusters, isolated detections should be validated rigorously for false positives.
-
-The model rejects some mine sites as well, paticularly older sites that have fallen into disuse and the edges of active mining regions.
+The model rejects some actual mine sites as well, paticularly older sites that have fallen into disuse and the edges of active mining regions.
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
 #### Basemap Imagery
 
-Mining in the Amazon is expanding rapidly, and frequent cloud cover makes it challenging to stitch together comprehensive, cloud-free satellite basemaps. In the Amazon mine map, you will sometimes see healthy rainforest in areas where mining activity is indicated. The displayed imagery is out of date.
+Mining in the Amazon is expanding rapidly, and frequent cloud cover makes it challenging to stitch together comprehensive, cloud-free satellite basemaps. In the Amazon mine map, you will sometimes see healthy rainforest in areas where mining activity is indicated. In that case, the displayed imagery is out of date. (To make for a better user experience, the imagery _displayed_ is different from the imagery used _for detection_.) 
 
-We provide two display options for the web map. The [Mapbox satellite basemap](https://www.mapbox.com/) is the default. It provides quality, sub-meter resolution views of many of the mines. The second option is the newly published [Sentinel-2 basemap](https://www.maptiler.com/news/2022/01/free-access-to-10m-global-satellite-map/) from MapTiler, which uses imagery from 2020 and 2021, exclusively, but at 10-meter resolution. In the example below, the Mapbox basemap is at left, the MapTiler Sentinel-2 basemap is at right. 
+We provide two display options for the web map. The [Mapbox satellite basemap](https://www.mapbox.com/) is the default. It provides quality, sub-meter resolution views of many of the mines. The second option is the newly published [Sentinel-2 basemap](https://www.maptiler.com/news/2022/01/free-access-to-10m-global-satellite-map/) from MapTiler, which uses imagery from 2020 and 2021, exclusively, but at 10-meter resolution. In the example below, mine detections are displayed over the Mapbox basemap at left and over the MapTiler Sentinel-2 basemap at right. 
 
 ![MapboxvsSentinel2basemaps](https://user-images.githubusercontent.com/11287904/150791417-c431cd40-3d02-4c13-be70-06adc8a29ac1.jpg)
 
@@ -92,7 +92,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Generalization Test in Ghana's Ashanti Region, 2018 and 2020
 
-[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the 44px v2.8 model. 
+[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
  
 ### Running the Code
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](WIP link), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
