@@ -14,7 +14,7 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 
 ## Interpreting the map
 
-The mining of concern here touches every country in the Amazon basin. Miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to amalgamate with the gold, thereby separating it from other particles. Later they burn off the mercury with a torch. This type of mining is called _artisanal_ because it is practiced by small groups of individuals without heavy machinery. Typically, the mining proceeds along streams and rivers, which provide water and access into the rainforest.
+The mining of concern here touches every country in the Amazon basin. In the typical process, miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separte it from other particles, and later they burn off the mercury to arrive at a fairly pure gold metal. This type of mining is called _artisanal_ because it is practiced by small groups of individuals without heavy machinery. The mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
 The environmental and human costs are high. Mining transforms healthy rainforest into a biological wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them diseases and the potential for violent conflict. It has been estimated that upwards of a fifth of Yanomami people died during a mining boom in their territory the 1980s. 
 
@@ -25,11 +25,11 @@ In the Amazon mine map, detected mines are delineated by the yellow stroke. Here
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With only limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from our original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
+The automated detector is a work in progress. With only limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from the original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
 
 <!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
-(These are _not_ mines!)
+(These are _not_ mines.)
 
 You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.26S, 48.06W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
 
@@ -46,7 +46,7 @@ We provide two display options for the web map. The [Mapbox satellite basemap](h
 ![MapboxvsSentinel2basemaps](https://user-images.githubusercontent.com/11287904/150791417-c431cd40-3d02-4c13-be70-06adc8a29ac1.jpg)
 
 
-For open-source, up-to-date views, we recommend searching the full Sentinel-2 catalog on [SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR) or the Planetscope data made available through the [Planet Labs NICFI program](https://www.planet.com/nicfi/).
+For up-to-date views, we recommend searching the full Sentinel-2 catalog on [SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR) or the Planetscope data made available through the [Planet Labs NICFI program](https://www.planet.com/nicfi/).
 
 **Area estimation**
 
@@ -56,23 +56,23 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 ![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
 
-This work grew out of a series of collaborations with journalists seeking to expose illegal gold mining activity and document its impacts on the environment and local indigenous communities. At first, we identified mines by sight in satellite imagery. Then we crowd-sourced image sleuthing with high school students. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those early applications of human intelligence.
+This work grew out of a series of collaborations with journalists seeking to expose illegal gold mining activity and document its impacts on the environment and local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
 
 Reports using the automated detection outputs: 
-* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/). The story is part of the _InfoAmazonia_ series, [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to  sargassum seaweed blooms in the Caribbean.
+* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
 * Forthcoming work with _ArmandoInfo_, _El Pais_, and the Pulitzer Center's Rainforest Investigation Network.
 
 Related reporting: 
 * [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), _Reuters_, 2019, on illegal mining in protected Yanomami Indigenous Territory.
 * [Illegal mining sparks malaria outbreak in indigenous territories in Brazil](https://infoamazonia.org/en/2020/11/25/mineracao-ilegal-contribui-para-surto-de-malaria-em-terras-indigenas-no-para/), _InfoAmazonia_ and _Mongabay_, 2020.
-* [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/),  _The Intercept_, 2021. Report on an industrial gold mine operating without environmental permits. Two weeks after the story appeared the mine was shut down and fined the equivalent of two million US dollars.
+* [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/),  _The Intercept_, 2021. Report on an industrial gold mine operating without proper environmental permits. Two weeks after the story appeared the mine was shut down and fined.
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
 
 ## Methodology
 
 ### Overview
 
-The mine detector is a light-weight convolutional neural network, which we train to discrimate mines from other terrain in the Amazon basin by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 44 x 44 pixel (440 m x 440 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is a light-weight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 44 x 44 pixel (440 m x 440 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
 During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 140 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 326 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
 
@@ -81,7 +81,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 ### Results
 #### Assessement of mining in the Amazon basin in 2020
 
-[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson) on which the map is based (GeoJSON format). Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
+[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson) on which the map is based, in GeoJSON format. Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
 
 #### Tapajós basin mining progression, 2016-2020 
 
@@ -96,7 +96,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 [Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [output dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
  
 ### Running the Code
-This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of our open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
+This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of an open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
 
 #### Setup
 
