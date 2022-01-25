@@ -16,7 +16,7 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 
 The mining of concern here touches every country in the Amazon basin. In the typical process, miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separte it from other particles, and later they burn off the mercury to arrive at a fairly pure gold metal. This type of mining is called _artisanal_ because it is practiced by small groups of individuals with light machinery, such as pumps, dredges, and excavators. The mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
-The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them diseases and the potential for violent conflict. 
+The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them unfamiliar diseases and the potential for violent conflict. 
 
 Scars from the mining can be seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
 
@@ -56,7 +56,7 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 ![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
 
-This work grew out of a series of collaborations with journalists and with activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from the painstaking human surveys.
+This work grew out of a series of collaborations with journalists and with activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. For our part in it, we began identifying mines by sight in satellite imagery. Later, some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
 
 Reports using the automated detections: 
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
@@ -68,6 +68,8 @@ Related reporting:
 * [Serious risk of attack by miners on uncontacted Yanomami in Brazil](https://www.survivalinternational.org/news/12655), Survival International, 2021.
 * [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/),  _The Intercept_, 2021. Report on an industrial gold mine operating without proper environmental permits. Two weeks after the story appeared the mine was shut down and fined.
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
+
+Thank you to the journalists whose skill and resourceful reporting gave these stories life.
 
 ## Methodology
 
