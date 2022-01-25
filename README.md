@@ -16,22 +16,22 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 
 The mining of concern here touches every country in the Amazon basin. In the typical process, miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separte it from other particles, and later they burn off the mercury to arrive at a fairly pure gold metal. This type of mining is called _artisanal_ because it is practiced by small groups of individuals with light machinery, such as pumps, dredges, and excavators. The mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
-The environmental and human costs are high. Mining transforms healthy rainforest into a biological wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them diseases and the potential for violent conflict. 
+The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them diseases and the potential for violent conflict. 
 
-Mine scars are easily seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines, a dirt airstrip is cut to fly in miners and to fly out the gold. 
+Scars from the mining can be seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
 
-In the Amazon mine map, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines:
+In the Amazon mine map, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines from the map:
 
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With only limited bootstrap sampling, the run over the whole of the Amazon basin extrapolates signficantly from the original data domain. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
+The automated detector is a work in progress. With only limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
 
 <!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
 (These are _not_ mines.)
 
-You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.26S, 48.06W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.2°S, 48.1°W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
 
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older mine sites that have fallen into disuse and the edges of active mining regions often fall into this category.
 
@@ -39,9 +39,9 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Basemap Imagery
 
-Mining in the Amazon is expanding rapidly, and frequent cloud cover makes it challenging to stitch together comprehensive, cloud-free satellite basemaps. In the Amazon mine map, you will sometimes see healthy rainforest in areas where mining activity is indicated. In that case, the displayed imagery is out of date. (To make for a better user experience, the imagery _displayed_ is different from the imagery used _for detection_.) 
+Mining in the Amazon is expanding rapidly, and frequent cloud cover makes it challenging to stitch together comprehensive satellite basemaps. In the Amazon mine map, you will sometimes see healthy rainforest in areas where mining activity is indicated. In that case, the displayed imagery is out of date. (To make for a better user experience, the imagery displayed is different from the imagery used for detection.) 
 
-We provide two display options for the web map. The [Mapbox satellite basemap](https://www.mapbox.com/) is the default. It provides quality, sub-meter resolution views of many of the mines. The second option is the newly published [Sentinel-2 basemap](https://www.maptiler.com/news/2022/01/free-access-to-10m-global-satellite-map/) from MapTiler, which uses imagery from 2020 and 2021, exclusively, but at 10-meter resolution. In the example below, mine detections are displayed over the Mapbox basemap at left and over the MapTiler Sentinel-2 basemap at right. 
+We provide two display options for the web map. The [Mapbox satellite basemap](https://www.mapbox.com/) is the default. It provides detailed, sub-meter resolution views of many of the mines. The second option is the newly published [Sentinel-2 basemap](https://www.maptiler.com/news/2022/01/free-access-to-10m-global-satellite-map/) from MapTiler, which uses imagery from 2020 and 2021 exclusively, but at 10-meter resolution. In the example below, mine detections are displayed over the Mapbox basemap at left and over the MapTiler Sentinel-2 basemap at right. 
 
 ![MapboxvsSentinel2basemaps](https://user-images.githubusercontent.com/11287904/150791417-c431cd40-3d02-4c13-be70-06adc8a29ac1.jpg)
 
@@ -50,15 +50,15 @@ For up-to-date views, we recommend searching the full Sentinel-2 catalog on [Sen
 
 **Area estimation**
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on 440 m x 440 m patches. If the network assesses that mining exists anywhere within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to operate on detected regions would be a viable extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on 440 m x 440 m patches. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries would be a viable extension of this work.
 
 ## Journalism 
 
 ![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
 
-This work grew out of a series of collaborations with journalists and activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from the painstaking human surveys.
+This work grew out of a series of collaborations with journalists and with activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from the painstaking human surveys.
 
-Reports using the automated detection outputs: 
+Reports using the automated detections: 
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
 * Forthcoming work with _ArmandoInfo_, _El Pais_, and the Pulitzer Center's Rainforest Investigation Network.
 
@@ -147,4 +147,4 @@ The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, thou
 
 ### License
 
-The code and data in this repository are available for reuse under an open [MIT License](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). In publication, please cite Earthrise Media. 
+The code and data in this repository are available for reuse under an open [MIT License](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). In publication, please cite Earthrise Media, with reference to this repository.
