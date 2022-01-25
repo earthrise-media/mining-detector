@@ -56,7 +56,7 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 ![MiningTitlesCollage](https://user-images.githubusercontent.com/11287904/150589512-5d2f1e1c-b946-4f35-90a0-09efbcecc83a.jpg)
 
-This work grew out of a series of collaborations with journalists seeking to expose illegal gold mining activity and document its impacts on the environment and local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
+This work grew out of a series of collaborations with journalists and partners at [Survival International](https://www.survivalinternational.org/) seeking to expose illegal gold mining activity and document its impacts on the environment and local indigenous communities. At first, we identified mines by sight in satellite imagery. Then some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
 
 Reports using the automated detection outputs: 
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
