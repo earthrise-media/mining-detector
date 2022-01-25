@@ -69,7 +69,7 @@ Related reporting:
 * [Gana por ouro](https://theintercept.com/2021/09/16/mineradora-novata-ja-explorou-32-vezes-mais-ouro-do-que-o-previsto-em-area-protegida-da-amazonia/),  _The Intercept_, 2021. Report on an industrial gold mine operating without proper environmental permits. Two weeks after the story appeared the mine was shut down and fined.
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
 
-Thank you to the journalists whose skill and resourceful reporting brought these important stories to light.
+Many thanks to our collaborators, whose skill and resourceful reporting brought these important stories to light.
 
 ## Methodology
 
