@@ -25,7 +25,7 @@ In the Amazon mine map, detected mines are delineated by the yellow stroke. Here
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sand bars in rivers, braided rivers, farm ponds (two examples below), and aquaculture ponds, like so:
+The automated detector is a work in progress. With limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandbars in rivers, braided rivers, farm ponds, and aquaculture ponds (two examples below), like so:
 
 <!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
