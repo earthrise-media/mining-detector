@@ -123,6 +123,15 @@ body { margin: 0; padding: 0; }
       },
       'Amazon Stroke'
       );
+
+      map.on('click', function(e) {
+		    var coordinates = e.lngLat;
+        navigator.clipboard.writeText(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000);
+		    new mapboxgl.Popup()
+		      .setLngLat(coordinates)
+		      .setHTML(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000)
+		      .addTo(map);
+		  });
     });
 
 var satLayerIds = {
