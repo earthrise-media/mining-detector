@@ -60,7 +60,7 @@ This work grew out of a series of collaborations with journalists and with activ
 
 Reports using the automated detections: 
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
-* Forthcoming work with _ArmandoInfo_, _El Pais_, and the Pulitzer Center's Rainforest Investigation Network.
+* [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
 
 Related reporting: 
 * [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), _Reuters_, 2019, on illegal mining in protected Yanomami Indigenous Territory.
@@ -75,7 +75,7 @@ Many thanks to our collaborators, whose skill and resourceful reporting brought 
 
 ### Overview
 
-The mine detector is a light-weight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 44 x 44 pixel (440 m x 440 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 44 x 44 pixel (440 m x 440 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
 During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 140 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 326 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
 
