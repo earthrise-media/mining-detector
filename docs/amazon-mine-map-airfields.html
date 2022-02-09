@@ -7,8 +7,6 @@
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
   <script src='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css' rel='stylesheet' />
-  //
-  <link rel="stylesheet" href="./amazon-mine-map.css" />
   <style>
     body {
       margin: 0;
@@ -114,26 +112,30 @@
         'type': 'circle',
         'source': 'airfield-data',
         'paint': {
-          'circle-color': '#DD614A',
+          'circle-color': '#90A9B7',
           'circle-opacity': ['interpolate',
             ['linear'],
             ['zoom'],
-            3, 0.5,
+            3, 1,
             7, 1,
-            13, 0.5
+            13, 0.25
           ],
-          //'circle-radius': 3.5,
-          //'circle-blur': .75,
           'circle-radius': ['interpolate',
             ['linear'],
             ['zoom'],
-            3, 1.5,
-            7, 3.5,
-            13, 5,
+            3, 0.5,
+            7, 2.5,
+
+          ],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+          'circle-stroke-opacity': ['interpolate',
+            ['linear'],
+            ['zoom'],
+            3, 0,
+            7, 0.25,
+            13, 1
           ]
-          //'circle-stroke-color': '#ffffff',
-          //'circle-stroke-width': 1.5,
-          //'circle-stroke-opacity': 0.75
         },
       });
       map.addLayer({
