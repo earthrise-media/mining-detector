@@ -52,7 +52,7 @@ For up-to-date views, we recommend searching the full Sentinel-2 catalog on [Sen
 
 Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system classified every location as "no mining", the accuracy rate would be above 99.9% given that the majority of land area in the Amazon is unmined.
 
-As a more constructive measure, we compute an observed rate of false positive detections. This metric reflects what fraction of locations displayed on the map can be validated as gold mines. In the latest run across the Amazon, we see a true positive rate of 98.2%. This means that in a sample of 500 mining detections, we expect to see about nine misclassifications. Of these false detections, roughly one third do identify mining, but mines of resources other than gold (frequently bauxite).
+As a more constructive measure, we compute an observed rate of false positive detections. This metric reflects what fraction of locations displayed on the map can be validated as gold mines. In the latest run across the Amazon, we see a true positive rate of 98.2%. This means that in a sample of 500 mining detections, we expect to see about nine misclassifications. Roughly one third of these false positives do identify mining, but are detections of other types of mining (frequently bauxite) rather than gold.
 
 **Area estimation**
 
