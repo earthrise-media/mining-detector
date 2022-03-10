@@ -48,6 +48,12 @@ We provide two display options for the web map. The [Mapbox satellite basemap](h
 
 For up-to-date views, we recommend searching the full Sentinel-2 catalog on [SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR) or the Planetscope data made available through the [Planet Labs NICFI program](https://www.planet.com/nicfi/).
 
+**Detection Accuracy**
+
+Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system classified every location as "no mining", the accuracy rate would be above 99.9% given that the majority of land area in the Amazon is unmined.
+
+As a more constructive measure, we compute an observed rate of false positive detections. This metric reflects what fraction of locations displayed on the map can be validated as gold mines. In the latest run across the Amazon, we see a true positive rate of 98.2%. This means that in a sample of 500 mining detections, we expect to see about nine misclassifications. Roughly one third of these false positives do identify mining, but are detections of other types of mining (frequently bauxite) rather than gold.
+
 **Area estimation**
 
 The goal of this work is mine detection rather than area estimation, and our classification operates on 440 m x 440 m patches. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries would be a viable extension of this work.
