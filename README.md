@@ -50,9 +50,9 @@ For up-to-date views, we recommend searching the full Sentinel-2 catalog on [Sen
 
 **Detection Accuracy**
 
-Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is in fact unmined.
+Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape remains unmined.
 
-To provide a more constructive measure, we validated by hand a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value of the classifier. In essence, it tell you the likelihood that box marked as a mine is actually a mine. On our latest run, we see a PPV of 98.2%. In concrete terms, for a sample of 500 mining detections, you can expect to see about nine misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
+To provide a more constructive measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that box marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
 
 **Area estimation**
 
