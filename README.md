@@ -31,7 +31,7 @@ The automated detector is a work in progress. With limited bootstrap sampling, w
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
 (These are _not_ mines.)
 
-You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.2°S, 48.1°W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones.  
 
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older mine sites that have fallen into disuse and the edges of active mining regions often fall into this category.
 
