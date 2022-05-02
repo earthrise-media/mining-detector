@@ -31,7 +31,7 @@ The automated detector is a work in progress. With limited bootstrap sampling, w
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
 (These are _not_ mines.)
 
-You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones. There are also some [dry farmed fields](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html#13.5/-4.2635/-48.05787) around (4.2°S, 48.1°W) that are incorrectly classified as mines, but they should not persist in future iterations of the data product. 
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones.  
 
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older mine sites that have fallen into disuse and the edges of active mining regions often fall into this category.
 
@@ -90,7 +90,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 ### Results
 #### Assessement of mining in the Amazon basin in 2020
 
-[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.6/mining_amazon_all_unified_thresh_0.8_v44px_v2.6_2020-01-01_2021-02-01_period_4_method_median.geojson) on which the map is based, in GeoJSON format. Analysis via the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5).
+[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.9/mining_amazon_all_unified_thresh_0.8_v44px_v2.6-2.9_2020-01-01_2021-02-01_period_4_method_median.geojson). This data was largely generated with the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5). A small portion in the Brazillian state of Pará was analyzed using the [44px v2.9 model](models/44px_v2.9_2022-02-28.h5) to improve accuracy.
 
 #### Tapajós basin mining progression, 2016-2020 
 
