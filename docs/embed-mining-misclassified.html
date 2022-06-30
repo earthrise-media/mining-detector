@@ -117,7 +117,7 @@
         mapboxgl.accessToken = 'pk.eyJ1IjoiZWFydGhyaXNlIiwiYSI6ImNqeDExNmtrZzAwM2E0OW16eHZ1dzg1eWEifQ.8LTFXyY-n7OsZOoWN9ONPQ';
         const map = new mapboxgl.Map({
             container: 'map',
-            style: 'mapbox://styles/mapbox/satellite-streets-v11',
+            style: 'mapbox://styles/earthrise/cl1gtnsmk005z14lss32j7a1p',
             center: [-62.8, -4.5],
             zoom: 4.5,
             projection: {
@@ -147,7 +147,7 @@
 
             map.addSource('false-neg', {
                 type: 'geojson',
-                'tolerance': 0.05,
+                'tolerance': 0.01,
                 data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/other/embed_false_neg.geojson'
             });
             map.addLayer(
@@ -158,14 +158,14 @@
                     'paint': {
                         'line-color': '#ffce01',
                         'line-opacity': 1.0,
-                        'line-width': 1,
+                        'line-width': 2,
                     }
                 }
             );
 
             map.addSource('false-pos', {
                 type: 'geojson',
-                'tolerance': 0.05,
+                'tolerance': 0.01,
                 data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/other/embed_false_pos.geojson'
             });
             map.addLayer(
@@ -176,7 +176,7 @@
                     'paint': {
                         'line-color': '#eb1e1e',
                         'line-opacity': 1.0,
-                        'line-width': 1,
+                        'line-width': 2,
                     }
                 }
             );
