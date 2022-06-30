@@ -112,6 +112,7 @@
         <div><span style="background-color: #eb1e1e"></span>False Positive</div>
         <div><span style="background-color: #ffce01"></span>False Negative</div>
         <div><span style="background-color: #45bee2"></span>True Positive</div>
+        <div><span style="background-color: #ef67df"></span>True Positive</div>
     </div>
     <script>
 
@@ -194,6 +195,24 @@
                     'source': 'true-pos',
                     'paint': {
                         'line-color': '#45bee2',
+                        'line-opacity': 1.0,
+                        'line-width': 2,
+                    }
+                }
+            );
+
+            map.addSource('true-neg', {
+                type: 'geojson',
+                'tolerance': 0.01,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/other/embed_true_neg.geojson'
+            });
+            map.addLayer(
+                {
+                    'id': 'true-neg-geom',
+                    'type': 'line',
+                    'source': 'true-neg',
+                    'paint': {
+                        'line-color': '#ef67df',
                         'line-opacity': 1.0,
                         'line-width': 2,
                     }
