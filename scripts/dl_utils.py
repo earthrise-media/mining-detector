@@ -122,92 +122,27 @@ def pad_patch(patch, height, width=None):
     pad_patch trims pixels extending beyond the desired number of pixels if the
     patch is larger than desired. If the patch is smaller, it will fill the
     edge by reflecting the values.
+    Note: this function does not support padding along one axis, and trimming on another (or visa versa)
     """
+
     h, w, c = patch.shape
     if width:
-        if h < height:
-            patch = np.pad(patch, (height - h, 0), mode='reflect')
-        if w < width:
-            patch = np.pad(patch, (0, width - w), mode='reflect')
-        patch = patch[:height, :width, :12]
+        if h < height or w < width:
+            padding_amount = ((0, height - h), (0, width - w), (0,0))
+            patch = np.pad(patch, padding_amount, mode='reflect')
+        else:
+            margin_h = int(np.floor((h - height) / 2))
+            margin_w = int(np.floor((w - width) / 2))
+            patch = patch[margin_h:margin_h+height, margin_w:margin_w+width]
+
     else:
         if h < height or w < height:
-            print(width)
-            print(np.min([h, w]))
-            patch = np.pad(patch, height - np.min([h, w]), mode='reflect')
-        patch = patch[:height, :height, :12]
+            padding_amount = ((0, height - h), (0, height - w), (0, 0))
+            patch = np.pad(patch, padding_amount, mode='reflect')
+        else:
+            margin = int(np.floor((h - height) / 2))
+            patch = patch[margin:margin+height, margin:margin+height]
     return patch
-
-def trim_patch(patch, height, width=None):
-    """
-    Depending on how a polygon falls across pixel boundaries, it can be slightly
-    bigger or smaller than intended.
-    pad_patch trims pixels extending beyond the desired number of pixels if the
-    patch is larger than desired. If the patch is smaller, it will fill the
-    edge by reflecting the values.
-    """
-    h, w, c = patch.shape
-    margin = int(np.floor((h - height) / 2))
-    trimmed = patch[margin:margin+height, margin:margin+height]
-    return trimmed
-
-def download_batches(polygon, start_date, end_date, batch_months):
-    """Download cloud-masked Sentinel imagery in time-interval batches.
-
-    Args:
-        polygon: A GeoJSON-like polygon
-        start_date: Isoformat start date
-        end_date: Isoformat end start
-        batch_months: Batch length in integer number of months
-
-    Returns: List of lists of images, one list per batch
-    """
-    batches, raster_infos = [], []
-    delta = relativedelta(months=batch_months)
-    start = datetime.date.fromisoformat(start_date)
-    end = start + delta
-    while end <= datetime.date.fromisoformat(end_date):
-        try:
-            batch, raster_info = download_patch(polygon, start.isoformat(),
-                                                end.isoformat())
-        except IndexError as e:
-            print(f'Failed to retreive month {start.isoformat()}: {repr(e)}')
-            batch, raster_info = [], []
-        # Sometimes there are patches with no data. Ignore those
-        if len(np.shape(batch)) > 1:
-            batches.append(batch)
-            raster_infos.append(raster_info)
-        start += delta
-        end += delta
-    return batches, raster_infos
-
-def download_mosaics(polygon, start_date, end_date, mosaic_period=1,
-                     method='median'):
-    """Download cloud-masked Sentinel image mosaics
-
-    Args:
-        polygon: A GeoJSON-like polygon
-        start_date: Isoformat start date
-        end_date: Isoformat end start
-        mosaic_period: Integer months over which to mosaic image data
-        method: String method to pass to mosaic()
-
-    Returns: List of image mosaics and list of meta-datas
-    """
-    batches, raster_infos = download_batches(polygon, start_date, end_date,
-                                                 mosaic_period)
-    mosaics = [mosaic(batch, method) for batch in batches]
-    # There are cases where some patches are sized differently
-    # If that is the case, pad/clip them to the same shape
-    heights = [np.shape(img)[0] for img in mosaics]
-    widths = [np.shape(img)[1] for img in mosaics]
-    if len(np.unique(heights)) > 1 or len(np.unique(widths)) > 1:
-        h = mode(heights).mode[0]
-        w = mode(widths).mode[0]
-        mosaics = [np.ma.masked_array(pad_patch(img.data, h, w),
-                                        pad_patch(img.mask, h, w)) for img in mosaics]
-    mosaic_info = [next(iter(r)) for r in raster_infos]
-    return mosaics, mosaic_info
 
 def mosaic(arrays, method):
     """Mosaic masked arrays.
@@ -300,6 +235,126 @@ def patches_from_tile(tile, raster_info, width, stride):
             tile_geometry = [nw_coord, sw_coord, se_coord, ne_coord, nw_coord]
             patch_coords.append(shapely.geometry.Polygon(tile_geometry))
     return patches, patch_coords
+
+class SentinelData():
+    """
+    A class to search for and download Sentinel data.
+    """
+
+    def __init__(self, polygon, start_date, end_date, mosaic_period, method='min'):
+        """
+        Inputs:
+            - polygon: A shapely polygon feature
+            - start_date: A date string
+            - end_date: A date string
+            - mosaic_period: A string describing the period of time to composite
+            - spectrogram_interval: A string describing the time interval between composites
+            - method: The method to use when compositing images
+        """
+        self.polygon = polygon
+        self.start_date = start_date
+        self.end_date = end_date
+        self.mosaic_period = mosaic_period
+        self.method = method
+    
+    def search_scenes(self):
+        """
+        Search for Sentinel scenes that cover a polygon for the given date range.
+        Scenes are filtered to limit clouds
+        Returns a list of scenes, cloud_scenes, and a geoctx
+        """
+
+        cloud_scenes, _ = dl.scenes.search(
+            self.polygon,
+            products=['sentinel-2:L1C:dlcloud:v1'],
+            start_datetime=self.start_date,
+            end_datetime=self.end_date,
+            limit=None
+        )
+        
+        scenes, geoctx = dl.scenes.search(
+            self.polygon,
+            products=['sentinel-2:L1C'],
+            start_datetime=self.start_date,
+            end_datetime=self.end_date,
+            limit=None,
+            cloud_fraction=0.3
+        )
+        scenes = scenes.filter(lambda s: s.coverage(geoctx) > 0.9)
+
+        cloud_keys = [scene.properties.key for scene in cloud_scenes]
+        data_keys = [scene.properties.key for scene in scenes]
+        shared_keys = set(cloud_keys) & set(data_keys)
+        scenes = scenes.filter(
+            lambda x: x.properties.key in shared_keys)
+        cloud_scenes = cloud_scenes.filter(
+            lambda x: x.properties.key in shared_keys)
+
+        self.scenes = scenes
+        self.cloud_scenes = cloud_scenes
+        self.geoctx = geoctx
+
+        return scenes, cloud_scenes, geoctx
+
+    def download_scenes(self):
+        """
+        Download the scenes from the search results.
+        Returns a list of scenes and a associated metadata
+        """
+        # A cloud stack is an array with shape (num_img, data_band, height, width)
+        # A value of 255 means that the pixel is cloud free, 0 means cloudy
+        cloud_stack = self.cloud_scenes.stack(bands=['valid_cloudfree'], ctx=self.geoctx)
+
+        img_stack, raster_info = self.scenes.stack(
+            bands=SENTINEL_BANDS, ctx=self.geoctx, raster_info=True)
+        # add date to metadata
+        dates = [scene.properties.acquired[:10] for scene in self.scenes]
+        for i, date in enumerate(dates):
+            raster_info[i]['date'] = date
+        cloud_masks = np.repeat(cloud_stack, repeats = 12, axis=1)
+        # Add cloud masked pixels to the image mask
+        img_stack.mask[cloud_masks.data == 0] = True
+
+        # Remove fully masked images and reorder to channels last
+        metadata = []
+        for img, info in zip(img_stack, raster_info):
+            if np.sum(img) > 0:
+                metadata.append(info)
+
+        img_stack = [np.moveaxis(img, 0, -1) for img in img_stack
+                        if np.sum(img) > 0]
+
+        self.img_stack = img_stack
+        self.metadata = metadata
+
+        return img_stack, metadata
+
+    def create_composites(self):
+        """
+        Create composites from the downloaded images over the mosaic period.
+        Returns a list of composites, a list of composite start dates, and composite metadata
+        """
+        delta = relativedelta(months=self.mosaic_period)
+        start = datetime.date.fromisoformat(self.start_date)
+        end = start + delta
+        img_dates = [datetime.date.fromisoformat(d['date']) for d in self.metadata]
+
+        self.composites = []
+        self.composite_dates = []
+        self.composite_metadata = []
+
+        while end <= datetime.date.fromisoformat(self.end_date) + delta:
+            # find indices where date is within start and end
+            indices = [i for i, x in enumerate(img_dates) if x >= start and x <= end]
+            if len(indices) > 0:
+                self.composites.append(mosaic([self.img_stack[i] for i in indices], self.method))
+                self.composite_dates.append(start.isoformat()[:10])
+                self.composite_metadata.append(self.metadata[indices[0]])
+            start += delta
+            end += delta
+
+    def compute_cloud_fraction(self):
+        self.cloud_fraction = [np.sum(composite.mask) / np.size(composite.mask) for composite in self.composites]
 
 class DescartesRun(object):
     """Class to manage bulk model prediction on the Descartes Labs platform.
@@ -402,13 +457,24 @@ class DescartesRun(object):
         Returns: None. (Uploads raster output to DL storage.)
         """
         tile = dl.scenes.DLTile.from_key(dlkey)
-        mosaics, raster_info = download_mosaics(
-            tile, start_date, end_date, self.mosaic_period, self.mosaic_method)
+
+        data = SentinelData(tile, start_date, end_date, self.mosaic_period, method=self.mosaic_method)
+        data.search_scenes()
+        data.download_scenes()
+        data.create_composites()
+        composites = data.composites
+        dates = data.composite_dates
+        bounds = data.metadata[0]["wgs84Extent"]["coordinates"][0][:-1]
+        data_mb = sum([im.data.nbytes for im in data.img_stack]) / 1024 ** 2 
+        mask_mb = sum([im.mask.nbytes for im in data.img_stack]) / 1024 ** 2
+        total_mb = data_mb + mask_mb
+        print(f'{len(data.img_stack)} images retrieved. Total size: {total_mb:.2f} MB')
 
         # Spatial patch classifier prediction
 
         # Generate a list of coordinates for the patches within the tile
-        _, patch_coords = patches_from_tile(mosaics[0], raster_info, self.patch_model.input_shape[2], self.patch_stride)
+        raster_info = data.metadata
+        _, patch_coords = patches_from_tile(data.composites[0], raster_info, self.patch_model.input_shape[2], self.patch_stride)
 
         # Initialize a dictionary where the patch coordinate boundaries are the keys
         # Each value is an empty list where predictions will be appended
@@ -419,9 +485,8 @@ class DescartesRun(object):
         input_h = self.patch_model.input_shape[1]
         input_w = self.patch_model.input_shape[2]
 
-        for image in mosaics:
+        for image in composites:
             # generate patches for first image in pair
-            print("image shape", image.shape)
             patches, _ = patches_from_tile(image, raster_info, input_h, self.patch_stride)
 
             patch_stack = []
