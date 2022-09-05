@@ -65,11 +65,21 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 This work grew out of a series of collaborations with journalists and with activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. For our part in it, we began identifying mines by sight in satellite imagery. Later, some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
 
+Illegal airstrips and dataset:
+* [The illegal airstrips bringing toxic mining to Brazil’s indigenous land](https://www.nytimes.com/interactive/2022/08/02/world/americas/brazil-airstrips-illegal-mining.html), _The New York Times_, 2022.
+* [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/), _The Intercept_, 2022. 
+
+Airstrips, often built without registration or authorization from government authorities, are 
+
+The clandestine airstrips survey is the result of a project of The Intercept Brasil with the Rainforest Investigations Network, in collaboration with The New York Times, in conjunction with the reporting linked above. 
+
+A [collection](https://github.com/earthrise-media/mining-detector/blob/airfield-data/data/airstrips/Illegal-Airstrips-NYT-Intercept-Public.xlsx) of 1,269 clandestine airstrips in Brazil's Legal Amazon, of which 362 lie within 20 km of mining activity as detected by the neural network. 
+
+The data was gathered by Earthrise Media from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented by governmental and non-governmental organizations as noted in the dataset, and verified by the newsrooms. The project is supported by The Pulitzer Center.
+
 Reports using the automated detections: 
-* [The illegal airstrips bringing toxic mining to Brazil’s indigenous land](https://www.nytimes.com/interactive/2022/08/02/world/americas/brazil-airstrips-illegal-mining.html), from _The New York Times_, and [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/), from _The Intercept_, 2022. The data on illegal airstrips assembled in the reporting can be downloaded [below](https://github.com/earthrise-media/mining-detector###airstrips-dataset).
 * [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. First in the series [Corredor Furtivo](https://armando.info/series/corredor-furtivo/). Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([in English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on various pollution streams entering the Amazon River system.
-
 
 Related reporting: 
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
@@ -79,15 +89,6 @@ Related reporting:
 * [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), _Reuters_, 2019, on illegal mining in protected Yanomami Indigenous Territory.
 
 Many thanks to the journalists whose skill and resourceful reporting brought these important stories to light.
-
-### Airstrips dataset
-
-
-A [collection](https://github.com/earthrise-media/mining-detector/blob/airfield-data/data/airstrips/Illegal-Airstrips-NYT-Intercept-Public.xlsx) of 1,269 clandestine airstrips in Brazil's Legal Amazon, of which 362 lie within 20 km of mining activity as detected by the neural network. 
-
-(https://github.com/earthrise-media/mining-detector#journalism)
-
-The clandestine airstrips survey is the result of a project of The Intercept Brasil with the Rainforest Investigations Network, in collaboration with The New York Times. The data was gathered by Earthrise Media from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented by governmental and non-governmental organizations as noted in the dataset, and verified by the newsrooms. The project is supported by The Pulitzer Center.
 
 ## Methodology
 
