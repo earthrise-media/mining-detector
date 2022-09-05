@@ -1,14 +1,15 @@
 # Gold Mine Detector and Map
 
-Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, a web map of gold mines in the Amazon rainforest, and links to related journalism.
+Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, a web map of gold mines in the Amazon rainforest, and links to related journalism. The repo underpins [Amazon Mining Watch](https://amazonminingwatch.org).
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
 
-* [**LAUNCH WEB MAP**](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html)
+* [**LAUNCH WEB MAP**](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) 
 * [**INTERPRETING THE MAP**](https://github.com/earthrise-media/mining-detector#interpreting-the-map)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
+* [**DATASETS**](https://github.com/earthrise-media/mining-detector##results)
 
 ---
 
@@ -65,9 +66,9 @@ The goal of this work is mine detection rather than area estimation, and our cla
 This work grew out of a series of collaborations with journalists and with activists at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. For our part in it, we began identifying mines by sight in satellite imagery. Later, some high school classes helped in the image sleuthing. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those painstaking human surveys.
 
 Reports using the automated detections: 
-* [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/) and [The illegal airstrips bringing toxic mining to Brazil’s indigenous land](https://www.nytimes.com/interactive/2022/08/02/world/americas/brazil-airstrips-illegal-mining.html), a pair of stories from _The Intercept_ and _The New York Times_ on the 
+* [The illegal airstrips bringing toxic mining to Brazil’s indigenous land](https://www.nytimes.com/interactive/2022/08/02/world/americas/brazil-airstrips-illegal-mining.html) and [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/), from _The New York Times_ and _The Intercept_, 2022. The data on illegal airstrips assembled in the reporting are [linked below](https://github.com/earthrise-media/mining-detector####Airstrips-dataset,-2021).
 * [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. First in the series [Corredor Furtivo](https://armando.info/series/corredor-furtivo/). Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([in English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
-* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system and links to sargassum seaweed blooms in the Caribbean.
+* [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on various pollution streams entering the Amazon River system.
 
 
 Related reporting: 
@@ -77,7 +78,7 @@ Related reporting:
 * [Illegal mining sparks malaria outbreak in indigenous territories in Brazil](https://infoamazonia.org/en/2020/11/25/mineracao-ilegal-contribui-para-surto-de-malaria-em-terras-indigenas-no-para/), _InfoAmazonia_ and _Mongabay_, 2020.
 * [Amazon gold rush: The threatened tribe](https://graphics.reuters.com/BRAZIL-INDIGENOUS/MINING/rlgvdllonvo/index.html), _Reuters_, 2019, on illegal mining in protected Yanomami Indigenous Territory.
 
-Many thanks to our collaborators, whose skill and resourceful reporting brought these important stories to light.
+Many thanks to the journalists whose skill and resourceful reporting brought these important stories to light.
 
 ## Methodology
 
@@ -93,6 +94,10 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 #### Assessement of mining in the Amazon basin in 2020
 
 [Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.9/mining_amazon_all_unified_thresh_0.8_v44px_v2.6-2.9_2020-01-01_2021-02-01_period_4_method_median.geojson). This data was largely generated with the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5). A small portion in the Brazillian state of Pará was analyzed using the [44px v2.9 model](models/44px_v2.9_2022-02-28.h5) to improve accuracy.
+
+#### Airstrips dataset, 2021
+
+
 
 #### Tapajós basin mining progression, 2016-2020 
 
