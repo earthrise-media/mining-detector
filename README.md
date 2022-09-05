@@ -9,7 +9,7 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 * [**INTERPRETING THE MAP**](https://github.com/earthrise-media/mining-detector#interpreting-the-map)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
-* [**MINING**](https://github.com/earthrise-media/mining-detector##results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector####airstrips-and-airstrips-dataset) DATASETS
+* [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
 
 ---
 
@@ -69,15 +69,15 @@ This work grew out of a series of collaborations with journalists and with activ
 * [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. First in the series [Corredor Furtivo](https://armando.info/series/corredor-furtivo/). Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([in English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of the series [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system.
 
-#### Illegal airstrips and airstrips dataset
+### Clandestine airstrips and airstrips dataset
 
-Rough dirt airstrips, often illegal and unregistered with authorities, allow miners to access the mines and to fly out the gold. The Intercept Brasil, with the Rainforest Investigations Network and in collaboration with the New York Times, surveyed 1,269 clandestine airstrips in Brazil's Legal Amazon. They identified 362 clandestine airstrips lying within 20 kilometers of mining activity. The investigation led to a pair of stories and a short documentary film: 
+Rough dirt airstrips, often illegal and unregistered with authorities, allow miners to access the mines and to fly out the gold. The Intercept Brasil, with the Rainforest Investigations Network and in collaboration with the New York Times, surveyed over a thousand clandestine airstrips in Brazil's Legal Amazon. They identified 362 clandestine airstrips lying within 20 kilometers of mining activity. The investigation into the role of airstrips in the expansion of mining led to a pair of stories and a short documentary film: 
 
 * [The illegal airstrips bringing toxic mining to Brazil’s indigenous land](https://www.nytimes.com/interactive/2022/08/02/world/americas/brazil-airstrips-illegal-mining.html), _The New York Times_, 2022.
 * [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/), _The Intercept_, 2022. 
 * [Os pilotos da Amazônia](https://www.youtube.com/watch?v=IA-Rk_hdl4M), _The Intercept_, 2022.
 
-The airstrip location data are available for download [here](https://github.com/earthrise-media/mining-detector/blob/airfield-data/data/airstrips/). The data were gathered by Earthrise Media from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented with input from several governmental and non-governmental organizations, and verified by the newsrooms. The project is supported by The Pulitzer Center.
+The airstrip location data are [available for download](https://github.com/earthrise-media/mining-detector/blob/airfield-data/data/airstrips/). The data were gathered by Earthrise Media from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented with input from several governmental and non-governmental organizations, and verified by the newsrooms. The project is supported by The Pulitzer Center.
 
 #### Related reporting on open-pit mining
 * [Garimpo destruidor](https://theintercept.com/2021/12/04/garimpo-ilegal-sai-cinza-para-amazonia/), _The Intercept_, 2021.
