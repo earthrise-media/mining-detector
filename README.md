@@ -10,6 +10,7 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 * [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips) DATASETS
+* [**TEST**](https://github.com/earthrise-media/mining-detector#test)
 
 ---
 
@@ -37,6 +38,8 @@ You can recognize aquaculture ponds by their geometric shape, efficient use of s
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older mine sites that have fallen into disuse and the edges of active mining regions often fall into this category.
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
+
+## Test
 
 #### Basemap Imagery
 
