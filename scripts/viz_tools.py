@@ -22,14 +22,17 @@ band_descriptions = {
 def normalize(x):
     return (np.array(x)) / (3000)
 
-def plot_image_grid(patches, labels=False, file_path=None):
+def plot_image_grid(patches, labels=False, file_path=None, norm=True):
     num_img = int(np.ceil(np.sqrt(len(patches))))
     plt.figure(figsize=(num_img, num_img), dpi=100)
     for index, img in enumerate(tqdm(patches)):
         plt.subplot(num_img, num_img, index + 1)
         if np.ma.is_masked(img):
             img[img.mask] = 0
-        plt.imshow(np.clip(normalize(img[:,:,3:0:-1]), 0, 1))
+        if norm:
+            plt.imshow(np.clip(normalize(img[:,:,3:0:-1]), 0, 1))
+        else:
+            plt.imshow(np.clip(img[:,:,3:0:-1], 0, 1))
         if len(np.shape(labels)) > 0:
             plt.title(labels[index])
         plt.axis('off')
