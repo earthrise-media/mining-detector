@@ -22,14 +22,17 @@ band_descriptions = {
 def normalize(x):
     return (np.array(x)) / (3000)
 
-def plot_image_grid(patches, labels=False, file_path=None):
+def plot_image_grid(patches, labels=False, file_path=None, norm=True):
     num_img = int(np.ceil(np.sqrt(len(patches))))
     plt.figure(figsize=(num_img, num_img), dpi=100)
     for index, img in enumerate(tqdm(patches)):
         plt.subplot(num_img, num_img, index + 1)
         if np.ma.is_masked(img):
             img[img.mask] = 0
-        plt.imshow(np.clip(normalize(img[:,:,3:0:-1]), 0, 1))
+        if norm:
+            plt.imshow(np.clip(normalize(img[:,:,3:0:-1]), 0, 1))
+        else:
+            plt.imshow(np.clip(img[:,:,3:0:-1], 0, 1))
         if len(np.shape(labels)) > 0:
             plt.title(labels[index])
         plt.axis('off')
@@ -39,3 +42,24 @@ def plot_image_grid(patches, labels=False, file_path=None):
         plt.suptitle(title, size = num_img * 12 / 7, y=1.02)
         plt.savefig(file_path + '.png', bbox_inches='tight')
     plt.show()
+
+def plot_numpy_grid(patches):
+    num_img = int(np.ceil(np.sqrt(len(patches))))
+    padding = 1
+    h,w,c = patches[0].shape
+    mosaic = np.zeros((num_img * (h + padding), num_img * (w + padding), c))
+    counter = 0
+    for i in range(num_img):
+        for j in range(num_img):
+            if counter < len(patches):
+                mosaic[i * (h + padding):(i + 1) * h + i * padding, 
+                       j * (w + padding):(j + 1) * w + j * padding] = patches[counter]
+            else:
+                mosaic[i * (h + padding):(i + 1) * h + i * padding, 
+                       j * (w + padding):(j + 1) * w + j * padding] = np.zeros((h,w,c))    
+            counter += 1
+            
+    fig, ax = plt.subplots(figsize=(num_img, num_img), dpi=150)
+    ax.axis('off')
+    ax.imshow(mosaic)
+    return fig
