@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Amazon Mine Map - 2021 - Threshold 0.8</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js'></script>
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css' rel='stylesheet' />
+  //<link rel="stylesheet" href="./amazon-mine-map.css" />
+  <style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+#menu {
+    background: #fff;
+    position: absolute;
+    z-index: 1;
+    top: 10px;
+    left: 10px;
+    border-radius: 3px;
+    width: 240px;
+    border: 2px solid rgba(0,0,0,0);
+    font-family: 'Open Sans Bold', sans-serif;
+    border-radius: 8px;
+}
+
+#menu menu-title {
+    font-size: 18px;
+    color: #404040;
+    display: block;
+    margin: 0;
+    padding: 0;
+    padding: 10px;
+    text-decoration: none;
+    text-align: center;
+}
+
+#menu a {
+    font-size: 14px;
+    color: #404040;
+    display: block;
+    margin: 0;
+    padding: 0;
+    padding: 10px;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(0,0,0,0);
+    text-align: center;
+    border-radius: 8px;
+    background-color: #dfdfdf;
+}
+
+#menu a:last-child {
+    border: none;
+}
+
+#menu a:hover {
+    background-color: #afcfe5;
+    color: #404040;
+}
+
+#menu a.active {
+    background-color: #3887be;
+    color: #ffffff;
+}
+
+#menu a.active:hover {
+    background: #3074a4;
+}
+
+  </style>
+</head>
+<body>
+  <div id='map' style='width: 100vw; height: 100vh;'>
+    <nav id="menu"></nav>
+  </div>
+  <script>
+
+    mapboxgl.accessToken = 'pk.eyJ1IjoiZWFydGhyaXNlIiwiYSI6ImNqeDExNmtrZzAwM2E0OW16eHZ1dzg1eWEifQ.8LTFXyY-n7OsZOoWN9ONPQ';
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/earthrise/cl1gtnsmk005z14lss32j7a1p',
+        center: [-62.8, -4.5],
+        zoom: 4.5,
+        projection: {
+          name: 'naturalEarth',
+          center: [183, 40],
+          parallels: [30, 30]
+        },
+        hash: true
+    });
+    map.on('load', function() {
+      map.addSource('mining-data', {
+        type: 'geojson',
+        'tolerance': 0.05,
+        data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/44px_v2.9/mining_amazon_thresh_0.8_v44px_v2.9_2021-01-01_2022-02-01_period_4_method_median-dissolved.geojson'
+      });
+       map.addLayer(
+         {
+        'id': 'mining-stroke',
+        'type': 'line',
+        'source': 'mining-data',
+        'paint': {
+          'line-color': '#ffb301',
+          'line-opacity': 1.0,
+          'line-width': 1,
+        }
+      });
+      map.addSource('maptiler-sentinel', {
+        'type': 'raster',
+        'tiles': [
+          'https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=LTYjFQeomRfetQbTCERa'
+        ],
+        'tileSize': 256,
+        'attribution': '&copy; MapTiler'
+      });
+      map.addLayer({
+        'id': 'maptiler-layer',
+        'type': 'raster',
+        'source': 'maptiler-sentinel',
+        'paint': {},
+        'layout': {'visibility': 'none'}
+      },
+      'Amazon Stroke'
+      );
+
+      map.on('click', function(e) {
+		    var coordinates = e.lngLat;
+        navigator.clipboard.writeText(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000);
+		    new mapboxgl.Popup()
+		      .setLngLat(coordinates)
+		      .setHTML(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000)
+		      .addTo(map);
+		  });
+    });
+
+var satLayerIds = {
+  'Higher resolution': 'mapbox-satellite',
+  'More recent': 'maptiler-layer'
+};
+var satQualities = Object.keys(satLayerIds);
+
+menuTitle = document.createElement('menu-title')
+menuTitle.textContent = 'Toggle satellite imagery:'
+document.getElementById('menu').appendChild(menuTitle);
+
+for (var i = 0; i < satQualities.length; i++) {
+    var q = satQualities[i];
+    var id = satLayerIds[q];
+    var link = document.createElement('a');
+    link.href = '#';
+    link.textContent = q;
+    link.idLayer = id;
+    if (i === 0) {
+        link.className = 'active';
+    } else {
+        link.className = '';
+    };
+    document.getElementById('menu').appendChild(link);
+};
+
+satDefault = document.getElementById('menu').children[1]
+satOther = document.getElementById('menu').children[2]
+satDefault.onclick = function (e) {
+    if (satDefault.className != 'active') {
+        satDefault.className = 'active';
+        satOther.className = '';
+        map.setLayoutProperty(satOther.idLayer, 'visibility', 'none');
+        map.setLayoutProperty('BW Satellite', 'visibility', 'visible');
+        map.setPaintProperty('Amazon Hole', 'fill-opacity', 1.0);
+    }
+};
+satOther.onclick = function (e) {
+    if (satOther.className != 'active') {
+        satOther.className = 'active';
+        satDefault.className = '';
+        map.setLayoutProperty(satOther.idLayer, 'visibility', 'visible');
+        map.setLayoutProperty('BW Satellite', 'visibility', 'none');
+        map.setPaintProperty('Amazon Hole', 'fill-opacity', 0.5);
+    }
+};
+
+
+  </script>
+</body>
+</html>
