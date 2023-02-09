@@ -263,6 +263,9 @@
             });
         });
 
+        // Add zoom and rotation controls to the map.
+        map.addControl(new mapboxgl.NavigationControl());
+
         var satLayerIds = {
             'Higher resolution': 'mapbox-satellite',
             'More recent': 'maptiler-layer'
