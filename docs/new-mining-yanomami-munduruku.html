@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>New Mining - Minduruku and Yanomami - 2020-2022</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #menu {
+            background: #fff;
+            position: absolute;
+            z-index: 1;
+            top: 10px;
+            left: 10px;
+            border-radius: 3px;
+            width: 240px;
+            border: 2px solid rgba(0, 0, 0, 0);
+            font-family: 'Open Sans Bold', sans-serif;
+            border-radius: 8px;
+        }
+
+        #menu menu-title {
+            font-size: 18px;
+            color: #404040;
+            display: block;
+            margin: 0;
+            padding: 0;
+            padding: 10px;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        #menu a {
+            font-size: 14px;
+            color: #404040;
+            display: block;
+            margin: 0;
+            padding: 0;
+            padding: 10px;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0);
+            text-align: center;
+            border-radius: 8px;
+            background-color: #dfdfdf;
+        }
+
+        #menu a:last-child {
+            border: none;
+        }
+
+        #menu a:hover {
+            background-color: #afcfe5;
+            color: #404040;
+        }
+
+        #menu a.active {
+            background-color: #3887be;
+            color: #ffffff;
+        }
+
+        #menu a.active:hover {
+            background: #3074a4;
+        }
+
+        .legend {
+            background-color: #fff;
+            border-radius: 3px;
+            bottom: 30px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            padding: 10px;
+            position: absolute;
+            right: 10px;
+            z-index: 1;
+        }
+
+        .legend h4 {
+            margin: 0 0 10px;
+        }
+
+        .legend div span {
+            border-radius: 50%;
+            display: inline-block;
+            height: 10px;
+            margin-right: 5px;
+            width: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id='map' style='width: 100vw; height: 100vh;'>
+        <nav id="menu"></nav>
+    </div>
+    <div id="state-legend" class="legend">
+
+        <div><span style="background-color: #A00F0F"></span>2022</div>
+        <div><span style="background-color: #CC4B20"></span>2021</div>
+        <div><span style="background-color: #ffb301"></span>2020</div>
+        <div><span style="background-color: #5f6162"></span>AMW</div>
+    </div>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZWFydGhyaXNlIiwiYSI6ImNqeDExNmtrZzAwM2E0OW16eHZ1dzg1eWEifQ.8LTFXyY-n7OsZOoWN9ONPQ';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/earthrise/cl2avd87o001015n074l32we0',
+            center: [-57.5846, -6.8015],
+            zoom: 11.0,
+            projection: {
+                name: 'naturalEarth',
+                center: [183, 40],
+                parallels: [30, 30]
+            },
+            hash: true
+        });
+        map.on('load', function () {
+
+            map.addSource('maptiler-sentinel', {
+                'type': 'raster',
+                'tiles': [
+                    'https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=LTYjFQeomRfetQbTCERa'
+                ],
+                'tileSize': 256,
+                'attribution': '&copy; MapTiler'
+            });
+            map.addLayer({
+                'id': 'maptiler-layer',
+                'type': 'raster',
+                'source': 'maptiler-sentinel',
+                'paint': {},
+                'layout': {
+                    'visibility': 'none'
+                }
+            }
+            );
+
+            map.addSource('mining-2020', {
+                type: 'geojson',
+                'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2019-2020_new_mining.geojson'
+            });
+            map.addSource('mining-2021', {
+                type: 'geojson',
+                'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2020-2021_new_mining.geojson'
+            });
+            map.addSource('mining-2022', {
+                type: 'geojson',
+                'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2021-2022_new_mining.geojson'
+            });
+            map.addSource('mining-amw', {
+                type: 'geojson',
+                'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/amw_centroids.geojson'
+            });
+            map.addSource('boundary', {
+                type: 'geojson',
+                //'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/boundaries/yanomami_and_munduruku.geojson'
+            });
+            map.addLayer(
+                {
+                    'id': 'boundary-stroke',
+                    'type': 'line',
+                    'source': 'boundary',
+                    'paint': {
+                        'line-color': '#3b3b3b',
+                        'line-opacity': 1.0,
+                        'line-width': 1.5,
+                    }
+                });
+        
+            map.addLayer({
+                'id': 'mining-2020-points',
+                'type': 'circle',
+                'source': 'mining-2020',
+                'paint': {
+                    'circle-color': '#ffb301',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5
+                    ],
+                },
+            });
+            map.addLayer({
+                'id': 'mining-2021-points',
+                'type': 'circle',
+                'source': 'mining-2021',
+                'paint': {
+                    'circle-color': '#CC4B20',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5
+                    ],
+                },
+            });
+            map.addLayer({
+                'id': 'mining-2022-points',
+                'type': 'circle',
+                'source': 'mining-2022',
+                'paint': {
+                    'circle-color': '#A00F0F',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5
+                    ],
+                },
+            });
+            map.addLayer({
+                'id': 'mining-amw-points',
+                'type': 'circle',
+                'source': 'mining-amw',
+                'paint': {
+                    'circle-color': '#5f6162',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5
+                    ],
+                },
+            });
+
+            map.on('click', function (e) {
+                var coordinates = e.lngLat;
+                navigator.clipboard.writeText(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000);
+                new mapboxgl.Popup()
+                    .setLngLat(coordinates)
+                    .setHTML(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000)
+                    .addTo(map);
+            });
+        });
+
+        // Add zoom and rotation controls to the map.
+        map.addControl(new mapboxgl.NavigationControl());
+
+        var satLayerIds = {
+            'Map': 'mapbox-outdoors',
+            'Satellite': 'maptiler-layer'
+        };
+        var satQualities = Object.keys(satLayerIds);
+
+        menuTitle = document.createElement('menu-title')
+        menuTitle.textContent = 'Toggle basemap:'
+        document.getElementById('menu').appendChild(menuTitle);
+
+        for (var i = 0; i < satQualities.length; i++) {
+            var q = satQualities[i];
+            var id = satLayerIds[q];
+            var link = document.createElement('a');
+            link.href = '#';
+            link.textContent = q;
+            link.idLayer = id;
+            if (i === 0) {
+                link.className = 'active';
+            } else {
+                link.className = '';
+            };
+            document.getElementById('menu').appendChild(link);
+        };
+
+        satDefault = document.getElementById('menu').children[1]
+        satOther = document.getElementById('menu').children[2]
+        satDefault.onclick = function (e) {
+            if (satDefault.className != 'active') {
+                satDefault.className = 'active';
+                satOther.className = '';
+                map.setLayoutProperty(satOther.idLayer, 'visibility', 'none');
+            }
+        };
+        satOther.onclick = function (e) {
+            if (satOther.className != 'active') {
+                satOther.className = 'active';
+                satDefault.className = '';
+                map.setLayoutProperty(satOther.idLayer, 'visibility', 'visible');
+            }
+        };
+    </script>
+</body>
+
+</html>
