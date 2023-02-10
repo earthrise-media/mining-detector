@@ -187,6 +187,60 @@
                         'line-width': 1.5,
                     }
                 });
+                map.addLayer({
+                'id': 'mining-amw-points',
+                'type': 'circle',
+                'source': 'mining-amw',
+                'paint': {
+                    'circle-color': '#5f6162',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5,
+                        15, 6
+                    ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
+                },
+            });
+            map.addLayer({
+                'id': 'mining-labeled-points',
+                'type': 'circle',
+                'source': 'mining-labeled',
+                'paint': {
+                    'circle-color': '#5f6162',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5,
+                        15, 6
+                    ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
+                },
+            });   
             map.addLayer({
                 'id': 'mining-2020-points',
                 'type': 'circle',
@@ -255,32 +309,6 @@
                         5, 1.0,
                         8, 1.5,
                         10, 2.0,
-                        13, 3.5
-                    ],
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': ['interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        11.5, 0,
-                        12, 0.75,
-                    ],
-                    'circle-stroke-opacity': 0.75,
-                },
-            });
-            map.addLayer({
-                'id': 'mining-amw-points',
-                'type': 'circle',
-                'source': 'mining-amw',
-                'paint': {
-                    'circle-color': '#5f6162',
-                    'circle-opacity': 1.0,
-                    'circle-radius': ['interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        3, 0.5,
-                        5, 1.0,
-                        8, 1.5,
-                        10, 2.0,
                         13, 3.5,
                         15, 6
                     ],
@@ -294,34 +322,7 @@
                     'circle-stroke-opacity': 0.75,
                 },
             });
-            map.addLayer({
-                'id': 'mining-labeled-points',
-                'type': 'circle',
-                'source': 'mining-labeled',
-                'paint': {
-                    'circle-color': '#5f6162',
-                    'circle-opacity': 1.0,
-                    'circle-radius': ['interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        3, 0.5,
-                        5, 1.0,
-                        8, 1.5,
-                        10, 2.0,
-                        13, 3.5,
-                        15, 6
-                    ],
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': ['interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        11.5, 0,
-                        12, 0.75,
-                    ],
-                    'circle-stroke-opacity': 0.75,
-                },
-            });    
-
+            
             map.on('click', function (e) {
                 var coordinates = e.lngLat;
                 navigator.clipboard.writeText(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000);
