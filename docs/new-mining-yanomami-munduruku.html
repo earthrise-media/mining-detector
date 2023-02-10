@@ -26,8 +26,7 @@
             z-index: 1;
             top: 10px;
             left: 10px;
-            border-radius: 3px;
-            width: 240px;
+            width: 65px;
             border: 2px solid rgba(0, 0, 0, 0);
             font-family: 'Open Sans Bold', sans-serif;
             border-radius: 8px;
@@ -39,7 +38,7 @@
             display: block;
             margin: 0;
             padding: 0;
-            padding: 10px;
+            padding: 0px;
             text-decoration: none;
             text-align: center;
         }
@@ -49,12 +48,11 @@
             color: #404040;
             display: block;
             margin: 0;
-            padding: 0;
-            padding: 10px;
+            padding: 7px;
             text-decoration: none;
             border-bottom: 1px solid rgba(0, 0, 0, 0);
             text-align: center;
-            border-radius: 8px;
+            border-radius: 6px;
             background-color: #dfdfdf;
         }
 
@@ -166,7 +164,12 @@
             map.addSource('mining-amw', {
                 type: 'geojson',
                 'tolerance': 0.05,
-                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/amw_centroids.geojson'
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/unlabeled_amw_centroids.geojson'
+            });
+            map.addSource('mining-labeled', {
+                type: 'geojson',
+                'tolerance': 0.05,
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/labeled_data_centroids.geojson'
             });
             map.addSource('boundary', {
                 type: 'geojson',
@@ -184,7 +187,6 @@
                         'line-width': 1.5,
                     }
                 });
-        
             map.addLayer({
                 'id': 'mining-2020-points',
                 'type': 'circle',
@@ -199,8 +201,17 @@
                         5, 1.0,
                         8, 1.5,
                         10, 2.0,
-                        13, 3.5
+                        13, 3.5,
+                        15, 6
                     ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
                 },
             });
             map.addLayer({
@@ -217,8 +228,17 @@
                         5, 1.0,
                         8, 1.5,
                         10, 2.0,
-                        13, 3.5
+                        13, 3.5,
+                        15, 6
                     ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
                 },
             });
             map.addLayer({
@@ -237,6 +257,14 @@
                         10, 2.0,
                         13, 3.5
                     ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
                 },
             });
             map.addLayer({
@@ -253,10 +281,46 @@
                         5, 1.0,
                         8, 1.5,
                         10, 2.0,
-                        13, 3.5
+                        13, 3.5,
+                        15, 6
                     ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
                 },
             });
+            map.addLayer({
+                'id': 'mining-labeled-points',
+                'type': 'circle',
+                'source': 'mining-labeled',
+                'paint': {
+                    'circle-color': '#5f6162',
+                    'circle-opacity': 1.0,
+                    'circle-radius': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 0.5,
+                        5, 1.0,
+                        8, 1.5,
+                        10, 2.0,
+                        13, 3.5,
+                        15, 6
+                    ],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': ['interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        11.5, 0,
+                        12, 0.75,
+                    ],
+                    'circle-stroke-opacity': 0.75,
+                },
+            });    
 
             map.on('click', function (e) {
                 var coordinates = e.lngLat;
@@ -278,7 +342,7 @@
         var satQualities = Object.keys(satLayerIds);
 
         menuTitle = document.createElement('menu-title')
-        menuTitle.textContent = 'Toggle basemap:'
+        menuTitle.textContent = ''
         document.getElementById('menu').appendChild(menuTitle);
 
         for (var i = 0; i < satQualities.length; i++) {
@@ -290,6 +354,8 @@
             link.idLayer = id;
             if (i === 0) {
                 link.className = 'active';
+                // add a 2px margin to the bottom
+                link.style.marginBottom = '2px';
             } else {
                 link.className = '';
             };
