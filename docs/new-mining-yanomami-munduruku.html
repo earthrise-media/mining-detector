@@ -149,17 +149,17 @@
             map.addSource('mining-2020', {
                 type: 'geojson',
                 'tolerance': 0.05,
-                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2019-2020_new_mining.geojson'
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2019-2020_new_mining_points.geojson'
             });
             map.addSource('mining-2021', {
                 type: 'geojson',
                 'tolerance': 0.05,
-                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2020-2021_new_mining.geojson'
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2020-2021_new_mining_points.geojson'
             });
             map.addSource('mining-2022', {
                 type: 'geojson',
                 'tolerance': 0.05,
-                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2021-2022_new_mining.geojson'
+                data: 'https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/2021-2022_new_mining_points.geojson'
             });
             map.addSource('mining-amw', {
                 type: 'geojson',
@@ -187,7 +187,7 @@
                         'line-width': 1.5,
                     }
                 });
-                map.addLayer({
+            map.addLayer({
                 'id': 'mining-amw-points',
                 'type': 'circle',
                 'source': 'mining-amw',
@@ -240,7 +240,7 @@
                     ],
                     'circle-stroke-opacity': 0.75,
                 },
-            });   
+            });
             map.addLayer({
                 'id': 'mining-2020-points',
                 'type': 'circle',
@@ -322,8 +322,9 @@
                     'circle-stroke-opacity': 0.75,
                 },
             });
-            
-            map.on('click', function (e) {
+        });
+
+        map.on('click', function (e) {
                 var coordinates = e.lngLat;
                 navigator.clipboard.writeText(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000);
                 new mapboxgl.Popup()
@@ -331,7 +332,6 @@
                     .setHTML(Math.round(coordinates.lat * 1000) / 1000 + ", " + Math.round(coordinates.lng * 1000) / 1000)
                     .addTo(map);
             });
-        });
 
         // Add zoom and rotation controls to the map.
         map.addControl(new mapboxgl.NavigationControl());
