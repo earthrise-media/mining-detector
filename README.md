@@ -165,4 +165,4 @@ The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, thou
 
 ### License
 
-The code and data in this repository are available for reuse under an open [MIT License](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). In publication, please cite Earthrise Media, with reference to this repository.
+The code in this repository are available for reuse under an open [MIT License](https://github.com/earthrise-media/mining-detector/blob/main/LICENSE). The data is available under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). In publication, please cite Earth Genome, with reference to this repository.
