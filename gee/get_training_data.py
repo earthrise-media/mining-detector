@@ -1,11 +1,62 @@
 import pickle
+import os
 
 from descarteslabs.geo import DLTile
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import shapely
 
 import gee_data
+
+class Tile():
+    """
+    This is a simplification of a DLTIle to keep the interface consistent, 
+    but to allow for more specific definitions of tile geographies rather than the
+    nearest dltile.
+    inputs:
+        lat: latitude
+        lon: longitude
+        resolution: resolution of the tile in meters
+        tilesize: size of the tile in pixels
+    outputs:
+        tile: a DLTile like object
+    """
+
+    def __init__(self, lat, lon, tilesize):
+        self.lat = lat
+        self.lon = lon
+        self.tilesize = tilesize
+        self.resolution = 10
+    
+    def get_mgrs_crs(self):
+        crs = DLTile.from_latlon(self.lat, self.lon, resolution=self.resolution, tilesize=self.tilesize, pad=0).crs
+        self.crs = crs
+        return crs
+    
+    def convert_to_mgrs(self):
+        "converts the lat and lon from epsg:4326 to the mgrs crs"
+        mgrs_crs = self.get_mgrs_crs()
+        point = shapely.geometry.Point(self.lon, self.lat)
+        gdf = gpd.GeoDataFrame(geometry=[point], crs='epsg:4326')
+        gdf = gdf.to_crs(mgrs_crs)
+        self.x = gdf.geometry.x[0]
+        self.y = gdf.geometry.y[0]
+
+    
+    def create_geometry(self):
+        "Creates a shapely geometry for the tile. Centered on the lat, lon, and extending out to the tilesize"
+        self.convert_to_mgrs()
+        center_point = shapely.geometry.Point(self.x, self.y)
+        buffer_distance = self.tilesize * 10 / 2 # assume that resolution is always 10 because S2 data
+        circle = center_point.buffer(buffer_distance)
+        minx, miny, maxx, maxy = circle.bounds
+        bbox = shapely.geometry.box(minx, miny, maxx, maxy)
+        # convert from mgrs crs to epsg:4326
+        bbox = gpd.GeoDataFrame(geometry=[bbox], crs=self.crs)
+        bbox = bbox.to_crs('epsg:4326')
+        bbox = bbox.geometry[0]
+        self.geometry = bbox
 
 class TrainingData():
 
@@ -22,8 +73,12 @@ class TrainingData():
         self.sampling_locations.set_crs(epsg=4326, inplace=True)
         lats = self.sampling_locations.geometry.y
         lons = self.sampling_locations.geometry.x
-        # create DLTiles for each sampling location
-        tiles = [DLTile.from_latlon(lat, lon, resolution=10, tilesize=self.patch_size+2, pad=0) for lat, lon in zip(lats, lons)]
+        # create a  for each sampling location
+        tiles = []
+        for lat, lon in zip(lats, lons):
+            tile = Tile(lat, lon, self.patch_size)
+            tile.create_geometry()
+            tiles.append(tile)
         print(f"{len(tiles)} tiles to download")
         self.tiles = tiles
 
@@ -37,13 +92,20 @@ class TrainingData():
         data = np.array([gee_data.pad_patch(patch, self.patch_size) for patch in data])
         print(f'Retrieved {data.shape[0]} patches')
 
-        fig = plot_numpy_grid(np.clip(data[:,:,:,(3,2,1)] / 2500, 0, 1))
-        fig.savefig(f'../data/training_data/{self.sampling_file}_{self.start_date}_{self.end_date}.png', bbox_inches='tight', pad_inches=0)
-        plt.show()
+        
 
         # save the data
-        basepath = f'../data/training_data/{self.sampling_file}_{self.start_date}_{self.end_date}'
+        basepath = f'../data/training_data/{self.patch_size}_px/'
+        # create directory if it doesn't exist
+        if not os.path.exists(basepath):
+            os.makedirs(basepath)
+        basepath += f'{self.sampling_file}_{self.start_date}_{self.end_date}'
         save_patch_arrays(data, basepath, self.label_class)
+
+        fig = plot_numpy_grid(np.clip(data[:,:,:,(3,2,1)] / 2500, 0, 1))
+        fig.savefig(f'{basepath}.png', bbox_inches='tight', pad_inches=0)
+        plt.show()
+
         self.data = data
 
 

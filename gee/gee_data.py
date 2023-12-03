@@ -9,6 +9,7 @@ from descarteslabs.geo import DLTile
 import ee
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import shapely
 from descarteslabs.geo import DLTile
 
@@ -28,7 +29,7 @@ def create_tiles(region, tilesize, padding):
     tiles = [tile for tile in tiles]
     return tiles
 
-def get_image_data(tiles, start_date, end_date, clear_threshold=0.6):
+def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear_threshold=0.6):
     """
     Download Sentinel-2 data for a set of tiles.
     Inputs:
@@ -37,7 +38,7 @@ def get_image_data(tiles, start_date, end_date, clear_threshold=0.6):
         - end_date: the end date of the data
         - clear_threshold: the threshold for cloud cover
     Outputs:
-        - data: a list of numpy arrays containing the Sentinel-2 data
+        - pred_gdf: a geodataframe of predictions
     """
     # Harmonized Sentinel-2 Level 2A collection.
     s2 = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')
@@ -54,7 +55,8 @@ def get_image_data(tiles, start_date, end_date, clear_threshold=0.6):
         .map(lambda img: img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
         .median())
     
-    data = []
+    predictions = gpd.GeoDataFrame()
+    completed_tasks = 0
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Process each tile in parallel
@@ -63,9 +65,13 @@ def get_image_data(tiles, start_date, end_date, clear_threshold=0.6):
         # Collect the results as they become available
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
-            data.append(result)
+            pixels, tile = result
+            pred_gdf = predict_on_tile(tile, pixels, model, pred_threshold)
+            predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
+            completed_tasks += 1
+            print(f"Completed tasks: {completed_tasks}/{len(tiles)}", end='\r')
     
-    return data
+    return predictions
 
 def process_tile(tile, composite):
     """
@@ -88,7 +94,7 @@ def process_tile(tile, composite):
         'grid': {'crsCode': tile.crs},
     })
     
-    return pixels
+    return pixels, tile
 
 def pad_patch(patch, height, width=None):
     """
@@ -152,12 +158,13 @@ def chips_from_tile(data, tile, width, stride):
         - stride: number of pixels between each patch
     Outputs:
         - chips: A list of numpy arrays of the shape the model requires
-        - chip_coords: A list of shapely polygon features describing the patch bounds
+        - chip_coords: A geodataframe of the polygons corresponding to each chip
     """
     (west, south, east, north) = tile.bounds
     delta_x = east - west
     delta_y = south - north
     x_per_pixel = delta_x / np.shape(data)[0]
+
     y_per_pixel = delta_y / np.shape(data)[1]
 
     # The tile is broken into the number of whole patches
@@ -196,3 +203,29 @@ def unit_norm(samples):
         normalized_samples[:,:,i] = (np.array(samples.astype(float))[:,:,i] - means[i]) / deviations[i]
     return normalized_samples
 
+def predict_on_tile(tile_info, tile_data, model, pred_threshold=0.5):
+    """
+    Takes in a tile of data and a model
+    Outputs a gdf of predictions and geometries
+    """
+    pixels = np.array(pad_patch(tile_data, tile_info.tilesize))
+    pixels_norm = np.clip(pixels / 10000.0, 0, 1)
+    chip_size = model.layers[0].input_shape[1]
+    stride = chip_size // 2
+    chips, chip_geoms = chips_from_tile(pixels_norm, tile_info, chip_size, stride)
+    chip_geoms.to_crs('EPSG:4326', inplace=True)
+    chips = np.array(chips)
+    # make predictions on these chips as they come in
+    # Can't hold all the chips in memory at once
+    preds = model.predict(chips, verbose=0)
+    # find the indices of the chips that are above the threshold
+    pred_idx = np.where(preds > pred_threshold)[0]
+    if len(pred_idx) > 0:
+        # select the elements from the chip_geoms dataframe where the predictions are above the threshold
+        preds_gdf = gpd.GeoDataFrame(geometry=chip_geoms['geometry'][pred_idx], crs='EPSG:4326')
+        # add the predictions to the dataframe
+        preds_gdf['pred'] = preds[pred_idx]
+    else:
+        preds_gdf = gpd.GeoDataFrame()
+
+    return preds_gdf
