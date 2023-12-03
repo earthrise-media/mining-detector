@@ -5,7 +5,6 @@ import geopandas as gpd
 
 import numpy as np
 import shapely
-from descarteslabs.geo import DLTile
 import ee
 import geopandas as gpd
 import numpy as np
