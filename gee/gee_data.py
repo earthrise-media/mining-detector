@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import shapely
 from descarteslabs.geo import DLTile
+import gc
 
 ee.Initialize(opt_url='https://earthengine-highvolume.googleapis.com')
 
@@ -28,7 +29,8 @@ def create_tiles(region, tilesize, padding):
     tiles = [tile for tile in tiles]
     return tiles
 
-def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear_threshold=0.6):
+
+def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear_threshold=0.6, batch_size=500):
     """
     Download Sentinel-2 data for a set of tiles.
     Inputs:
@@ -36,6 +38,7 @@ def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear
         - start_date: the start date of the data
         - end_date: the end date of the data
         - clear_threshold: the threshold for cloud cover
+        - batch_size: the number of tiles to process in each batch
     Outputs:
         - pred_gdf: a geodataframe of predictions
     """
@@ -58,17 +61,26 @@ def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear
     completed_tasks = 0
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Process each tile in parallel
-        futures = [executor.submit(process_tile, tile, composite) for tile in tiles]
-        
-        # Collect the results as they become available
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            pixels, tile = result
-            pred_gdf = predict_on_tile(tile, pixels, model, pred_threshold)
-            predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
-            completed_tasks += 1
-            print(f"Completed tasks: {completed_tasks}/{len(tiles)}", end='\r')
+        for i in range(0, len(tiles), batch_size):
+            batch_tiles = tiles[i:i+batch_size]
+            
+            # Process each tile in parallel
+            futures = [executor.submit(process_tile, tile, composite) for tile in batch_tiles]
+            
+            # Collect the results as they become available
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                pixels, tile = result
+                pred_gdf = predict_on_tile(tile, pixels, model, pred_threshold)
+                predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
+                completed_tasks += 1
+                print(f"Completed tasks: {completed_tasks}/{len(tiles)}", end='\r')
+                # write data to a tmp file every 500 tiles
+                if completed_tasks % 500 == 0:
+                    predictions.to_file('tmp.geojson', driver='GeoJSON')
+                # clear memory
+                del pixels
+                gc.collect()  # Perform garbage collection to free up memory
     
     return predictions
 
@@ -94,6 +106,33 @@ def process_tile(tile, composite):
     })
     
     return pixels, tile
+
+def predict_on_tile(tile_info, tile_data, model, pred_threshold=0.5):
+    """
+    Takes in a tile of data and a model
+    Outputs a gdf of predictions and geometries
+    """
+    pixels = np.array(pad_patch(tile_data, tile_info.tilesize))
+    pixels_norm = np.clip(pixels / 10000.0, 0, 1)
+    chip_size = model.layers[0].input_shape[1]
+    stride = chip_size // 2
+    chips, chip_geoms = chips_from_tile(pixels_norm, tile_info, chip_size, stride)
+    chip_geoms.to_crs('EPSG:4326', inplace=True)
+    chips = np.array(chips)
+    # make predictions on these chips as they come in
+    # Can't hold all the chips in memory at once
+    preds = model.predict(chips, verbose=0)
+    # find the indices of the chips that are above the threshold
+    pred_idx = np.where(preds > pred_threshold)[0]
+    if len(pred_idx) > 0:
+        # select the elements from the chip_geoms dataframe where the predictions are above the threshold
+        preds_gdf = gpd.GeoDataFrame(geometry=chip_geoms['geometry'][pred_idx], crs='EPSG:4326')
+        # add the predictions to the dataframe
+        preds_gdf['pred'] = preds[pred_idx]
+    else:
+        preds_gdf = gpd.GeoDataFrame()
+
+    return preds_gdf
 
 def pad_patch(patch, height, width=None):
     """
@@ -201,30 +240,3 @@ def unit_norm(samples):
         #normalize each channel to global unit norm
         normalized_samples[:,:,i] = (np.array(samples.astype(float))[:,:,i] - means[i]) / deviations[i]
     return normalized_samples
-
-def predict_on_tile(tile_info, tile_data, model, pred_threshold=0.5):
-    """
-    Takes in a tile of data and a model
-    Outputs a gdf of predictions and geometries
-    """
-    pixels = np.array(pad_patch(tile_data, tile_info.tilesize))
-    pixels_norm = np.clip(pixels / 10000.0, 0, 1)
-    chip_size = model.layers[0].input_shape[1]
-    stride = chip_size // 2
-    chips, chip_geoms = chips_from_tile(pixels_norm, tile_info, chip_size, stride)
-    chip_geoms.to_crs('EPSG:4326', inplace=True)
-    chips = np.array(chips)
-    # make predictions on these chips as they come in
-    # Can't hold all the chips in memory at once
-    preds = model.predict(chips, verbose=0)
-    # find the indices of the chips that are above the threshold
-    pred_idx = np.where(preds > pred_threshold)[0]
-    if len(pred_idx) > 0:
-        # select the elements from the chip_geoms dataframe where the predictions are above the threshold
-        preds_gdf = gpd.GeoDataFrame(geometry=chip_geoms['geometry'][pred_idx], crs='EPSG:4326')
-        # add the predictions to the dataframe
-        preds_gdf['pred'] = preds[pred_idx]
-    else:
-        preds_gdf = gpd.GeoDataFrame()
-
-    return preds_gdf
