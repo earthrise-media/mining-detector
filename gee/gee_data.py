@@ -13,7 +13,9 @@ import shapely
 from descarteslabs.geo import DLTile
 import gc
 
-ee.Initialize(opt_url='https://earthengine-highvolume.googleapis.com')
+ee.Initialize(
+    opt_url='https://earthengine-highvolume.googleapis.com',
+    project='earth-engine-ck')
 
 def create_tiles(region, tilesize, padding):
     """
@@ -58,6 +60,7 @@ def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear
         .median())
     
     predictions = gpd.GeoDataFrame()
+    evaluated_boundaries = gpd.GeoDataFrame()
     completed_tasks = 0
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -73,11 +76,14 @@ def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear
                 pixels, tile = result
                 pred_gdf = predict_on_tile(tile, pixels, model, pred_threshold)
                 predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
+                evaluated_boundaries = pd.concat([evaluated_boundaries, gpd.GeoDataFrame(geometry=[tile.geometry], crs='EPSG:4326')], ignore_index=True)
                 completed_tasks += 1
                 print(f"Completed tasks: {completed_tasks}/{len(tiles)}", end='\r')
                 # write data to a tmp file every 500 tiles
                 if completed_tasks % 500 == 0:
                     predictions.to_file('tmp.geojson', driver='GeoJSON')
+                    evaluated_boundaries.to_file('tmp_boundaries.geojson', driver='GeoJSON')
+
                 # clear memory
                 del pixels
                 gc.collect()  # Perform garbage collection to free up memory
@@ -114,9 +120,11 @@ def predict_on_tile(tile_info, tile_data, model, pred_threshold=0.5):
     """
     pixels = np.array(pad_patch(tile_data, tile_info.tilesize))
     pixels_norm = np.clip(pixels / 10000.0, 0, 1)
+    del pixels # trying this to reduce memory footprint
     chip_size = model.layers[0].input_shape[1]
     stride = chip_size // 2
     chips, chip_geoms = chips_from_tile(pixels_norm, tile_info, chip_size, stride)
+    del pixels_norm # trying this to reduce memory footprint
     chip_geoms.to_crs('EPSG:4326', inplace=True)
     chips = np.array(chips)
     # make predictions on these chips as they come in
