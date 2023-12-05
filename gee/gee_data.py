@@ -77,6 +77,7 @@ def get_image_data(tiles, start_date, end_date, model, pred_threshold=0.5, clear
                 pred_gdf = predict_on_tile(tile, pixels, model, pred_threshold)
                 predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
                 evaluated_boundaries = pd.concat([evaluated_boundaries, gpd.GeoDataFrame(geometry=[tile.geometry], crs='EPSG:4326')], ignore_index=True)
+                evaluated_boundaries = evaluated_boundaries.dissolve()
                 completed_tasks += 1
                 print(f"Completed tasks: {completed_tasks}/{len(tiles)}", end='\r')
                 # write data to a tmp file every 500 tiles
