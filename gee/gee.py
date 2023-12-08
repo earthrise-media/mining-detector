@@ -4,7 +4,6 @@ import ee
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import gc
 
 import utils
 
@@ -106,7 +105,6 @@ class S2_Data_Extractor:
         chip_size = model.layers[0].input_shape[1]
         stride = chip_size // 2
         chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size, stride)
-        del pixels  # trying this to reduce memory footprint
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
@@ -144,9 +142,6 @@ class S2_Data_Extractor:
                     pixels, tile = result
                     chips.append(pixels)
                     tile_data.append(tile)
-                    # clear memory uncertain if this is helpful
-                    del pixels
-                    gc.collect()  # Perform garbage collection to free up memory
         return chips, tile_data
 
     def make_predictions(self, model, pred_threshold=0.5, batch_size=500):
