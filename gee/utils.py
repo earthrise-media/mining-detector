@@ -98,7 +98,6 @@ def chips_from_tile(data, tile, width, stride):
     delta_x = east - west
     delta_y = south - north
     x_per_pixel = delta_x / np.shape(data)[0]
-
     y_per_pixel = delta_y / np.shape(data)[1]
 
     # The tile is broken into the number of whole patches
