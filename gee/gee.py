@@ -33,7 +33,7 @@ class S2_Data_Extractor:
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
-            # project='earth-engine-ck'
+            project="earth-engine-ck",
         )
 
         # Harmonized Sentinel-2 Level 2A collection.
@@ -182,15 +182,15 @@ class S2_Data_Extractor:
                     evaluated_boundaries = evaluated_boundaries.dissolve()
 
                     completed_tasks += 1
+                    # printing stats is a vanity metric. Also, the num preds value assumes tilesize 576, model input 48, and stride 24
+                    # maybe should delete, but I like to see the progress accumulate.
                     print(
-                        f"Completed tasks: {completed_tasks}/{len(self.tiles)}",
+                        f"Completed {completed_tasks:,}/{len(self.tiles):,} tiles. Made {completed_tasks * 265:,} predictions. Found {len(predictions):,} positives.",
                         end="\r",
                     )
-                    # write data to a tmp file every 500 tiles
-                    if completed_tasks % batch_size == 0:
-                        predictions.to_file("tmp.geojson", driver="GeoJSON")
-                        evaluated_boundaries.to_file(
-                            "tmp_boundaries.geojson", driver="GeoJSON"
-                        )
+                # write data to a tmp file
+                if len(predictions) > 0:
+                    predictions.to_file("tmp.geojson", driver="GeoJSON")
+                evaluated_boundaries.to_file("tmp_boundaries.geojson", driver="GeoJSON")
 
         return predictions
