@@ -2,6 +2,7 @@ import concurrent.futures
 
 import ee
 import geopandas as gpd
+from google.api_core import retry
 import numpy as np
 import pandas as pd
 
@@ -51,7 +52,8 @@ class S2_Data_Extractor:
             .map(lambda img: img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
             .median()
         )
-
+    
+    @retry.Retry(timeout=240)
     def get_tile_data(self, tile):
         """
         Download Sentinel-2 data for a tile.
@@ -91,7 +93,8 @@ class S2_Data_Extractor:
         pixels = np.array(pixels.tolist())
 
         return pixels, tile
-
+    
+    @retry.Retry(timeout=240)
     def predict_on_tile(self, tile, model, pred_threshold=0.5):
         """
         Takes in a tile of data and a model
