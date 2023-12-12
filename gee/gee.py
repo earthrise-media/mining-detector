@@ -5,6 +5,7 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 import utils
 
@@ -34,7 +35,7 @@ class S2_Data_Extractor:
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
-            project="earth-engine-ck",
+            project="earthindex",
         )
 
         # Harmonized Sentinel-2 Level 2A collection.
@@ -94,33 +95,40 @@ class S2_Data_Extractor:
 
         return pixels, tile
     
-    @retry.Retry(timeout=240)
     def predict_on_tile(self, tile, model, pred_threshold=0.5):
         """
         Takes in a tile of data and a model
         Outputs a gdf of predictions and geometries
         """
-        pixels, tile_info = self.get_tile_data(tile)
+        try:
+            pixels, tile_info = self.get_tile_data(tile)
+            
+        except Exception as e:
+            print(f"Error in get_tile_data for tile {tile}: {e}")
+            return None, None
+        
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
-        # normalize the pixels. Might need to make this flexible in the future
+        # Might need to make this flexible in the future
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         chip_size = model.layers[0].input_shape[1]
         stride = chip_size // 2
-        chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size, stride)
+        chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size,
+                                                  stride)
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
-        # make predictions on the chips
-        preds = model.predict(chips, verbose=0)
-        # find the indices of the chips that are above the threshold
+        try: 
+            preds = model.predict(chips, verbose=0)
+        except Exception as e:
+            print(f"Error in model.predict for tile {tile_info}: {e}")
+            return None, tile_info
+            
         pred_idx = np.where(preds > pred_threshold)[0]
         if len(pred_idx) > 0:
-            # select the elements from the chip_geoms dataframe where the predictions are above the threshold
             preds_gdf = gpd.GeoDataFrame(
                 geometry=chip_geoms["geometry"][pred_idx], crs="EPSG:4326"
             )
-            # add the predictions to the dataframe
             preds_gdf["pred"] = preds[pred_idx]
         else:
             preds_gdf = gpd.GeoDataFrame()
@@ -152,7 +160,7 @@ class S2_Data_Extractor:
         Predict on the data for the tiles.
         Inputs:
             - model: a keras model
-            - batch_size: the number of tiles to process in each batch (default: 500)
+            - batch_size: the number of tiles to process in each batch
         Outputs:
             - predictions: a gdf of predictions and geoms
         """
@@ -162,38 +170,33 @@ class S2_Data_Extractor:
         completed_tasks = 0
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in range(0, len(self.tiles), self.batch_size):
+            for i in tqdm(range(0, len(self.tiles), self.batch_size)):
                 batch_tiles = self.tiles[i : i + self.batch_size]
                 futures = [
-                    executor.submit(self.predict_on_tile, tile, model, pred_threshold)
+                    executor.submit(
+                        self.predict_on_tile, tile, model, pred_threshold)
                     for tile in batch_tiles
                 ]
 
                 for future in concurrent.futures.as_completed(futures):
-                    result = future.result()
-                    pred_gdf, tile_info = result
-                    predictions = pd.concat([predictions, pred_gdf], ignore_index=True)
-                    evaluated_boundaries = pd.concat(
-                        [
-                            evaluated_boundaries,
-                            gpd.GeoDataFrame(
-                                geometry=[tile_info.geometry], crs="EPSG:4326"
-                            ),
-                        ],
-                        ignore_index=True,
-                    )
-                    evaluated_boundaries = evaluated_boundaries.dissolve()
+                    pred_gdf, tile_info = future.result()
+                    if pred_gdf is not None:
+                        predictions = pd.concat([predictions, pred_gdf],
+                                                ignore_index=True)
+                        new_boundaries = gpd.GeoDataFrame(
+                            geometry=[tile_info.geometry], crs="EPSG:4326" )
+                        evaluated_boundaries = pd.concat(
+                            [evaluated_boundaries, new_boundaries], 
+                            ignore_index=True)
+                        evaluated_boundaries = evaluated_boundaries.dissolve()
 
                     completed_tasks += 1
-                    # printing stats is a vanity metric. Also, the num preds value assumes tilesize 576, model input 48, and stride 24
-                    # maybe should delete, but I like to see the progress accumulate.
-                    print(
-                        f"Completed {completed_tasks:,}/{len(self.tiles):,} tiles. Made {completed_tasks * 265:,} predictions. Found {len(predictions):,} positives.",
-                        end="\r",
-                    )
-                # write data to a tmp file
+
+                print(f"Ran {completed_tasks:,} of {len(self.tiles):,} tiles.")
+                print(f"Total {len(predictions):,} positives.\n")
+                    
                 if len(predictions) > 0:
-                    predictions.to_file("tmp.geojson", driver="GeoJSON")
-                evaluated_boundaries.to_file("tmp_boundaries.geojson", driver="GeoJSON")
+                    predictions.to_file("tmp.geojson")
+                    evaluated_boundaries.to_file("tmp_boundaries.geojson")
 
         return predictions
