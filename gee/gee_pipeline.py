@@ -11,6 +11,7 @@ import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
          clear_threshold, tile_size, tile_padding, batch_size):
+    """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
     
@@ -26,7 +27,7 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     if len(preds) > 0:
         outpath = get_outpath(
             model_path, region_path, start_date, end_date, pred_threshold)
-        preds.to_file(outpath)
+        preds.to_file(outpath, index=False)
 
 def get_outpath(model_path, region_path, start_date, end_date, pred_threshold):
     """Format an outpath from input parameters."""  
@@ -42,13 +43,13 @@ def get_outpath(model_path, region_path, start_date, end_date, pred_threshold):
     return outpath
 
 def valid_datetime(s):
+    """Formulate a datetime object from an isoformat date string."""
     try:
         return datetime.strptime(s, "%Y-%m-%d")
     except ValueError:
         msg = f"Not a valid date: '{s}'."
         raise argparse.ArgumentTypeError(msg)
 
-    
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
