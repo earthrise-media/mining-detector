@@ -9,21 +9,18 @@ import keras
 import gee
 import utils
 
-TILE_SIZE = 576 # ~max size GEE allows to export 12-band imagery
-TILE_PADDING = 24
-
 def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size=TILE_SIZE, tile_padding=TILE_PADDING):
+         clear_threshold, tile_size, tile_padding, batch_size):
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
     
     tiles = utils.create_tiles(region, tile_size, tile_padding)
     print(f"Created {len(tiles)} tiles")
     data_pipeline = gee.S2_Data_Extractor(
-        tiles, start_date, end_date, clear_threshold, batch_size=500)
+        tiles, start_date, end_date, clear_threshold, batch_size=batch_size)
     preds = data_pipeline.make_predictions(model, pred_threshold)
     
-    print(f"{len(tiles) * (tile_size * 10) ** 2 / 10000} ha analyzed")
+    print(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     print(f"{len(preds)} chips with predictions above {pred_threshold}")
 
     if len(preds) > 0:
@@ -74,6 +71,15 @@ if __name__ == '__main__':
     parser.add_argument(
         "--clear_threshold", default=0.6, type=float,
         help="Clear sky (cloud absence) threshold")
-
+    parser.add_argument(
+        "--tile_size", default=576, type=int,
+        help="Tile width in pixels for requests to GEE")
+    parser.add_argument(
+        "--tile_padding", default=24, type=int,
+        help="Number of pixels to pad each tile")
+    parser.add_argument(
+        "--batch_size", default=500, type=int,
+        help="Number of tiles to process between writes")
+    
     args = parser.parse_args()
     main(**vars(args))
