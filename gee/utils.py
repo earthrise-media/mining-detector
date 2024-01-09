@@ -6,7 +6,7 @@ import shapely
 from descarteslabs.geo import DLTile
 
 
-def create_tiles(region, tilesize, padding):
+def create_tiles(region, tilesize, padding, resolution=10):
     """
     Create a set of tiles that cover a region.
     Inputs:
@@ -17,7 +17,7 @@ def create_tiles(region, tilesize, padding):
         - tiles: a list of DLTile objects
     """
     tiles = DLTile.iter_from_shape(
-        region, tilesize=tilesize, resolution=10, pad=padding
+        region, tilesize=tilesize, resolution=resolution, pad=padding
     )
     tiles = [tile for tile in tiles]
     return tiles
