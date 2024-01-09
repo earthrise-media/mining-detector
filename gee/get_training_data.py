@@ -55,8 +55,9 @@ class Tile:
         "Creates a shapely geometry for the tile. Centered on the lat, lon, and extending out to the tilesize"
         self.convert_to_mgrs()
         center_point = shapely.geometry.Point(self.x, self.y)
+        # I don't know why it works better when adding one to the tilesize
         buffer_distance = (
-            self.tilesize * 10 / 2
+            (self.tilesize + 1) * 10 / 2
         )  # assume that resolution is always 10 because S2 data
         circle = center_point.buffer(buffer_distance)
         minx, miny, maxx, maxy = circle.bounds

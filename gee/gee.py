@@ -108,13 +108,12 @@ class S2_Data_Extractor:
             return None, None
         
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
-        # Might need to make this flexible in the future
+        # normalize the pixels. Might need to make this flexible in the future
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         chip_size = model.layers[0].input_shape[1]
         stride = chip_size // 2
-        chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size,
-                                                  stride)
+        chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size, stride)
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
@@ -160,7 +159,7 @@ class S2_Data_Extractor:
         Predict on the data for the tiles.
         Inputs:
             - model: a keras model
-            - batch_size: the number of tiles to process in each batch
+            - batch_size: the number of tiles to process in each batch (default: 500)
         Outputs:
             - predictions: a gdf of predictions and geoms
         """
@@ -197,6 +196,6 @@ class S2_Data_Extractor:
                     
                 if len(predictions) > 0:
                     predictions.to_file("tmp.geojson")
-                    evaluated_boundaries.to_file("tmp_boundaries.geojson")
+                evaluated_boundaries.to_file("tmp_boundaries.geojson")
 
         return predictions
