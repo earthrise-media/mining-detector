@@ -5,7 +5,6 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 import utils
 
@@ -169,7 +168,7 @@ class S2_Data_Extractor:
         completed_tasks = 0
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in tqdm(range(0, len(self.tiles), self.batch_size)):
+            for i in range(0, len(self.tiles), self.batch_size):
                 batch_tiles = self.tiles[i : i + self.batch_size]
                 futures = [
                     executor.submit(
@@ -190,9 +189,10 @@ class S2_Data_Extractor:
                         evaluated_boundaries = evaluated_boundaries.dissolve()
 
                     completed_tasks += 1
-
-                print(f"Ran {completed_tasks:,} of {len(self.tiles):,} tiles.")
-                print(f"Total {len(predictions):,} positives.\n")
+                    print(
+                        f"Completed {completed_tasks:,}/{len(self.tiles):,} tiles. Found {len(predictions):,} positives.",
+                        end="\r"
+                    )
                     
                 if len(predictions) > 0:
                     predictions.to_file("tmp.geojson")
