@@ -31,6 +31,9 @@ class S2_Data_Extractor:
         self.end_date = end_date
         self.clear_threshold = clear_threshold
         self.batch_size = batch_size
+        self.completed_tasks = 0
+        self.predictions = gpd.GeoDataFrame()
+        self.evaluated_boundaries = gpd.GeoDataFrame()
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
@@ -163,12 +166,8 @@ class S2_Data_Extractor:
             - predictions: a gdf of predictions and geoms
         """
 
-        predictions = gpd.GeoDataFrame()
-        evaluated_boundaries = gpd.GeoDataFrame()
-        completed_tasks = 0
-
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in range(0, len(self.tiles), self.batch_size):
+            for i in range(self.completed_tasks, len(self.tiles), self.batch_size):
                 batch_tiles = self.tiles[i : i + self.batch_size]
                 futures = [
                     executor.submit(
@@ -179,23 +178,23 @@ class S2_Data_Extractor:
                 for future in concurrent.futures.as_completed(futures):
                     pred_gdf, tile_info = future.result()
                     if pred_gdf is not None:
-                        predictions = pd.concat([predictions, pred_gdf],
+                        self.predictions = pd.concat([self.predictions, pred_gdf],
                                                 ignore_index=True)
                         new_boundaries = gpd.GeoDataFrame(
                             geometry=[tile_info.geometry], crs="EPSG:4326" )
-                        evaluated_boundaries = pd.concat(
-                            [evaluated_boundaries, new_boundaries], 
+                        self.evaluated_boundaries = pd.concat(
+                            [self.evaluated_boundaries, new_boundaries], 
                             ignore_index=True)
-                        evaluated_boundaries = evaluated_boundaries.dissolve()
+                        self.evaluated_boundaries = self.evaluated_boundaries.dissolve()
 
-                    completed_tasks += 1
+                    self.completed_tasks += 1
                     print(
-                        f"Completed {completed_tasks:,}/{len(self.tiles):,} tiles. Found {len(predictions):,} positives.",
+                        f"Completed {self.completed_tasks:,}/{len(self.tiles):,} tiles. Found {len(self.predictions):,} positives.",
                         end="\r"
                     )
                     
-                if len(predictions) > 0:
-                    predictions.to_file("tmp.geojson")
-                evaluated_boundaries.to_file("tmp_boundaries.geojson")
+                if len(self.predictions) > 0:
+                    self.predictions.to_file("tmp.geojson")
+                self.evaluated_boundaries.to_file("tmp_boundaries.geojson")
 
-        return predictions
+        return self.predictions
