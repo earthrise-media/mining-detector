@@ -5,6 +5,7 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 import utils
 
@@ -31,8 +32,6 @@ class S2_Data_Extractor:
         self.end_date = end_date
         self.clear_threshold = clear_threshold
         self.batch_size = batch_size
-        self.completed_tasks = 0
-        self.evaluated_boundaries = gpd.GeoDataFrame()
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
@@ -174,10 +173,10 @@ class S2_Data_Extractor:
             - predictions: a list of gdfs of predictions and geoms
         """
         predictions = [gpd.GeoDataFrame() for _ in range(len(models))]
+        completed_tasks = 0
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in range(
-                self.completed_tasks, len(self.tiles), self.batch_size):
+            for i in tqdm(range(0, len(self.tiles), self.batch_size)):
                 batch_tiles = self.tiles[i : i + self.batch_size]
                 futures = [
                     executor.submit(
@@ -192,8 +191,8 @@ class S2_Data_Extractor:
                         predictions[n] = pd.concat(
                             [predictions[n], pred_gdf], ignore_index=True)
 
-                    self.completed_tasks += 1
-                    print(f"{self.completed_tasks}/{len(self.tiles)} tiles.")
+                    completed_tasks += 1
+                    print(f"{completed_tasks}/{len(self.tiles)} tiles.")
                     print(f"Found {[len(p) for p in predictions]} positives.")
 
         return predictions
