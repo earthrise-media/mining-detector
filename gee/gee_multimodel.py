@@ -192,7 +192,7 @@ class S2_Data_Extractor:
                             [predictions[n], pred_gdf], ignore_index=True)
 
                     completed_tasks += 1
-                    print(f"{completed_tasks}/{len(self.tiles)} tiles.")
-                    print(f"Found {[len(p) for p in predictions]} positives.")
+                print(f"{completed_tasks}/{len(self.tiles)} tiles.")
+                print(f"Found {[len(p) for p in predictions]} positives.")
 
         return predictions
