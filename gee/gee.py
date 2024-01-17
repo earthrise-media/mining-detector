@@ -34,10 +34,11 @@ class S2_Data_Extractor:
         self.completed_tasks = 0
         self.predictions = gpd.GeoDataFrame()
         self.evaluated_boundaries = gpd.GeoDataFrame()
+        self.failed_tiles = []
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
-            project="earthindex",
+            project="earth-engine-ck",
         )
 
         # Harmonized Sentinel-2 Level 2A collection.
@@ -97,7 +98,7 @@ class S2_Data_Extractor:
 
         return pixels, tile
     
-    def predict_on_tile(self, tile, model, pred_threshold=0.5):
+    def predict_on_tile(self, tile, models, pred_threshold=0.5):
         """
         Takes in a tile of data and a model
         Outputs a gdf of predictions and geometries
@@ -106,24 +107,41 @@ class S2_Data_Extractor:
             pixels, tile_info = self.get_tile_data(tile)
             
         except Exception as e:
-            print(f"Error in get_tile_data for tile {tile}: {e}")
+            print(f"Error in get_tile_data for tile {tile.key}: {e}")
+            self.failed_tiles.append(tile_info)
             return None, None
         
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
         # normalize the pixels. Might need to make this flexible in the future
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
-        chip_size = model.layers[0].input_shape[1]
+        chip_size = models[0].layers[0].input_shape[1]
         stride = chip_size // 2
         chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size, stride)
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
-        try: 
-            preds = model.predict(chips, verbose=0)
-        except Exception as e:
-            print(f"Error in model.predict for tile {tile_info}: {e}")
-            return None, tile_info
+        
+        preds = []
+        for name, model in enumerate(models):
+            try: 
+                pred = model.predict(chips, verbose=0)
+                preds.append(pred)
+            except Exception as e:
+                print(f"Error in model.predict for model {name} and tile {tile_info.key}\n{e}")
+                print(f"Input shape: {chips.shape}")
+                self.failed_tiles.append(tile_info)
+                return None, tile_info
+                
+        std_dev = np.std(preds, axis=0)
+        # round stdev to 4 decimal places
+        std_dev = np.round(std_dev, 4)
+        # if the majority of preds are above the threshold, then we predict positive and write the mean prediction value
+        preds = np.array(preds)
+        votes = np.sum(preds > pred_threshold, axis=0)
+        preds = np.mean(preds, axis=0)
+
+        
             
         pred_idx = np.where(preds > pred_threshold)[0]
         if len(pred_idx) > 0:
@@ -131,6 +149,8 @@ class S2_Data_Extractor:
                 geometry=chip_geoms["geometry"][pred_idx], crs="EPSG:4326"
             )
             preds_gdf["pred"] = preds[pred_idx]
+            preds_gdf["votes"] = votes[pred_idx]
+            preds_gdf["std_dev"] = std_dev[pred_idx]
         else:
             preds_gdf = gpd.GeoDataFrame()
 
@@ -156,11 +176,11 @@ class S2_Data_Extractor:
                     tile_data.append(tile)
         return chips, tile_data
 
-    def make_predictions(self, model, pred_threshold=0.5, batch_size=500):
+    def make_predictions(self, models, pred_threshold=0.5, batch_size=500):
         """
         Predict on the data for the tiles.
         Inputs:
-            - model: a keras model
+            - models: a list of keras models
             - batch_size: the number of tiles to process in each batch (default: 500)
         Outputs:
             - predictions: a gdf of predictions and geoms
@@ -171,7 +191,7 @@ class S2_Data_Extractor:
                 batch_tiles = self.tiles[i : i + self.batch_size]
                 futures = [
                     executor.submit(
-                        self.predict_on_tile, tile, model, pred_threshold)
+                        self.predict_on_tile, tile, models, pred_threshold)
                     for tile in batch_tiles
                 ]
 
