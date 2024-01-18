@@ -131,7 +131,6 @@ class S2_Data_Extractor:
                 print(f"Error in model.predict for model {name} and tile {tile_info.key}\n{e}")
                 print(f"Input shape: {chips.shape}")
                 self.failed_tiles.append(tile_info)
-                return None, tile_info
                 
         std_dev = np.std(preds, axis=0)
         # round stdev to 4 decimal places
