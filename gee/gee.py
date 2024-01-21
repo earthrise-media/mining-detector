@@ -3,6 +3,7 @@ import concurrent.futures
 import ee
 import geopandas as gpd
 from google.api_core import retry
+import tensorflow as tf
 import numpy as np
 import pandas as pd
 
@@ -98,7 +99,7 @@ class S2_Data_Extractor:
 
         return pixels, tile
     
-    def predict_on_tile(self, tile, models, pred_threshold=0.5):
+    def predict_on_tile(self, tile, model, pred_threshold=0.5):
         """
         Takes in a tile of data and a model
         Outputs a gdf of predictions and geometries
@@ -108,14 +109,14 @@ class S2_Data_Extractor:
             
         except Exception as e:
             print(f"Error in get_tile_data for tile {tile.key}: {e}")
-            self.failed_tiles.append(tile_info)
+            self.failed_tiles.append(tile)
             return None, None
         
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
         # normalize the pixels. Might need to make this flexible in the future
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
-        chip_size = models[0].layers[0].input_shape[1]
+        chip_size = model.layers[0].input_shape[0][1]
         stride = chip_size // 2
         chips, chip_geoms = utils.chips_from_tile(pixels, tile_info, chip_size, stride)
         chips = np.array(chips)
@@ -123,25 +124,26 @@ class S2_Data_Extractor:
 
         
         preds = []
-        for name, model in enumerate(models):
-            try: 
-                pred = model.predict(chips, verbose=0)
-                preds.append(pred)
-            except Exception as e:
-                print(f"Error in model.predict for model {name} and tile {tile_info.key}\n{e}")
-                print(f"Input shape: {chips.shape}")
-                self.failed_tiles.append(tile_info)
-                
-        std_dev = np.std(preds, axis=0)
-        # round stdev to 4 decimal places
-        std_dev = np.round(std_dev, 4)
-        # if the majority of preds are above the threshold, then we predict positive and write the mean prediction value
-        preds = np.array(preds)
-        votes = np.sum(preds > pred_threshold, axis=0)
-        preds = np.mean(preds, axis=0)
+        try:
+            pred = model.predict(chips, verbose=0)
+            preds.append(pred)
+        except Exception as e:
+            print(f"Error in model.predict for tile {tile_info.key}\n{e}")
+            print(f"Input shape: {chips.shape}")
+            self.failed_tiles.append(tile_info)
+        try:
+            preds = np.array(preds)[0]
+            std_dev = np.round(np.std(preds, axis=1), 4)
+            votes = np.sum(preds > pred_threshold, axis=1)
+            preds = np.round(np.mean(preds, axis=1), 4)
+        except Exception as e:
+            print(f"Error in aggregating predictions for tile {tile_info.key}\n{e}")
+            self.failed_tiles.append(tile_info)
+            print(f"Input shape: {np.shape(chips)}")
+            print(f"Preds shape: {np.shape(preds)}")
+            print(f"preds {preds}")
+            return None, None
 
-        
-            
         pred_idx = np.where(preds > pred_threshold)[0]
         if len(pred_idx) > 0:
             preds_gdf = gpd.GeoDataFrame(
