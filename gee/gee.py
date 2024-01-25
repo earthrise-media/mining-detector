@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 import utils
 
-
 class S2_Data_Extractor:
     """
     Pull Sentinel-2 data for a set of tiles.
@@ -27,7 +26,8 @@ class S2_Data_Extractor:
 
     """
 
-    def __init__(self, tiles, start_date, end_date, clear_threshold, batch_size=500):
+    def __init__(self, tiles, start_date, end_date, clear_threshold,
+                 batch_size=500):
         self.tiles = tiles
         self.start_date = start_date
         self.end_date = end_date
@@ -96,7 +96,7 @@ class S2_Data_Extractor:
 
         return pixels, tile
     
-    def predict_on_tile(self, tile, model, pred_threshold=0.5):
+    def predict_on_tile(self, tile, model, pred_threshold, logger):
         """
         Takes in a tile of data and a model
         Outputs a gdf of predictions and geometries
@@ -104,7 +104,7 @@ class S2_Data_Extractor:
         try:
             pixels, tile_info = self.get_tile_data(tile)
         except Exception as e:
-            print(f"Error in get_tile_data for tile {tile.key}: {e}")
+            logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
             self.failed_tiles.append(tile)
             return gpd.GeoDataFrame(), None
         
@@ -126,7 +126,7 @@ class S2_Data_Extractor:
             preds = model.predict(chips, verbose=0)
             idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
         except Exception as e:
-            print(f"Error in model.predict for tile {tile_info}: {e}")
+            logger.error(f"Error in model.predict for tile {tile_info}: {e}")
             self.failed_tiles.append(tile)
             idx = np.array([])
 
@@ -160,7 +160,8 @@ class S2_Data_Extractor:
                     tile_data.append(tile)
         return chips, tile_data
 
-    def make_predictions(self, models, pred_threshold=0.5, retries=1):
+    def make_predictions(self, models, pred_threshold=0.5, retries=1,
+                         logger=None):
         """
         Predict on the data for the tiles.
         Inputs:
@@ -169,8 +170,9 @@ class S2_Data_Extractor:
         Outputs:
             - predictions: a gdf of predictions and geoms
         """
+        if not logger:
+            logger = logging.getLogger()
         predictions = gpd.GeoDataFrame()
-        completed_tasks = 0
         self.failed_tiles = []
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -184,8 +186,8 @@ class S2_Data_Extractor:
                 for i in tqdm(range(0, len(tiles), self.batch_size)):
                     batch_tiles = tiles[i : i + self.batch_size]
                     futures = [
-                        executor.submit(
-                            self.predict_on_tile, tile, models, pred_threshold)
+                        executor.submit(self.predict_on_tile, tile, models,
+                                        pred_threshold, logger)
                         for tile in batch_tiles
                     ]
 
@@ -193,11 +195,10 @@ class S2_Data_Extractor:
                         pred_gdf, tile_info = future.result()
                         predictions = pd.concat(
                             [predictions, pred_gdf], ignore_index=True)
-                        completed_tasks += 1
-                    
-                    print(f"{completed_tasks}/{len(tiles)} tiles.")
+
                     print(f"Found {len(predictions)} positives.")
                 print(f"{len(self.failed_tiles)} failed tiles.")
                 retries -= 1
 
         return predictions
+

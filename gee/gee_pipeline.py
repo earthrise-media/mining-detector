@@ -1,6 +1,7 @@
 
 import argparse
 from datetime import datetime
+import logging
 import os
 
 import geopandas as gpd
@@ -10,19 +11,20 @@ import gee
 import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size, tile_padding, batch_size, retries):
+         clear_threshold, tile_size, tile_padding, batch_size, retries, logger):
     """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
     
     tiles = utils.create_tiles(region, tile_size, tile_padding)
-    print(f"Created {len(tiles)} tiles")
+    logger.info(f"Created {len(tiles)} tiles")
     data_pipeline = gee.S2_Data_Extractor(
         tiles, start_date, end_date, clear_threshold, batch_size=batch_size)
-    preds = data_pipeline.make_predictions(model, pred_threshold, retries)
+    preds = data_pipeline.make_predictions(
+        model, pred_threshold, retries, logger)
     
-    print(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
-    print(f"{len(preds)} chips with predictions above {pred_threshold}")
+    logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
+    logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
 
     if len(preds) > 0:
         outpath = get_outpath(
@@ -50,8 +52,21 @@ def valid_datetime(s):
         msg = f"Not a valid date: '{s}'."
         raise argparse.ArgumentTypeError(msg)
 
+def get_logger(path, maxBytes=1e6, backupCount=5, level=logging.INFO):
+    """Create a logging instance with a RotatingFileHandler."""
+    logdir = os.path.dirname(path)
+    if not os.path.exists(logdir):
+        os.mkdir(logdir)
+        
+    handler = logging.handlers.RotatingFileHandler(
+        path, maxBytes=maxBytes, backupCount=backupCount)
+
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    logger.setLevel(level)
+    return logger
+
 if __name__ == '__main__':
-    
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_path", default='../models/48px_v3.1_2023-12-02.h5',
@@ -84,6 +99,13 @@ if __name__ == '__main__':
     parser.add_argument(
         "--retries", default=1, type=int,
         help="Number of times to retry failed tiles.")
-    
+    parser.add_argument(
+        "--log_path",
+        default=f"../logs/gee_pipeline.log",
+        type=str, help="Path to ROI geojson")
     args = parser.parse_args()
-    main(**vars(args))
+
+    logger = get_logger(args.log_path)
+    delattr(args, 'log_path')
+    logger.info(f'{datetime.now().isoformat()}: {vars(args)}')
+    main(logger=logger, **vars(args))
