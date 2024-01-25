@@ -19,7 +19,7 @@ class S2_Data_Extractor:
         - start_date: the start date of the data
         - end_date: the end date of the data
         - clear_threshold: the threshold for cloud cover
-        - batch_size: the number of tiles to process in each batch (default: 500)
+        - batch_size: the number of tiles to process in each batch
     Methods: Functions are run in parallel.
         - get_data: pull the data for the tiles. Returns numpy arrays of chips
         - predict: predict on the data for the tiles. Returns a gdf of predictions and geoms
@@ -105,6 +105,7 @@ class S2_Data_Extractor:
             pixels, tile_info = self.get_tile_data(tile)
         except Exception as e:
             print(f"Error in get_tile_data for tile {tile.key}: {e}")
+            self.failed_tiles.append(tile)
             return gpd.GeoDataFrame(), None
         
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
@@ -126,6 +127,7 @@ class S2_Data_Extractor:
             idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
         except Exception as e:
             print(f"Error in model.predict for tile {tile_info}: {e}")
+            self.failed_tiles.append(tile)
             idx = np.array([])
 
         if len(idx) > 0:
@@ -158,34 +160,44 @@ class S2_Data_Extractor:
                     tile_data.append(tile)
         return chips, tile_data
 
-    def make_predictions(self, models, pred_threshold=0.5, batch_size=500):
+    def make_predictions(self, models, pred_threshold=0.5, retries=1):
         """
         Predict on the data for the tiles.
         Inputs:
             - models: a list of keras models
-            - batch_size: the number of tiles to process in each batch (default: 500)
+            - batch_size: the number of tiles to process in each batch
         Outputs:
             - predictions: a gdf of predictions and geoms
         """
         predictions = gpd.GeoDataFrame()
         completed_tasks = 0
+        self.failed_tiles = []
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in tqdm(range(0, len(self.tiles), self.batch_size)):
-                batch_tiles = self.tiles[i : i + self.batch_size]
-                futures = [
-                    executor.submit(
-                        self.predict_on_tile, tile, models, pred_threshold)
-                    for tile in batch_tiles
-                ]
+            while retries:
+                if self.failed_tiles:
+                    tiles = self.failed_tiles
+                    self.failed_tiles = []
+                else:
+                    tiles = self.tiles
+            
+                for i in tqdm(range(0, len(tiles), self.batch_size)):
+                    batch_tiles = tiles[i : i + self.batch_size]
+                    futures = [
+                        executor.submit(
+                            self.predict_on_tile, tile, models, pred_threshold)
+                        for tile in batch_tiles
+                    ]
 
-                for future in concurrent.futures.as_completed(futures):
-                    pred_gdf, tile_info = future.result()
-                    predictions = pd.concat(
-                        [predictions, pred_gdf], ignore_index=True)
-                    completed_tasks += 1
+                    for future in concurrent.futures.as_completed(futures):
+                        pred_gdf, tile_info = future.result()
+                        predictions = pd.concat(
+                            [predictions, pred_gdf], ignore_index=True)
+                        completed_tasks += 1
                     
-                print(f"{completed_tasks}/{len(self.tiles)} tiles.")
-                print(f"Found {len(predictions)} positives.")
+                    print(f"{completed_tasks}/{len(tiles)} tiles.")
+                    print(f"Found {len(predictions)} positives.")
+                print(f"{len(self.failed_tiles)} failed tiles.")
+                retries -= 1
 
         return predictions
