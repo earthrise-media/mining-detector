@@ -101,12 +101,13 @@ if __name__ == '__main__':
         "--retries", default=1, type=int,
         help="Number of times to retry failed tiles.")
     parser.add_argument(
-        "--log_path",
-        default=f"../logs/gee_pipeline.log",
+        "--logdir",
+        default=f"../logs/",
         type=str, help="Path to ROI geojson")
     args = parser.parse_args()
 
-    logger = get_logger(args.log_path)
-    delattr(args, 'log_path')
+    logpath = os.path.join(args.logdir, f'gee_{args.region_path}.log'))
+    logger = get_logger(logpath)
+    delattr(args, 'logdir')
     logger.info(f'{datetime.now().isoformat()}: {vars(args)}')
     main(logger=logger, **vars(args))
