@@ -106,7 +106,7 @@ if __name__ == '__main__':
         type=str, help="Path to ROI geojson")
     args = parser.parse_args()
 
-    logpath = os.path.join(args.logdir, f'gee_{args.region_path}.log'))
+    logpath = os.path.join(args.logdir, f'gee_{args.region_path}.log')
     logger = get_logger(logpath)
     delattr(args, 'logdir')
     logger.info(f'{datetime.now().isoformat()}: {vars(args)}')
