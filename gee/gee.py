@@ -167,6 +167,8 @@ class S2_Data_Extractor:
         Inputs:
             - models: a list of keras models
             - batch_size: the number of tiles to process in each batch
+            - tries: number of times to attempt to predict on tiles
+            - logger: python logging instance
         Outputs:
             - predictions: a gdf of predictions and geoms
         """
