@@ -160,7 +160,7 @@ class S2_Data_Extractor:
                     tile_data.append(tile)
         return chips, tile_data
 
-    def make_predictions(self, models, pred_threshold=0.5, retries=1,
+    def make_predictions(self, models, pred_threshold=0.5, tries=2,
                          logger=None):
         """
         Predict on the data for the tiles.
@@ -176,7 +176,7 @@ class S2_Data_Extractor:
         self.failed_tiles = []
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            while retries:
+            while tries:
                 if self.failed_tiles:
                     tiles = self.failed_tiles
                     self.failed_tiles = []
@@ -197,8 +197,8 @@ class S2_Data_Extractor:
                             [predictions, pred_gdf], ignore_index=True)
 
                     print(f"Found {len(predictions)} positives.")
-                print(f"{len(self.failed_tiles)} failed tiles.")
-                retries -= 1
+                logger.info(f"{len(self.failed_tiles)} failed tiles.")
+                tries -= 1
 
         return predictions
 
