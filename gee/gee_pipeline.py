@@ -12,7 +12,7 @@ import gee
 import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size, tile_padding, batch_size, retries, logger):
+         clear_threshold, tile_size, tile_padding, batch_size, tries, logger):
     """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
@@ -22,7 +22,7 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     data_pipeline = gee.S2_Data_Extractor(
         tiles, start_date, end_date, clear_threshold, batch_size=batch_size)
     preds = data_pipeline.make_predictions(
-        model, pred_threshold, retries, logger)
+        model, pred_threshold, tries, logger)
     
     logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
@@ -98,8 +98,8 @@ if __name__ == '__main__':
         "--batch_size", default=500, type=int,
         help="Number of tiles to process between writes")
     parser.add_argument(
-        "--retries", default=1, type=int,
-        help="Number of times to retry failed tiles.")
+        "--tries", default=2, type=int,
+        help="Number of times to try tiles in case of errors.")
     parser.add_argument(
         "--logdir",
         default=f"../logs/",
