@@ -99,15 +99,13 @@ class S2_Data_Extractor:
     def predict_on_tile(self, tile, model, pred_threshold, logger):
         """
         Takes in a tile of data and a model
-        Outputs a gdf of predictions and geometries and a list of failed tiles
+        Outputs a gdf of predictions, and with an exception, the tile
         """
-        failed_tiles = []
         try:
             pixels, tile_info = self.get_tile_data(tile)
         except Exception as e:
             logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
-            failed_tiles.append(tile)
-            return gpd.GeoDataFrame(), None
+            return gpd.GeoDataFrame(), tile
         
         pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
         pixels = np.clip(pixels / 10000.0, 0, 1)
@@ -128,18 +126,14 @@ class S2_Data_Extractor:
             idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
         except Exception as e:
             logger.error(f"Error in model.predict for tile {tile_info}: {e}")
-            failed_tiles.append(tile)
-            idx = np.array([])
+            return gpd.GeoDataFrame(), tile
 
-        if len(idx) > 0:
-            preds_gdf = gpd.GeoDataFrame(
-                geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-            preds_gdf['mean'] = np.mean(preds[idx], axis=1)
-            preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
-        else:
-            preds_gdf = gpd.GeoDataFrame()
-
-        return preds_gdf, tile_info, failed_tiles
+        preds_gdf = gpd.GeoDataFrame(
+            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
+        preds_gdf['mean'] = np.mean(preds[idx], axis=1)
+        preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
+        
+        return preds_gdf, None
 
     def get_patches(self):
         chips = []
@@ -166,7 +160,7 @@ class S2_Data_Extractor:
         Predict on the data for the tiles.
         Inputs:
             - model: a keras model
-            - batch_size: the number of tiles to process in each batch
+            - pred_threshold: cutoff in [0,1] for saving model predictions
             - tries: number of times to attempt to predict on tiles
             - logger: python logging instance
         Outputs:
@@ -190,10 +184,12 @@ class S2_Data_Extractor:
                     ]
 
                     for future in concurrent.futures.as_completed(futures):
-                        pred_gdf, _, failed_tiles = future.result()
-                        predictions = pd.concat(
-                            [predictions, pred_gdf], ignore_index=True)
-                        fails += failed_tiles
+                        pred_gdf, failed_tile = future.result()
+                        if failed_tile is not None:
+                            fails.append(failed_tile)
+                        else:
+                            predictions = pd.concat(
+                                [predictions, pred_gdf], ignore_index=True)
 
                     print(f"Found {len(predictions)} positives.")
                 logger.info(f"{len(fails)} failed tiles.")
