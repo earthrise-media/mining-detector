@@ -8,7 +8,7 @@ def dissolve(path, threshold, buffer_width):
     df = gpd.read_file(path)
     print(f'{len(df)} features prior to filtering')
     if threshold is not None:
-        df = df.loc[df['pred'] > threshold]
+        df = df.loc[df['mean'] > threshold]
     print(f'{len(df)} features after to filtering')
 
     dissolved = df.geometry.buffer(buffer_width, join_style=2).unary_union
