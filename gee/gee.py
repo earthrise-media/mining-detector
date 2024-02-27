@@ -39,19 +39,17 @@ class S2_Data_Extractor:
             project="earthindex",
         )
 
-        # Harmonized Sentinel-2 Level 2A collection.
         s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
 
-        # Cloud Score+ image collection. Note Cloud Score+ is produced from Sentinel-2
-        # Level 1C data and can be applied to either L1C or L2A collections.
+        # Cloud Score+ is produced from L1C data;  can be applied to L1C or L2A.
         csPlus = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
         QA_BAND = "cs_cdf"
 
-        # Make a clear median composite.
         self.composite = (
             s2.filterDate(start_date, end_date)
             .linkCollection(csPlus, [QA_BAND])
-            .map(lambda img: img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
+            .map(lambda img:
+                     img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
             .median()
         )
     
@@ -87,7 +85,7 @@ class S2_Data_Extractor:
                 ],
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
-                #'grid': {'crsCode': tile.crs} this was causing weird issues that I believe caused problems.
+                #'grid': {'crsCode': tile.crs} this was causing weird issues
             }
         )
 
@@ -142,12 +140,9 @@ class S2_Data_Extractor:
             for i in range(0, len(self.tiles), self.batch_size):
                 batch_tiles = self.tiles[i : i + self.batch_size]
 
-                # Process each tile in parallel
-                futures = [
-                    executor.submit(self.get_tile_data, tile) for tile in batch_tiles
-                ]
+                futures = [executor.submit(self.get_tile_data, tile)
+                               for tile in batch_tiles]
 
-                # Collect the results as they become available
                 for future in concurrent.futures.as_completed(futures):
                     result = future.result()
                     pixels, tile = result
@@ -164,7 +159,7 @@ class S2_Data_Extractor:
             - tries: number of times to attempt to predict on tiles
             - logger: python logging instance
         Outputs:
-            - predictions: a gdf of predictions and geoms
+            - predictions: a gdf of predictions
         """
         if not logger:
             logger = logging.getLogger()
