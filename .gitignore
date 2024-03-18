@@ -2,9 +2,13 @@
 */.DS_Store
 .ipynb_checkpoints
 __pycache__/
+logs/
 data/training_data
 data/outputs/old
 data/old
 notebooks/scratch_paper
 figures
 models/old
+gee/tmp_boundaries.geojson
+gee/tmp.geojson
+*.qml
