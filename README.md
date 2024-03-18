@@ -5,14 +5,22 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
-* [**!! 2023 DATA AND MODEL UPDATES !!**](https://github.com/earthrise-media/mining-detector#2023-model-and-data-updates)
+* [**!! MARCH 2024 DATA AND PIPELINE UPDATES !!**](https://github.com/earthrise-media/mining-detector#2023-data-and-pipeline-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 * [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
 
 ---
-## 2023 model and data updates
+## Data and pipeline updates (March 2024)
+
+* [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). Made with the same ensemble model, predictions are comparable across time. 
+* A new Sentinel-2 data pipeline based on Google Earth Engine (GEE). Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
+* New [models](https://github.com/earthrise-media/mining-detector#models). We trained from scratch using the GEE data pipeline, with new rounds of positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
+
+
+The territory impacted by mining grew each year in the study period, within intensely mined regions such as the Tapajós river basin in Brazil, in Madre de Dios state in Peru, in Bolívar state, Venezuela, and in Guyana and Suriname, and it spread into previously remote 
+
 
 
 
@@ -100,7 +108,7 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 48 x 48 pixel (480 m x 480 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
-During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 160 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 274 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
+During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 240 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 116 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
 
 The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
 
