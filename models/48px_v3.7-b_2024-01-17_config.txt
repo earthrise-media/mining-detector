@@ -1,0 +1,47 @@
+Input Data:
+	bolivar_2020_thresh_0.8_1_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	amazonas_2020_thresh_0.5_2_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	riverbank_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	amazonas_2020_thresh_0.8_sumbsample_3_positives_2019-01-01_2020-01-01_patch_arrays.pkl
+	MinesPos2018-2020Sentinel_points_2019-01-01_2020-01-01_patch_arrays.pkl
+	full_amazon_v9_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.0_bolivar_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.1.1_bolivar_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.4_amazonas_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.4_amazon_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.4_amazon_positives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.6_amazon_thresh_0.8_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.6_amazon_negatives_2019-01-01_2020-01-01_patch_arrays.pkl
+	v2.6_amazon_negatives_v2_2019-01-01_2020-01-01_patch_arrays.pkl
+	v3.1_2023_negatives_2023-01-01_2024-01-01_patch_arrays.pkl
+	amazon_all_48px_v3.1_2023_positives_0.999_2023-01-01_2024-01-01_patch_arrays.pkl
+	v3.2_2023_negatives_2023-01-01_2024-01-01_patch_arrays.pkl
+	v3.3_2023_positives_2023-01-01_2024-01-01_patch_arrays.pkl
+	v3.4_2023_negatives_2023-01-01_2024-01-01_patch_arrays.pkl
+	v3.5_2023_negatives_2023-01-01_2024-01-01_patch_arrays.pkl
+	v3.6_2023_positives_2023-01-01_2024-01-01_patch_arrays.pkl
+
+
+Augmentation Parameters:
+	featurewise_center: False
+	rotation_range: 360
+	width_shift_range: [0.9, 1.1]
+	height_shift_range: [0.9, 1.1]
+	shear_range: 10
+	zoom_range: [0.9, 1.1]
+	vertical_flip: True
+	horizontal_flip: True
+	fill_mode: reflect
+
+Batch Size: 32
+Training Epochs: 160
+
+Classification Report at 0.8
+              precision    recall  f1-score   support
+
+     No Mine       0.96      1.00      0.98       813
+        Mine       0.99      0.92      0.96       438
+
+    accuracy                           0.97      1251
+   macro avg       0.98      0.96      0.97      1251
+weighted avg       0.97      0.97      0.97      1251
