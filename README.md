@@ -15,37 +15,41 @@ Quick links:
 ---
 ## Data and model updates (March 2024)
 
-Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. [With new API methods for data extraction](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) in Google Earth Engine (GEE), we were able to swap GEE satellite image services into our existing data pipeline. The original Amazon Mining Watch survey was built on 2020 Sentinel-2 composite satellite imagery. With the redevelopment comes:
+Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 Sentinel-2 composite satellite imagery. With the redevelopment comes:
 
 * [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). 
-* A new Sentinel-2 satellite image data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
-* New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data pipeline, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
+* A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
+* New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
 
-The territory impacted by mining grew each year in the study period. New mining devestated parts of Yanomami, Kayapó, and Munduruku indigenous territories, despite legal prohibitions, and it continues to spread from giant mine fields and into scattered and more remote regions of the Amazon rainforest. Very recently, operators of large mining dredges have begun pumping sediments directly from river banks and bottoms, seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
+Mining expanded each year in the study period. New mining devestated parts of Yanomami, Kayapó, and Munduruku indigenous territories, despite legal prohibitions, and it continues to spread from giant mine fields and into scattered and more remote regions of the Amazon rainforest. Recently, operators of large mining dredges have begun pumping sediments directly from river banks and bottoms, as can be seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
 
 
 ## Interpreting the findings
 
 The mining of concern here touches every country in the Amazon basin. In the typical process, miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separte it from other particles, and later they burn off the mercury to arrive at a fairly pure gold metal. This type of mining is called _artisanal_ because it is practiced by small groups of individuals with some machinery, such as pumps, dredges, and excavators. The mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
-The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing with them unfamiliar diseases and the potential for violent conflict. 
+The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing in unfamiliar diseases and sometimes violent conflict. 
 
-Scars from the mining can be seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, often some blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
+Scars from the mining can be seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, perhaps with blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
 
-In the Amazon mine map, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines from the map:
+On Amazon Mining Watch, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines:
 
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections on the map, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandbars in rivers, braided rivers, farm ponds, and aquaculture ponds (two examples below), like so:
+The automated detector is a work in progress. With limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandbars in rivers, braided rivers, farm ponds, and aquaculture ponds (two examples below), like so:
 
 <!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
 (These are _not_ mines.)
 
-You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in obvious agricultural zones.  
+You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in agricultural zones. 
 
-A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. Older mine sites that have fallen into disuse and the edges of active mining regions often fall into this category.
+From the March 2024 data release, we note in particular some false positives from aquaculture and other wet industrial operations around Manaus and an area of landslides in hilly terrain of southern Loreto, Peru.
+
+A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. 
+
+Mine scars where the rainforest has begun to heal may not be detected in later years, so mined area both expands and recedes over time. We can see some virtue in this unintended feature of the models, and we decided not to consider it a false negative nor to mitigate against it. 
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
@@ -57,7 +61,6 @@ We provide two display options for the web map. The [Mapbox satellite basemap](h
 
 ![MapboxvsSentinel2basemaps](https://user-images.githubusercontent.com/11287904/150791417-c431cd40-3d02-4c13-be70-06adc8a29ac1.jpg)
 
-
 For up-to-date views, we recommend searching the full Sentinel-2 catalog on [SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR) or the Planetscope data made available through the [Planet Labs NICFI program](https://www.planet.com/nicfi/).
 
 #### Detection Accuracy
@@ -68,7 +71,7 @@ To provide a more constructive measure, we validated a random subsample of the s
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on 480 m x 480 m patches. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries would be a viable extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on 480 m x 480 m patches. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
 
 ## Journalism 
 
@@ -106,9 +109,9 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 ### Overview
 
-The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on 48 x 48 pixel (480 m x 480 m) patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a four-month period to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
-During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by 240 m for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes 116 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
+During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes over 100 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
 
 The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
 
@@ -116,7 +119,11 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Yearly asessment of mining in the Amazon basin, 2018-2023 (v2 Amazon Mining Watch dataset)
 
+This most recent assessment was run with an [ensemble of six models](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5), and all patches with mean score over 0.5 were recorded. 
 
+[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in two formats. The first records each saved patch along with the mean score and the six individual predictions from models 3.2-3.7. The second format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
+
+The dissolved predictions are presented on [Amazon Mining Watch](https://amazonminingwatch.org/) and should suffice for most users. At lower prediction threshold, the ensemble is more expansive, capturing more mining at the cost of more false positive detections; at higher threshold, the ensemble is stingy and more likely to be correct in the mines it surfaces. The choice of 0.6 reflects our own preference within this tradeoff. Users wanting to tune the prediction threshold can work with the data in the patch format. 
 
 #### Assessement of mining in the Amazon basin in 2020 (v1 Amazon Mining Watch dataset)
 
@@ -139,27 +146,7 @@ This repo contains all code needed to generate data, train models, and deploy a 
 
 #### Setup
 
-Download and install [Miniforge Conda env](https://github.com/conda-forge/miniforge/) if not already installed:
-
-
-| OS      | Architecture          | Download  |
-| --------|-----------------------|-----------|
-| Linux   | x86_64 (amd64)        | [Miniforge3-Linux-x86_64](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh) |
-| Linux   | aarch64 (arm64)       | [Miniforge3-Linux-aarch64](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh) |
-| Linux   | ppc64le (POWER8/9)    | [Miniforge3-Linux-ppc64le](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-ppc64le.sh) |
-| OS X    | x86_64                | [Miniforge3-MacOSX-x86_64](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-x86_64.sh) |
-| OS X    | arm64 (Apple Silicon) | [Miniforge3-MacOSX-arm64](https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh) |
-
-Then run 
-```
-chmod +x ~/Downloads/Miniforge3-{platform}-{architecture}.sh
-sh ~/Downloads/Miniforge3-{platform}-{architecture}.sh
-source ~/miniforge3/bin/activate
-```
-
-Next, create a conda environment named `mining-detector` by running `conda env create -f environment.yml` from the repo root directory. Activate the environment by running `conda activate mining-detector`. Code has been developed and tested on a Mac with python version 3.9.7. Other platforms and python releases may work, but have not yet been tested.
-
-The data used for model training may be accessed and downloaded from `s3://mining-data.earthrise.media`.
+Model inference ran on Python 3.9 in the anaconda3-2022.05 environment with Tensorflow XX.X. 
 
 #### Notebooks
 The system runs from three core notebooks. 
