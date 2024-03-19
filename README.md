@@ -5,23 +5,23 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
-* [**!! MARCH 2024 DATA AND PIPELINE UPDATES !!**](https://github.com/earthrise-media/mining-detector#2023-data-and-pipeline-updates)
+Quick links: 
+* [**!! MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#2023-data-and-model-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 * [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
 
 ---
-## Data and pipeline updates (March 2024)
+## Data and model updates (March 2024)
 
-* [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). Made with the same ensemble model, predictions are comparable across time. 
-* A new Sentinel-2 data pipeline based on Google Earth Engine (GEE). Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
-* New [models](https://github.com/earthrise-media/mining-detector#models). We trained from scratch using the GEE data pipeline, with new rounds of positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
+Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. [With new API methods for data extraction](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) in Google Earth Engine (GEE), we were able to swap GEE satellite image services into our existing data pipeline. The original Amazon Mining Watch survey was built on 2020 Sentinel-2 composite satellite imagery. With the redevelopment comes:
 
+* [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). 
+* A new Sentinel-2 satellite image data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
+* New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data pipeline, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
 
-The territory impacted by mining grew each year in the study period, within intensely mined regions such as the Tapajós river basin in Brazil, in Madre de Dios state in Peru, in Bolívar state, Venezuela, and in Guyana and Suriname, and it spread into previously remote 
-
-
+The territory impacted by mining grew each year in the study period. New mining devestated parts of Yanomami, Kayapó, and Munduruku indigenous territories, despite legal prohibitions, and it continues to spread from giant mine fields and into scattered and more remote regions of the Amazon rainforest. Very recently, operators of large mining dredges have begun pumping sediments directly from river banks and bottoms, seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
 
 
 ## Interpreting the findings
