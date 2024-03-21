@@ -18,10 +18,10 @@ Quick links:
 Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 composite Sentinel-2 satellite imagery. With the redevelopment comes:
 
 * [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). 
-* A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
+* A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md).
 * New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
 
-Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories, despite strong legal prohibitions. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. Dredge mining in rivers began in earnest, as seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
+Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. Dredge mining in rivers began in earnest, as seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
 
 
 ## Interpreting the findings
@@ -47,7 +47,7 @@ From the March 2024 data release, we note in particular some false positives fro
 
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. 
 
-Where the rainforest has begun to heal, mine scars may not be detected in later years, and so mined area both expands and recedes over time. We can see some virtue in this model response, and we decided not to mitigate against it. 
+Where the rainforest has begun to heal, mine scars may not be detected in later years, and so mined area both expands and recedes over time. We see some value in this model response and we decided not to correct it. 
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
@@ -55,11 +55,11 @@ On the whole, false detections are relatively few given how widespread the minin
 
 Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is not mined. 
 
-To provide one indicative measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that box marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
+To provide one indicative measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that a patch marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on 480 m x 480 m patches. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
 
 ## Journalism 
 
@@ -107,9 +107,9 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Yearly asessment of mining in the Amazon basin, 2018-2023 (v2 Amazon Mining Watch dataset)
 
-This most recent assessment was run with an [ensemble of six models](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5) and recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
+This most recent assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
 
-[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in two formats. The first records each saved patch along with the mean score and the six individual predictions from models 3.2-3.7. The second, simplified, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
+[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in two formats. The first format records the mean score and the six individual predictions from models 3.2-3.7 for each saved patch. The second, streamlined, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
 
 The dissolved predictions are presented on [Amazon Mining Watch](https://amazonminingwatch.org/) and should suffice for most users. At lower prediction threshold, the ensemble captures more mining at the cost of more false positive detections; at higher threshold, the ensemble is stingier with its predictions and more likely to be correct in the mines it surfaces. The choice of 0.6 reflects our own preference in this tradeoff. Users wanting to tune the prediction threshold can work with the data in the patch format. 
 
@@ -133,20 +133,18 @@ The dissolved predictions are presented on [Amazon Mining Watch](https://amazonm
 
 This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. We welcome external use of the code subject to terms of an open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). 
 
-#### Running the code
+#### Code
 
-As of the March 2024 updates, the code for model inference is in the [gee](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The README there provides  instructions. 
+Code for data generation and model inference is in the [`gee`](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The [readme](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md) there provides instructions. 
 
-Beyond that, it's a mixed bag of v1 and v2 code. It could use a reorganization. A notebook for generating training data is in the gee folder, while the training itself can be run from [notebooks/train_model.ipynb](https://github.com/earthrise-media/mining-detector/blob/main/notebooks/train_model.ipynb). Other tempting-sounding notebooks are likely obsolete and depend on the former Descartes Labs system.
+After training data generation, training runs from [`notebooks/train_model.ipynb`](https://github.com/earthrise-media/mining-detector/blob/main/notebooks/train_model.ipynb). 
 
 #### Data inputs
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
 - `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. Datasets in this directory should be considered "confirmed," and positive/negative class should be indicated in the file's title.
 
 #### Models
-The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on a test dataset. 
-
-As of March 2024, the ensemble of models 3.2-3.7 [(48px_v3.2-3.7ensemble_2024-02-13)](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5) is generating data for Amazon Mining Watch. 
+The `models` directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on a test dataset. 
 
 ### License
 
