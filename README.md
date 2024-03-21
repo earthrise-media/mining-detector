@@ -15,29 +15,27 @@ Quick links:
 ---
 ## Data and model updates (March 2024)
 
-Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 Sentinel-2 composite satellite imagery. With the redevelopment comes:
+Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 composite Sentinel-2 satellite imagery. With the redevelopment comes:
 
 * [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). 
 * A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector#running-the-code).
 * New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
 
-Mining expanded each year in the study period. New mining devestated parts of Yanomami, Kayapó, and Munduruku indigenous territories, despite legal prohibitions, and it continues to spread from giant mine fields and into scattered and more remote regions of the Amazon rainforest. Recently, operators of large mining dredges have begun pumping sediments directly from river banks and bottoms, as can be seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
+Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories, despite strong legal prohibitions. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. Dredge mining in rivers began in earnest, as seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
 
 
 ## Interpreting the findings
 
 The mining of concern here touches every country in the Amazon basin. In the typical process, miners slash the rainforest to bare earth and then pump water through underlying sediments to liberate the minerals. They introduce mercury to form an amalgam with the gold, to separte it from other particles, and later they burn off the mercury to arrive at a fairly pure gold metal. This type of mining is called _artisanal_ because it is practiced by small groups of individuals with some machinery, such as pumps, dredges, and excavators. The mining proceeds along streams and rivers, which provide water and access into the rainforest.
 
-The environmental and human costs are high. Mining transforms healthy rainforest into a wasteland of bare earth and toxic sediment pools. Mercury enters adjacent streams and rivers. In the Amazon basin, miners frequently operate within indigenous lands, bringing in unfamiliar diseases and sometimes violent conflict. 
-
-Scars from the mining can be seen from satellite. On the banks of a river, you will observe jumbled, multi-colored wastewater pools. They can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, perhaps with blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
+Scars from the mining can be seen from satellite. On the banks of a river, you will observe muddy flats jumbled together with multi-colored toxic wastewater pools. The pools can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, perhaps with blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
 
 On Amazon Mining Watch, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines:
 
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
 
-The automated detector is a work in progress. With limited bootstrap sampling, we extrapolated signficantly to run over the whole of the Amazon basin. There are some false detections, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandbars in rivers, braided rivers, farm ponds, and aquaculture ponds (two examples below), like so:
+With limited bootstrap sampling, we extrapolated to run over the whole of the Amazon basin. There are some false detections, and we encourage users to apply discretion in interpreting the findings. Terrain features that can masquerade as mines include sandbars in rivers, braided rivers, farm ponds, and aquaculture ponds, like so:
 
 <!--![NotMinesEx2](https://user-images.githubusercontent.com/11287904/150863564-0b861bef-5cb0-4ea7-bc8e-440b20bece03.jpg)-->
 ![NotMinesEx](https://user-images.githubusercontent.com/11287904/150816991-7ca7c55f-1c27-460f-bfec-bbdd3e2146ed.jpg)
@@ -49,25 +47,15 @@ From the March 2024 data release, we note in particular some false positives fro
 
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. 
 
-Mine scars where the rainforest has begun to heal may not be detected in later years, so mined area both expands and recedes over time. We can see some virtue in this unintended feature of the models, and we decided not to consider it a false negative nor to mitigate against it. 
+Where the rainforest has begun to heal, mine scars may not be detected in later years, and so mined area both expands and recedes over time. We can see some virtue in this model response, and we decided not to mitigate against it. 
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
-#### Basemap Imagery
-
-Mining in the Amazon is expanding rapidly, and frequent cloud cover makes it challenging to stitch together comprehensive satellite basemaps. In the Amazon mine map, you will sometimes see healthy rainforest in areas where mining activity is indicated. In that case, the displayed imagery is out of date. (To make for a better user experience, the imagery displayed is different from the imagery used for detection.) 
-
-We provide two display options for the web map. The [Mapbox satellite basemap](https://www.mapbox.com/) is the default. It provides detailed, sub-meter resolution views of many of the mines. The second option is the newly published [Sentinel-2 basemap](https://www.maptiler.com/news/2022/01/free-access-to-10m-global-satellite-map/) from MapTiler, which uses imagery from 2020 and 2021 exclusively, but at 10-meter resolution. In the example below, mine detections are displayed over the Mapbox basemap at left and over the MapTiler Sentinel-2 basemap at right. 
-
-![MapboxvsSentinel2basemaps](https://user-images.githubusercontent.com/11287904/150791417-c431cd40-3d02-4c13-be70-06adc8a29ac1.jpg)
-
-For up-to-date views, we recommend searching the full Sentinel-2 catalog on [SentinelHub EO Browser](https://apps.sentinel-hub.com/eo-browser/?zoom=14&lat=-7.13214&lng=-57.36245&visualizationUrl=https%3A%2F%2Fservices.sentinel-hub.com%2Fogc%2Fwms%2Fbd86bcc0-f318-402b-a145-015f85b9427e&datasetId=S2L2A&fromTime=2020-09-16T00%3A00%3A00.000Z&toTime=2020-09-16T23%3A59%3A59.999Z&layerId=1_TRUE_COLOR) or the Planetscope data made available through the [Planet Labs NICFI program](https://www.planet.com/nicfi/).
-
 #### Detection Accuracy
 
-Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape remains unmined.
+Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is not mined. 
 
-To provide a more constructive measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that box marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
+To provide one indicative measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that box marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
 
 #### Area estimation
 
@@ -119,11 +107,11 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 #### Yearly asessment of mining in the Amazon basin, 2018-2023 (v2 Amazon Mining Watch dataset)
 
-This most recent assessment was run with an [ensemble of six models](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5), and all patches with mean score over 0.5 were recorded. 
+This most recent assessment was run with an [ensemble of six models](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5) and recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
 
-[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in two formats. The first records each saved patch along with the mean score and the six individual predictions from models 3.2-3.7. The second format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
+[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in two formats. The first records each saved patch along with the mean score and the six individual predictions from models 3.2-3.7. The second, simplified, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
 
-The dissolved predictions are presented on [Amazon Mining Watch](https://amazonminingwatch.org/) and should suffice for most users. At lower prediction threshold, the ensemble is more expansive, capturing more mining at the cost of more false positive detections; at higher threshold, the ensemble is stingy and more likely to be correct in the mines it surfaces. The choice of 0.6 reflects our own preference within this tradeoff. Users wanting to tune the prediction threshold can work with the data in the patch format. 
+The dissolved predictions are presented on [Amazon Mining Watch](https://amazonminingwatch.org/) and should suffice for most users. At lower prediction threshold, the ensemble captures more mining at the cost of more false positive detections; at higher threshold, the ensemble is stingier with its predictions and more likely to be correct in the mines it surfaces. The choice of 0.6 reflects our own preference in this tradeoff. Users wanting to tune the prediction threshold can work with the data in the patch format. 
 
 #### Assessement of mining in the Amazon basin in 2020 (v1 Amazon Mining Watch dataset)
 
@@ -141,33 +129,24 @@ The dissolved predictions are presented on [Amazon Mining Watch](https://amazonm
 
 [Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [output dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
  
-### Running the Code
-This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. While we welcome external development and use of the code, subject to terms of an open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE), creating datasets and deploying the model currently requires access to the [Descartes Labs](https://descarteslabs.com/) platform. 
+### Organization of the repository
 
-#### Setup
+This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. We welcome external use of the code subject to terms of an open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). 
 
-Model inference ran on Python 3.9 in the anaconda3-2022.05 environment with Tensorflow XX.X. 
+#### Running the code
 
-#### Notebooks
-The system runs from three core notebooks. 
+As of the March 2024 updates, the code for model inference is in the [gee](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The README there provides  instructions. 
 
-##### `create_dataset.ipynb` (requires Descartes Labs access)
-Given a GeoJSON file of sampling locations, generate a dataset of Sentinel 2 images. Dataset is stored as a pickled list of numpy arrays.
+Beyond that, it's a mixed bag of v1 and v2 code. It could use a reorganization. A notebook for generating training data is in the gee folder, while the training itself can be run from [notebooks/train_model.ipynb](https://github.com/earthrise-media/mining-detector/blob/main/notebooks/train_model.ipynb). Other tempting-sounding notebooks are likely obsolete and depend on the former Descartes Labs system.
 
-##### `train_model.ipynb`
-Train a neural network based on the images stored in the `data/training_data/` directory. Data used to train this model is stored at `s3://mining-data.earthrise.media`.
-
-##### `deploy_model.ipynb` (requires Descartes Labs access)
-Given a model file and a GeoJSON describing a region of interest, run the model and download the results. Options exist to deploy the model on a directory of ROI files.
-
-#### Data
+#### Data inputs
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
 - `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. Datasets in this directory should be considered "confirmed," and positive/negative class should be indicated in the file's title.
 
 #### Models
-The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on the test dataset.
+The models directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on a test dataset. 
 
-The model `44px_v2.8_2021-11-11.h5` is currently the top performer overall, though some specificity has been sacrificed for generalization. Different models have different strengths/weaknesses. There are also versions of model v2.6 that operate on [RGB](44px_v2.6_rgb_2021-11-11.h5) and [RGB+IR](models/44px_v2.6_rgb_ir_2021-11-11.h5) data. These may be of interest when evaluating whether multispectral data from Sentinel is required.
+As of March 2024, the ensemble of models 3.2-3.7 [(48px_v3.2-3.7ensemble_2024-02-13)](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5) is generating data for Amazon Mining Watch. 
 
 ### License
 
