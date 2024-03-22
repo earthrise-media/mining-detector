@@ -21,7 +21,7 @@ Development of the mining detector halted in 2022 when we lost access to the geo
 * A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md).
 * New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
 
-Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. Dredge mining in rivers began in earnest, as seen in the data in the ravaged riverbanks of Rio Puré and Rio Boia in western Amazonas state, Brazil. 
+Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. In western Amazonas, Brazil, floating dredges are scooping soils from river banks and bottoms in the search for gold, seen in the ravaged riverbanks of Rio Puré and Rio Boia in the most recent years' data.
 
 
 ## Interpreting the findings
@@ -59,7 +59,7 @@ To provide one indicative measure, we validated a random subsample of the system
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
 
 ## Journalism 
 
@@ -81,7 +81,7 @@ Rough dirt airstrips, often cut illegally from the forest and unregistered with 
 * [As pistas da destruição](https://theintercept.com/2022/08/02/amazonia-pistas-clandestinas-garimpo/), _The Intercept_, 2022. 
 * [Os pilotos da Amazônia](https://www.youtube.com/watch?v=IA-Rk_hdl4M), _The Intercept_, short film, 2022.
 
-The airstrip location data are [available for download](data/airstrips/). The clandestine airstrips dataset is the result of a collaborative reporting effort by The Intercept Brasil, The New York Times, and the Rainforest Investigations Network, an initiative of The Pulitzer Center. The Intercept Brasil created the project within the network, which was later joined by The New York Times. The data were gathered by Earthrise Media from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented with input from the Socio-Environmental Institute of Brazil, the Yanomami Hutukara Association, and government reports, and verified by the newsrooms.
+The airstrip location data are [available for download](data/airstrips/). The clandestine airstrips dataset is the result of a collaborative reporting effort by The Intercept Brasil, The New York Times, and the Rainforest Investigations Network, an initiative of The Pulitzer Center. The Intercept Brasil created the project within the network, which was later joined by The New York Times. The data were gathered by Earth Genome from OpenStreetMap and from satellite images of Amazônia Legal in 2021, augmented with input from the Socio-Environmental Institute of Brazil, the Yanomami Hutukara Association, and government reports, and verified by the newsrooms.
 
 #### Related reporting on open-pit mining
 * [Empresa de Nova York tem ligação com contrabando de ouro ilegal da Amazônia](https://reporterbrasil.org.br/2023/04/empresa-de-nova-york-tem-ligacao-com-contrabando-de-ouro-ilegal-da-amazonia/), from _Repórter Brasil_ and [NBC News](https://www.nbcnews.com/news/two-new-yorkers-tried-leave-brazil-77-pounds-gold-luggage-rcna67221), 2023. Report on links between a New York company, gold smuggling, and rainforest destruction in Kayapó indigenous land. 
@@ -141,7 +141,7 @@ After training data generation, training runs from [`notebooks/train_model.ipynb
 
 #### Data inputs
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
-- `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. Datasets in this directory should be considered "confirmed," and positive/negative class should be indicated in the file's title.
+- `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. A positive/negative class label is indicated in each file's name.
 
 #### Models
 The `models` directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on a test dataset. 
