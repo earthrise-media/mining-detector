@@ -70,7 +70,7 @@ def get_logger(path, maxBytes=1e6, backupCount=5, level=logging.INFO):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_path", default='../models/48px_v3.1_2023-12-02.h5',
+        "--model_path", default='../models/48px_v3.2-3.7ensemble_2024-02-13.h5',
         type=str, help="Path to saved Keras model")
     parser.add_argument(
         "--region_path",
