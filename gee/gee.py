@@ -1,4 +1,5 @@
 import concurrent.futures
+import os
 
 import ee
 import geopandas as gpd
@@ -9,6 +10,8 @@ import pandas as pd
 from tqdm import tqdm
 
 import utils
+
+EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 
 class S2_Data_Extractor:
     """
@@ -27,7 +30,7 @@ class S2_Data_Extractor:
     """
 
     def __init__(self, tiles, start_date, end_date, clear_threshold,
-                 batch_size):
+                 batch_size, ee_project=EE_PROJECT):
         self.tiles = tiles
         self.start_date = start_date
         self.end_date = end_date
@@ -36,7 +39,7 @@ class S2_Data_Extractor:
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
-            project="earthindex",
+            project=ee_project,
         )
 
         s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
