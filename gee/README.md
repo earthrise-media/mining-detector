@@ -34,7 +34,7 @@ Google Earth Engine (GEE) requires a 'project' to be specified within the Google
 
 ##### Compute resources and rate limit errors
 
-The code leverages the available CPU cores, so there is essentially nothing to be gained by splitted the Amazon region to run multiple inference processes simultaneously on the same machine. However, splitting the region (cf. `data/boundaries/amazon_basin/`) and running on multiple machines gives a linear speed up if needed. The RAM requirement looks to be roughly 12GB per process. 
+The code leverages the available CPU cores, so there is essentially nothing to be gained by splitting the Amazon region to run multiple inference processes simultaneously on the same machine. However, splitting the region (cf. six subregions in `data/boundaries/amazon_basin/`) and running on multiple machines gives a linear speed up if needed. The RAM requirement looks to be roughly 12GB per process. 
 
 Running multiple regions concurrently we did begin to see rate limit errors from GEE. With the above setup and up to four concurrent processes, the basic retry logic implemented in `gee.py` was sufficient to see all tiles processed.
 
