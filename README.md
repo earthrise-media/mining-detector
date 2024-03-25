@@ -55,7 +55,9 @@ On the whole, false detections are relatively few given how widespread the minin
 
 Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is not mined. 
 
-To provide one indicative measure, we validated a random subsample of the system's detections. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that a patch marked as a mine is actually a mine. On our latest run, we see a precision of 98.2%. For a sample of 500 mining detections, you can expect to see about 9 misclassifications. In our sample, a third of the false detections still identified mining activity, but mining for materials such as bauxite rather than gold.
+To provide one indicative measure, we validated a random sample of 500 detections from 2023. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that a patch marked as a mine is actually a mine. 498 of 500 samples have artisanal mining scars. Of the 2 model errors, 1 is an industrial mine, and 1 is a remnant of construction of the Balbina dam and power station from around 1985. Together that lets us assert an estimated precision for the classifier of 99.6%. 
+
+Recall is harder, because we don't know what we might be missing. Our small labeled dataset does not give a sufficiently representative sample of the Amazon basin to derive reliable metrics.
 
 #### Area estimation
 
