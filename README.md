@@ -127,9 +127,13 @@ Finally, because of year-to-year variance in detections of small mine scars, and
 
 [Venezuela mine map](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html), [Bolívar dataset](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas dataset](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson). Analysis via the 28px v9 model. 
 
-#### Generalization Test in Ghana's Ashanti Region, 2018 and 2020
+#### Generalization Tests in Ghana
 
-[Ghana mine map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [output dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson). This was a test of the model's ability to generalize to tropical geographies outside of the Amazon basin, using the [44px v2.8 model](https://github.com/earthrise-media/mining-detector/blob/main/models/44px_v2.8_2021-11-11.h5). 
+These runs test the ability of the models to generalize to tropical geographies outside the Amazon basin. The detections could be more comprehensive, but they appear to capture the broad patterns of mining in the country.
+
+[Ghana 2024 dataset](data/outputs/48px_v3.2-3.7ensemble/ghana_48px_v3.2-3.7ensemble_0.50_2024-01-01_2024-11-15-dissolved-0.6.geojson) (January 1 - November 15).
+
+Ashanti region, combined 2017 and 2020 [map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson).
  
 ### Organization of the repository
 
