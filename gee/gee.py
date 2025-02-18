@@ -13,9 +13,14 @@ import utils
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 
-class S2_Data_Extractor:
+BAND_IDS = {
+    "S1": ["VV", "VH"],  
+    "S2": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"]
+}
+
+class GEE_Data_Extractor:
     """
-    Pull Sentinel-2 data for a set of tiles.
+    Pull image data from Earth Engine for a set of tiles.
     Inputs:
         - tiles: a list of DLTile objects
         - start_date: the start date of the data
@@ -29,32 +34,48 @@ class S2_Data_Extractor:
 
     """
 
-    def __init__(self, tiles, start_date, end_date, clear_threshold,
-                 batch_size, ee_project=EE_PROJECT):
+    def __init__(self, tiles, start_date, end_date, batch_size,
+                 clear_threshold=None, collection='S2', ee_project=EE_PROJECT):
         self.tiles = tiles
         self.start_date = start_date
         self.end_date = end_date
         self.clear_threshold = clear_threshold
         self.batch_size = batch_size
+        self.bandIds = BAND_IDS.get(collection)
 
         ee.Initialize(
             opt_url="https://earthengine-highvolume.googleapis.com",
             project=ee_project,
         )
 
-        s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
+        if collection == 'S2':
+            s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
 
-        # Cloud Score+ is produced from L1C data;  can be applied to L1C or L2A.
-        csPlus = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
-        QA_BAND = "cs_cdf"
+            # Cloud Score+ from L1C data; can be applied to L1C or L2A.
+            csPlus = ee.ImageCollection(
+                "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+            QA_BAND = "cs_cdf"
 
-        self.composite = (
-            s2.filterDate(start_date, end_date)
-            .linkCollection(csPlus, [QA_BAND])
-            .map(lambda img:
+            self.composite = (
+                s2.filterDate(start_date, end_date)
+                .linkCollection(csPlus, [QA_BAND])
+                .map(lambda img:
                      img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
-            .median()
-        )
+                .median())
+
+        elif collection == 'S1':
+            s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
+            self.composite = (
+                s1.filterDate(start_date, end_date)
+                .filter(ee.Filter.eq('instrumentMode', 'IW'))
+                .filter(ee.Filter.listContains(
+                        "transmitterReceiverPolarisation", "VV"))
+                .filter(ee.Filter.listContains(
+                        "transmitterReceiverPolarisation", "VH"))
+                .mosaic())  
+
+        else:
+            raise ValueError('Collection {collection} not recognized.')
     
     @retry.Retry(timeout=240)
     def get_tile_data(self, tile):
@@ -72,20 +93,7 @@ class S2_Data_Extractor:
         )
         pixels = ee.data.computePixels(
             {
-                "bandIds": [
-                    "B1",
-                    "B2",
-                    "B3",
-                    "B4",
-                    "B5",
-                    "B6",
-                    "B7",
-                    "B8A",
-                    "B8",
-                    "B9",
-                    "B11",
-                    "B12",
-                ],
+                "bandIds": self.bandIds,
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
                 #'grid': {'crsCode': tile.crs} this was causing weird issues

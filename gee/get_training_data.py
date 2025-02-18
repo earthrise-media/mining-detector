@@ -107,7 +107,7 @@ class TrainingData:
         self.create_tiles()
 
         print(f"Getting data from {self.start_date} to {self.end_date}")
-        s2_data = gee.S2_Data_Extractor(
+        s2_data = gee.GEE_Data_Extractor(
             self.tiles, self.start_date, self.end_date, self.clear_threshold
         )
         self.data, self.tiles = s2_data.get_patches()
