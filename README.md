@@ -105,7 +105,7 @@ The system was developed for use in the Amazon, but it has also been seen to wor
 
 ### Results
 
-#### Yearly asessment of mining in the Amazon basin, 2018-2023 (v2 Amazon Mining Watch dataset)
+#### Yearly asessment of mining in the Amazon basin, 2018-2024 (v2 Amazon Mining Watch dataset)
 
 This most recent assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
 
