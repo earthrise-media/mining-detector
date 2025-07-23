@@ -57,10 +57,10 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
         combined_gdf["geometry"] = combined_gdf["geometry"].simplify(
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
         )
-    
+
     # create an unique ID
     combined_gdf = combined_gdf.reset_index(drop=False)
-    combined_gdf = combined_gdf.rename(columns={'index': 'id'})
+    combined_gdf = combined_gdf.rename(columns={"index": "id"})
 
     # save combined file
     combined_gdf.to_file(output_combined_file, driver="GeoJSON", encoding="utf-8")
@@ -75,9 +75,6 @@ def standardize_and_combine_shapefiles(files_metadata):
         field_cols_rename_dict = {
             v: k for k, v in file.items() if k.endswith("_field") and v != ""
         }
-
-        # # the columns we will select from the dataframe
-        # cols_to_select = [v for k, v in field_cols_rename_dict.items()]
 
         # read file
         file_path = f"{SOURCE_DATA_FOLDER}/{file["file"]}"
