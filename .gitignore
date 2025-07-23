@@ -6,6 +6,7 @@ logs/
 data/training_data
 data/outputs/old
 data/old
+data/boundaries/protected_areas_and_indigenous_territories/source_data
 notebooks/scratch_paper
 figures
 models/old
