@@ -51,7 +51,7 @@
   },
   {
     "file": "Brazil/PAs_Brasil/conservation_units_legal_amazon.shp",
-    "type": "indigenous-territory",
+    "type": "protected-area",
     "country": "Brazil",
     "id_field": "id",
     "name_field": "nome",

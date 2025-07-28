@@ -20,7 +20,6 @@ import chardet
 import geopandas as gpd
 import numpy as np
 import json
-import os
 from pathlib import Path
 
 SOURCE_DATA_FOLDER = (
@@ -28,6 +27,7 @@ SOURCE_DATA_FOLDER = (
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
 SIMPLIFY_TOLERANCE = 0.001
+AMAZON_LIMITS_GEOJSON =  "data/boundaries/amazon_basin.geojson"
 
 with open("scripts/boundaries/files_metadata.json") as f:
     files_metadata = json.load(f)
@@ -70,6 +70,8 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
 def standardize_and_combine_shapefiles(files_metadata):
     indigenous_territories = []
     protected_areas = []
+    amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)
+    amazon_limits_gdf.to_crs("EPSG:4326")
     for file in files_metadata:
         # a dictionary to rename the columns in the data
         field_cols_rename_dict = {
@@ -77,13 +79,13 @@ def standardize_and_combine_shapefiles(files_metadata):
         }
 
         # read file
-        file_path = f"{SOURCE_DATA_FOLDER}/{file["file"]}"
+        file_path = f"{SOURCE_DATA_FOLDER}/{file['file']}"
         print(f"Reading {file_path}")
 
         try:
             # assume first it's in utf-8
             gdf = gpd.read_file(file_path, encoding="utf-8")
-        except:
+        except Exception:
             # if gpd can't read the file with utf-8, try to detect the encoding
             detected_encoding = detect_shapefile_encoding(file_path)
             print(f"Detected encoding: {detected_encoding}")
@@ -100,6 +102,10 @@ def standardize_and_combine_shapefiles(files_metadata):
 
         # standardize crs
         gdf = gdf.to_crs("EPSG:4326")
+        
+        # only keep the ones that intersect the Amazon boundaries
+        intersecting_mask = gdf.intersects(amazon_limits_gdf.union_all())
+        gdf = gdf[intersecting_mask]
 
         # include area units and country name from file metadata
         gdf["area_units"] = file["area_units"]
