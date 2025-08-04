@@ -72,9 +72,10 @@ class Tile:
 
 
 class TrainingData:
-    def __init__(self, patch_size, clear_threshold=0.75):
+    def __init__(self, patch_size, collection='S2L1C', clear_threshold=0.75):
         self.patch_size = patch_size
         self.clear_threshold = clear_threshold
+        self.collection = collection
         
     def create_tiles(self, sampling_pts):
 
@@ -90,36 +91,26 @@ class TrainingData:
         print(f"{len(tiles)} tiles to download")
         return tiles
 
-    def get_patches(self, path, label_class, date_col='date'):
-        # get data for each tile
-
+    def get_patches(self, path, label_class, start_date, end_date):
+        """Extract training data around points specified in path."""
         sampling_pts = gpd.read_file(path)
-        dates = sampling_pts[date_col].unique()
-        
-        for date in tqdm(dates):
-            print(date)
-            tiles = self.create_tiles(
-                sampling_pts[sampling_pts[date_col] == date])
+        tiles = self.create_tiles(sampling_pts)
 
-            dt = datetime.fromisoformat(date)
-            start = (dt - timedelta(days=1)).isoformat()
-            end = (dt + timedelta(days=1)).isoformat()
+        s2_data = gee.GEE_Data_Extractor(
+                tiles, start_date, end_date,
+                clear_threshold=self.clear_threshold,
+                collection=self.collection)
+        data, tiles = s2_data.get_patches()
+        data = np.array(
+            [utils.pad_patch(patch, self.patch_size) for patch in data])
+        print(f"Retrieved {data.shape[0]} patches")
 
-            s2_data = gee.GEE_Data_Extractor(
-                tiles, start, end, clear_threshold=self.clear_threshold,
-                collection='S2L2A')
-            data, tiles = s2_data.get_patches()
-            data = np.array(
-                [utils.pad_patch(patch, self.patch_size) for patch in data])
-            print(f"Retrieved {data.shape[0]} patches")
-
-            outpath = f"{path.split('.geojson')[0]}{self.patch_size}_px{date}"
-            save_patch_arrays(data, outpath, label_class)
-            fig = utils.plot_numpy_grid(
-                np.clip(data[:, :, :, (3, 2, 1)] / 3000, 0, 1))
-            fig.savefig(f"{outpath}.png", bbox_inches="tight")
-
-
+        outpath = (f"{path.split('.geojson')[0]}{self.patch_size}px_" +
+                   f"{start_date}_{end_date}")
+        save_patch_arrays(data, outpath, label_class)
+        fig = utils.plot_numpy_grid(
+            np.clip(data[:, :, :, (3, 2, 1)] / 3000, 0, 1))
+        fig.savefig(f"{outpath}.png", bbox_inches="tight")
 
 def save_patch_arrays(data, basepath, label_class):
     with open(basepath + "_patch_arrays.pkl", "wb") as f:
