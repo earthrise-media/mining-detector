@@ -7,9 +7,13 @@ data/training_data
 data/outputs/old
 data/old
 data/boundaries/protected_areas_and_indigenous_territories/source_data
+data/boundaries/subnational_admin/source_data
 notebooks/scratch_paper
 figures
 models/old
 gee/tmp_boundaries.geojson
 gee/tmp.geojson
 *.qml
+*.~lock.*
+*.gpkg-shm
+*.gpkg-wal

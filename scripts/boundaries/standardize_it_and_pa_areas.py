@@ -29,7 +29,7 @@ OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories
 SIMPLIFY_TOLERANCE = 0.001
 AMAZON_LIMITS_GEOJSON =  "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 
-with open("scripts/boundaries/files_metadata.json") as f:
+with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
     files_metadata = json.load(f)
 
 
