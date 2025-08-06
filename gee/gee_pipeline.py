@@ -12,7 +12,8 @@ import gee
 import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size, tile_padding, batch_size, tries, logger):
+         clear_threshold, tile_size, tile_padding, batch_size, collection,
+         tries, logger):
     """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
@@ -20,7 +21,8 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     tiles = utils.create_tiles(region, tile_size, tile_padding)
     logger.info(f"Created {len(tiles)} tiles")
     data_pipeline = gee.GEE_Data_Extractor(
-        tiles, start_date, end_date, clear_threshold, batch_size=batch_size)
+        tiles, start_date, end_date, batch_size=batch_size,
+        clear_threshold=clear_threshold, collection=collection)
     preds = data_pipeline.make_predictions(
         model, pred_threshold, tries, logger)
     
@@ -97,6 +99,10 @@ if __name__ == '__main__':
     parser.add_argument(
         "--batch_size", default=500, type=int,
         help="Number of tiles to process between writes")
+    parser.add_argument(
+        "--collection", default='S2L1C', type=str,
+        choices=list(gee.BAND_IDS.keys()),
+        help=f"Satellite image collection, one of: {', '.join(gee.BAND_IDS.keys())}")
     parser.add_argument(
         "--tries", default=2, type=int,
         help="Number of times to try tiles in case of errors.")
