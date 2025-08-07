@@ -14,11 +14,11 @@
     "name_field": "nome"
   },
   {
-    "file": "Colombia/2_Limite_municipal/Municipio_Distrito_Area_no_municipalizada.shp",
+    "file": "Colombia/1_Limite_departamental/Departamento.shp",
     "country": "Colombia",
     "country_code": "CO",
-    "id_field": "MpCodigo",
-    "name_field": "MpNombre"
+    "id_field": "DeCodigo",
+    "name_field": "DeNombre"
   },
   {
     "file": "Ecuador/3_Limite_cantonal/ORGANIZACION_TERRITORIAL_CANTONAL.shp",
@@ -35,25 +35,25 @@
     "name_field": "ADM2_FR"
   },
   {
-    "file": "Guyana/2_Limite_subdivisiones/guy_admbnd_adm2_2021.shp",
+    "file": "Guyana/1_Limite_regional/guy_admbnd_adm1_2021.shp",
     "country": "Guyana",
     "country_code": "GY",
-    "id_field": "ADM2_PCODE",
-    "name_field": "ADM2_EN"
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_EN"
   },
   {
-    "file": "Peru/3_Limite_distritales/DISTRITOS.shp",
+    "file": "Peru/2_Limite_provinciales/PROVINCIAS.shp",
     "country": "Peru",
     "country_code": "PE",
-    "id_field": "IDDIST",
-    "name_field": "DISTRITO"
+    "id_field": "IDPROV",
+    "name_field": "PROVINCIA"
   },
   {
-    "file": "Suriname/2_Limite_resort/sur_admbnda_adm2_2017.shp",
+    "file": "Suriname/1_Limite_distrital/sur_admbnda_adm1_2017.shp",
     "country": "Suriname",
     "country_code": "SR",
-    "id_field": "ADM2_PCODE",
-    "name_field": "ADM2_NL"
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_NL"
   },
   {
     "file": "Venezuela/3_Limite_parroquial/ven_admbnda_adm3_ine_20210223.shp",

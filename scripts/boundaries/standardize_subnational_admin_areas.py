@@ -103,10 +103,17 @@ def standardize_and_combine_shapefiles(files_metadata):
         # only keep the ones that intersect the Amazon boundaries
         intersecting_mask = gdf.intersects(amazon_limits_gdf.union_all())
         gdf = gdf[intersecting_mask]
+        
+        country_code = file["country_code"]
 
         # include country name and code
         gdf["country"] = file["country"]
-        gdf["country_code"] = file["country_code"]
+        gdf["country_code"] = country_code
+        
+        # cleanup country codes to match mining calculator API standard
+        if country_code == "BO":
+            gdf["id_field"] = gdf["id_field"].str.replace("BO0", "")
+        
 
         # include other columns
         cols_to_export = ["country", "country_code"] + cols_to_export + ["geometry"]

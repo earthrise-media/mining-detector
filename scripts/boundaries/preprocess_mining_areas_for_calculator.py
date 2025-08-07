@@ -122,19 +122,25 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
     return intersected
 
 
-def save_to_geojson(gdf, output_file):
+def ensure_output_path_exists(output_file):
     # ensure output directory exists
     output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def save_to_geojson(gdf, output_file):
+    ensure_output_path_exists(output_file)
     # save to file
     print(f"Saving {output_file}")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")
 
 
-def intersect_with_it_or_pa_and_summarize(mining_admin_intersect_gdf, areas_of_interest_gdf, col_prefix, output_folder):
+def intersect_with_it_or_pa_and_summarize(
+    mining_admin_intersect_gdf, areas_of_interest_gdf, col_prefix, output_folder
+):
     """
     Intersects either Indigenous territories (IT) or protected areas (PA)
-    with the already admin-intersected mining areas. Summarizes the areas 
+    with the already admin-intersected mining areas. Summarizes the areas
     by IT/PA and admin boundaries, to use in the Mining Calculator requests.
     """
     # intersect with IT/PA, calculate areas
@@ -143,23 +149,25 @@ def intersect_with_it_or_pa_and_summarize(mining_admin_intersect_gdf, areas_of_i
     )
     # prefix columns with it_
     intersected_with_areas_of_interest.columns = [
-        f"{col_prefix}_{col}" if col != "geometry" and not col.startswith("admin") else col
+        f"{col_prefix}_{col}"
+        if col != "geometry" and not col.startswith("admin")
+        else col
         for col in intersected_with_areas_of_interest.columns
     ]
 
-    # save to geojson
-    save_to_geojson(
-        intersected_with_areas_of_interest,
-        f"{output_folder}/{file}",
-    )
+    output_file = f"{output_folder}/{file}"
+    ensure_output_path_exists(output_file)
+    # # save to geojson
+    # save_to_geojson(
+    #     intersected_with_areas_of_interest,
+    #     output_file,
+    # )
     # get summary statistics
     summary = intersected_with_areas_of_interest.groupby(
         [f"{col_prefix}_id", "admin_country", "admin_country_code", "admin_name_field"]
     )[[f"{col_prefix}_intersected_area_ha"]].sum()
     # save to csv
-    summary.to_csv(
-        f"{output_folder}/{file.replace('.geojson', '.csv')}"
-    )
+    summary.to_csv(output_file.replace(".geojson", ".csv"))
 
 
 if __name__ == "__main__":
@@ -170,7 +178,7 @@ if __name__ == "__main__":
     for file, year in MINING_GEOJSONS:
         # read mining file
         mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
-        print(f"Reading: ${mining_file}")
+        print(f"Reading: {mining_file}")
         mining_gdf = gpd.read_file(mining_file)
 
         # intersect mining with admin boundaries and calculate areas
@@ -182,8 +190,8 @@ if __name__ == "__main__":
             "admin_" + col if col != "geometry" else col
             for col in intersected_with_admin.columns
         ]
-        # save to geojson
-        save_to_geojson(intersected_with_admin, f"{ADMIN_OUTPUT_FOLDER}/{file}")
+        # # save to geojson
+        # save_to_geojson(intersected_with_admin, f"{ADMIN_OUTPUT_FOLDER}/{file}")
 
         # intersect with indigenous territories, calculate summary
         intersect_with_it_or_pa_and_summarize(
