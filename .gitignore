@@ -17,3 +17,4 @@ gee/tmp.geojson
 *.~lock.*
 *.gpkg-shm
 *.gpkg-wal
+.env

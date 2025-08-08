@@ -112,8 +112,17 @@ def standardize_and_combine_shapefiles(files_metadata):
         
         # cleanup country codes to match mining calculator API standard
         if country_code == "BO":
-            gdf["id_field"] = gdf["id_field"].str.replace("BO0", "")
-        
+            gdf["id_field"] = gdf["id_field"].str.replace("BO", "")
+        elif country_code == "VE":
+            gdf["id_field"] = gdf["id_field"].str.replace("VE", "")
+        elif country_code == "SR":
+            gdf["id_field"] = gdf["id_field"].str.replace("SR", "")
+        elif country_code == "GF":
+            gdf["id_field"] = gdf["id_field"].str.replace("GF", "")
+        elif country_code == "GY":
+            gdf["id_field"] = gdf["id_field"].str.replace("GY", "")
+        elif country_code == "SU":  # not a typo, they're actually using SU as code for Suriname
+            gdf["id_field"] = gdf["id_field"].str.replace("SR", "")
 
         # include other columns
         cols_to_export = ["country", "country_code"] + cols_to_export + ["geometry"]

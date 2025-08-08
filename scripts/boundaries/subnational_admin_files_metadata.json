@@ -51,7 +51,7 @@
   {
     "file": "Suriname/1_Limite_distrital/sur_admbnda_adm1_2017.shp",
     "country": "Suriname",
-    "country_code": "SR",
+    "country_code": "SU",
     "id_field": "ADM1_PCODE",
     "name_field": "ADM1_NL"
   },

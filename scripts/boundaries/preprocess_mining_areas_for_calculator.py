@@ -13,11 +13,22 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#     "dotenv",
 #     "geopandas",
+#     "requests",
 # ]
 # ///
+from dotenv import load_dotenv
+import os
 import geopandas as gpd
+import requests
+import json
 from pathlib import Path
+import time
+
+load_dotenv()
+
+mining_calculator_api_key = os.getenv("MINING_CALCULATOR_API_KEY")
 
 MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/cumulative"
 MINING_GEOJSONS = [
@@ -135,8 +146,33 @@ def save_to_geojson(gdf, output_file):
     gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")
 
 
+def get_mining_calculator_data(locations):
+    try:
+        response = requests.post(
+            "https://miningcalculator.conservation-strategy.org/api/calculate",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": mining_calculator_api_key,
+            },
+            json={"locations": locations},
+        )
+
+        # Raise an exception for bad status codes
+        response.raise_for_status()
+
+        data = response.json()
+        return data["totalImpact"]
+
+    except requests.exceptions.RequestException as error:
+        print(f"Error: {error} for {locations}")
+    except KeyError as error:
+        print(f"Key error: {error} for {locations}")
+    except json.JSONDecodeError as error:
+        print(f"JSON decode error: {error} for {locations}")
+
+
 def intersect_with_it_or_pa_and_summarize(
-    mining_admin_intersect_gdf, areas_of_interest_gdf, col_prefix, output_folder
+    mining_admin_intersect_gdf, areas_of_interest_gdf, output_folder
 ):
     """
     Intersects either Indigenous territories (IT) or protected areas (PA)
@@ -147,13 +183,6 @@ def intersect_with_it_or_pa_and_summarize(
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
         mining_admin_intersect_gdf, areas_of_interest_gdf
     )
-    # prefix columns with it_
-    intersected_with_areas_of_interest.columns = [
-        f"{col_prefix}_{col}"
-        if col != "geometry" and not col.startswith("admin")
-        else col
-        for col in intersected_with_areas_of_interest.columns
-    ]
 
     output_file = f"{output_folder}/{file}"
     ensure_output_path_exists(output_file)
@@ -164,10 +193,46 @@ def intersect_with_it_or_pa_and_summarize(
     # )
     # get summary statistics
     summary = intersected_with_areas_of_interest.groupby(
-        [f"{col_prefix}_id", "admin_country", "admin_country_code", "admin_name_field"]
-    )[[f"{col_prefix}_intersected_area_ha"]].sum()
+        [
+            "id",
+            "admin_country",
+            "admin_country_code",
+            "admin_name_field",
+            "admin_id_field",
+        ]
+    )[["intersected_area_ha"]].sum()
     # save to csv
     summary.to_csv(output_file.replace(".geojson", ".csv"))
+
+    def create_locations_dict(group):
+        locations = []
+        for _, row in group.iterrows():
+            locations.append(
+                {
+                    "country": row["admin_country_code"],
+                    "regionId": int(row["admin_id_field"]),
+                    "affectedArea": row["intersected_area_ha"],
+                }
+            )
+        return {"locations": locations}
+
+    result = (
+        summary.reset_index()
+        .groupby("id")
+        .apply(create_locations_dict, include_groups=False)
+        .to_dict()
+    )
+
+    for key in result:
+        # calculator doesn't include Venezuela and French Guyana
+        locations = [x for x in result[key]["locations"] if x["country"] != "VE" and x["country"] != "GF"]
+        if len(locations):
+            total_impact = get_mining_calculator_data(locations)
+            result[key]["totalImpact"] = total_impact
+            time.sleep(2)  # delay to avoid 429 too many requests errors
+
+    with open(output_file.replace(".geojson", ".json"), "w") as f:
+        json.dump(result, f, indent=2)
 
 
 if __name__ == "__main__":
@@ -197,7 +262,6 @@ if __name__ == "__main__":
         intersect_with_it_or_pa_and_summarize(
             mining_admin_intersect_gdf=intersected_with_admin,
             areas_of_interest_gdf=indigenous_territories_gdf,
-            col_prefix="it",
             output_folder=f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/mining_by_indigenous_territories",
         )
 
@@ -205,6 +269,5 @@ if __name__ == "__main__":
         intersect_with_it_or_pa_and_summarize(
             mining_admin_intersect_gdf=intersected_with_admin,
             areas_of_interest_gdf=protected_areas_gdf,
-            col_prefix="pt",
             output_folder=f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/mining_by_protected_areas",
         )
