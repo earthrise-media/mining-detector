@@ -18,3 +18,4 @@ gee/tmp.geojson
 *.gpkg-shm
 *.gpkg-wal
 .env
+.tmp

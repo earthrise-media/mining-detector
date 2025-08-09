@@ -1,11 +1,11 @@
 # Preprocesses the mining areas, intersecting them with the admin regions,
 # then intersects them with areas of interest (Indigenous territories and
-# protected areas) and summarizes them, preparing for querying the Mining
+# protected areas) and summarizes them, then queries the Mining
 # Calculator API.
 
 # You can run this script with uv if you prefer,
 # see https://docs.astral.sh/uv/guides/scripts/.
-# To run: `uv run scripts/boundaries/preprocess_mining_areas_for_calculator.py`.
+# To run: `uv run scripts/boundaries/preprocess_mining_areas_and_query_calculator.py`.
 
 # to list all geojsons in folder:
 # find ./data/outputs/48px_v3.2-3.7ensemble/cumulative/ -name "*.geojson" -type f | sed 's|^\./||' | sort
@@ -15,16 +15,21 @@
 # dependencies = [
 #     "dotenv",
 #     "geopandas",
+#     "pandas",
 #     "requests",
 # ]
 # ///
 from dotenv import load_dotenv
 import os
 import geopandas as gpd
+import pandas as pd
 import requests
 import json
 from pathlib import Path
 import time
+import random
+import hashlib
+import glob
 
 load_dotenv()
 
@@ -70,6 +75,18 @@ INDIGENOUS_TERRITORIES_GEOJSON = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_F
 PROTECTED_AREAS_GEOJSON = (
     f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/protected_areas.geojson"
 )
+DATASETS_TO_PROCESS = [
+    {
+        "name": "indigenous_territories",
+        "gdf": gpd.read_file(INDIGENOUS_TERRITORIES_GEOJSON),
+        "output_subfolder": "mining_by_indigenous_territories",
+    },
+    {
+        "name": "protected_areas",
+        "gdf": gpd.read_file(PROTECTED_AREAS_GEOJSON),
+        "output_subfolder": "mining_by_protected_areas",
+    },
+]
 
 
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
@@ -113,14 +130,12 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
         gdf_to_intersect = gdf_to_intersect.to_crs(mining_gdf.crs)
 
     # calculate original areas (before split)
-    # mining_gdf["original_area"] = mining_gdf.geometry.area
     mining_gdf = calculate_area_using_utm(mining_gdf, "original_area_ha", "hectares")
 
     print("Performing intersection...")
     intersected = gpd.overlay(mining_gdf, gdf_to_intersect, how="intersection")
 
     # calculate areas after intersection
-    # intersected["intersected_area"] = intersected.geometry.area
     intersected = calculate_area_using_utm(
         intersected, "intersected_area_ha", "hectares"
     )
@@ -134,19 +149,93 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
 
 
 def ensure_output_path_exists(output_file):
-    # ensure output directory exists
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def save_to_geojson(gdf, output_file):
     ensure_output_path_exists(output_file)
-    # save to file
     print(f"Saving {output_file}")
     gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")
 
 
+def get_cache_filename(locations):
+    # create a hash of the locations data for consistent filename
+    locations_str = json.dumps(locations, sort_keys=True)
+    hash_obj = hashlib.md5(locations_str.encode())
+    return f"{hash_obj.hexdigest()}.json"
+
+
+def load_from_cache(cache_file):
+    try:
+        if os.path.exists(cache_file):
+            with open(cache_file, "r") as f:
+                return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Error reading cache file {cache_file}: {e}")
+    return None
+
+
+def save_to_cache(cache_file, data):
+    ensure_output_path_exists(cache_file)
+    with open(cache_file, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def save_error_to_cache(locations, cache_filename, error_info):
+    error_file = f"./.tmp/mining_calculator/errors/{cache_filename}"
+    ensure_output_path_exists(error_file)
+
+    error_data = {
+        "locations": locations,
+        "error": error_info,
+        "timestamp": time.time(),
+    }
+
+    with open(error_file, "w") as f:
+        json.dump(error_data, f, indent=2)
+
+
+def compile_error_report():
+    """Read all error files and create a CSV of unique country-regionId combinations"""
+    errors_dir = "./.tmp/mining_calculator/errors"
+    error_files = glob.glob(f"{errors_dir}/*.json")
+
+    if not error_files:
+        print("No error files found")
+        return
+
+    all_locations = []
+    for error_file in error_files:
+        with open(error_file, "r") as f:
+            error_data = json.load(f)
+        all_locations.extend(error_data.get("locations", []))
+
+    df = pd.DataFrame(all_locations)
+    unique_combinations = (
+        df[["country", "regionId"]]
+        .drop_duplicates()
+        .sort_values(["country", "regionId"])
+    )
+
+    csv_file = "./.tmp/mining_calculator/error_combinations.csv"
+    unique_combinations.to_csv(csv_file, index=False)
+
+    print(f"Error report saved to {csv_file}")
+    print(
+        f"Found {len(unique_combinations)} unique country-regionId combinations with errors"
+    )
+
+
 def get_mining_calculator_data(locations):
+    cache_filename = get_cache_filename(locations)
+    cache_file = f"./.tmp/mining_calculator/{cache_filename}"
+
+    # try to load from cache first
+    cached_data = load_from_cache(cache_file)
+    if cached_data is not None:
+        return cached_data.get("totalImpact")
+
     try:
         response = requests.post(
             "https://miningcalculator.conservation-strategy.org/api/calculate",
@@ -157,22 +246,37 @@ def get_mining_calculator_data(locations):
             json={"locations": locations},
         )
 
-        # Raise an exception for bad status codes
+        # wait if rate limited
+        if response.status_code == 429:
+            delay = random.uniform(35, 45)
+            print(f"Rate limit hit (429). Waiting {delay:.2f} seconds...")
+            time.sleep(delay)
+            # retry
+            return get_mining_calculator_data(locations)
+
+        # raise an exception for other bad status codes
         response.raise_for_status()
 
         data = response.json()
+        save_to_cache(cache_file, data)
         return data["totalImpact"]
 
     except requests.exceptions.RequestException as error:
+        error_info = {"type": "RequestException", "message": str(error)}
         print(f"Error: {error} for {locations}")
+        save_error_to_cache(locations, cache_filename, error_info)
     except KeyError as error:
+        error_info = {"type": "KeyError", "message": str(error)}
         print(f"Key error: {error} for {locations}")
+        save_error_to_cache(locations, cache_filename, error_info)
     except json.JSONDecodeError as error:
+        error_info = {"type": "JSONDecodeError", "message": str(error)}
         print(f"JSON decode error: {error} for {locations}")
+        save_error_to_cache(locations, cache_filename, error_info)
 
 
 def intersect_with_it_or_pa_and_summarize(
-    mining_admin_intersect_gdf, areas_of_interest_gdf, output_folder
+    mining_admin_intersect_gdf, areas_of_interest_gdf, output_file
 ):
     """
     Intersects either Indigenous territories (IT) or protected areas (PA)
@@ -184,7 +288,6 @@ def intersect_with_it_or_pa_and_summarize(
         mining_admin_intersect_gdf, areas_of_interest_gdf
     )
 
-    output_file = f"{output_folder}/{file}"
     ensure_output_path_exists(output_file)
     # # save to geojson
     # save_to_geojson(
@@ -204,6 +307,10 @@ def intersect_with_it_or_pa_and_summarize(
     # save to csv
     summary.to_csv(output_file.replace(".geojson", ".csv"))
 
+    return summary
+
+
+def enrich_summary_with_mining_calculator_and_save(summary, output_file):
     def create_locations_dict(group):
         locations = []
         for _, row in group.iterrows():
@@ -225,11 +332,14 @@ def intersect_with_it_or_pa_and_summarize(
 
     for key in result:
         # calculator doesn't include Venezuela and French Guyana
-        locations = [x for x in result[key]["locations"] if x["country"] != "VE" and x["country"] != "GF"]
+        locations = [
+            x
+            for x in result[key]["locations"]
+            if x["country"] != "VE" and x["country"] != "GF"
+        ]
         if len(locations):
             total_impact = get_mining_calculator_data(locations)
             result[key]["totalImpact"] = total_impact
-            time.sleep(2)  # delay to avoid 429 too many requests errors
 
     with open(output_file.replace(".geojson", ".json"), "w") as f:
         json.dump(result, f, indent=2)
@@ -237,16 +347,13 @@ def intersect_with_it_or_pa_and_summarize(
 
 if __name__ == "__main__":
     admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GPKG)
-    indigenous_territories_gdf = gpd.read_file(INDIGENOUS_TERRITORIES_GEOJSON)
-    protected_areas_gdf = gpd.read_file(PROTECTED_AREAS_GEOJSON)
 
     for file, year in MINING_GEOJSONS:
-        # read mining file
         mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
         print(f"Reading: {mining_file}")
         mining_gdf = gpd.read_file(mining_file)
 
-        # intersect mining with admin boundaries and calculate areas
+        # intersect mining with admin boundaries and calculate areas (once per mining file)
         intersected_with_admin = intersect_and_calculate_areas(
             mining_gdf, admin_areas_gdf
         )
@@ -255,19 +362,17 @@ if __name__ == "__main__":
             "admin_" + col if col != "geometry" else col
             for col in intersected_with_admin.columns
         ]
-        # # save to geojson
-        # save_to_geojson(intersected_with_admin, f"{ADMIN_OUTPUT_FOLDER}/{file}")
 
-        # intersect with indigenous territories, calculate summary
-        intersect_with_it_or_pa_and_summarize(
-            mining_admin_intersect_gdf=intersected_with_admin,
-            areas_of_interest_gdf=indigenous_territories_gdf,
-            output_folder=f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/mining_by_indigenous_territories",
-        )
+        # process each dataset (indigenous territories and protected areas)
+        for dataset in DATASETS_TO_PROCESS:
+            output_file = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/{dataset['output_subfolder']}/{file}"
 
-        # do the same for protected areas
-        intersect_with_it_or_pa_and_summarize(
-            mining_admin_intersect_gdf=intersected_with_admin,
-            areas_of_interest_gdf=protected_areas_gdf,
-            output_folder=f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/mining_by_protected_areas",
-        )
+            summary = intersect_with_it_or_pa_and_summarize(
+                mining_admin_intersect_gdf=intersected_with_admin,
+                areas_of_interest_gdf=dataset["gdf"],
+                output_file=output_file,
+            )
+
+            enrich_summary_with_mining_calculator_and_save(summary, output_file)
+
+    compile_error_report()
