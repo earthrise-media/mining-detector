@@ -61,7 +61,9 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
 
     # save combined file
     # combined_gdf.to_file(output_combined_file + ".geojson", driver="GeoJSON", encoding="utf-8")
-    combined_gdf.to_file(output_combined_file + ".gpkg", driver="GPKG", layer="admin_areas")
+    combined_gdf.to_file(
+        output_combined_file + ".gpkg", driver="GPKG", layer="admin_areas"
+    )
     print(f"Created: {output_combined_file}")
 
 
@@ -103,26 +105,12 @@ def standardize_and_combine_shapefiles(files_metadata):
         # only keep the ones that intersect the Amazon boundaries
         intersecting_mask = gdf.intersects(amazon_limits_gdf.union_all())
         gdf = gdf[intersecting_mask]
-        
+
         country_code = file["country_code"]
 
         # include country name and code
         gdf["country"] = file["country"]
         gdf["country_code"] = country_code
-        
-        # cleanup country codes to match mining calculator API standard
-        if country_code == "BO":
-            gdf["id_field"] = gdf["id_field"].str.replace("BO", "")
-        elif country_code == "VE":
-            gdf["id_field"] = gdf["id_field"].str.replace("VE", "")
-        elif country_code == "SR":
-            gdf["id_field"] = gdf["id_field"].str.replace("SR", "")
-        elif country_code == "GF":
-            gdf["id_field"] = gdf["id_field"].str.replace("GF", "")
-        elif country_code == "GY":
-            gdf["id_field"] = gdf["id_field"].str.replace("GY", "")
-        elif country_code == "SU":  # not a typo, they're actually using SU as code for Suriname
-            gdf["id_field"] = gdf["id_field"].str.replace("SR", "")
 
         # include other columns
         cols_to_export = ["country", "country_code"] + cols_to_export + ["geometry"]

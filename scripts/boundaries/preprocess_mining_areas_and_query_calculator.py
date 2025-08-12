@@ -88,6 +88,11 @@ DATASETS_TO_PROCESS = [
     },
 ]
 
+with open("scripts/boundaries/mining_calculator_ignore.json") as f:
+    # these are regions which are missing in the mining calculator and should be ignored,
+    # otherwise the calculator throws an error when making a request
+    REGIONS_TO_IGNORE = json.load(f)
+
 
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
@@ -311,13 +316,34 @@ def intersect_with_it_or_pa_and_summarize(
 
 
 def enrich_summary_with_mining_calculator_and_save(summary, output_file):
+    def cleanup_region_id(region_id, country_code):
+        # cleanup region_id to match mining calculator API standard
+        return int(region_id.replace(country_code, ""))
+
+    def cleanup_country_code(country_code):
+        # cleanup country code to match mining calculator API standard
+        return {"SR": "SU", "GY": "GU"}.get(country_code, country_code)
+
     def create_locations_dict(group):
         locations = []
+        exclusion_set = {
+            (item["countryCode"], item["regionId"]) for item in REGIONS_TO_IGNORE
+        }
+
         for _, row in group.iterrows():
+            country_clean = cleanup_country_code(row["admin_country_code"])
+            region_id_clean = cleanup_region_id(
+                row["admin_id_field"], row["admin_country_code"]
+            )
+
+            # skip if this combination exists in the exclusion list
+            if (country_clean, region_id_clean) in exclusion_set:
+                continue
+
             locations.append(
                 {
-                    "country": row["admin_country_code"],
-                    "regionId": int(row["admin_id_field"]),
+                    "country": country_clean,
+                    "regionId": region_id_clean,
                     "affectedArea": row["intersected_area_ha"],
                 }
             )
@@ -331,10 +357,10 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
     )
 
     for key in result:
-        # calculator doesn't include Venezuela and French Guyana
         locations = [
             x
             for x in result[key]["locations"]
+            # calculator doesn't include Venezuela and French Guyana
             if x["country"] != "VE" and x["country"] != "GF"
         ]
         if len(locations):

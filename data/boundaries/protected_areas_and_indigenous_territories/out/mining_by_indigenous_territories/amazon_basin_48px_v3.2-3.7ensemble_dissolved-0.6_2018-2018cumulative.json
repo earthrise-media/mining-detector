@@ -310,14 +310,7 @@
     "totalImpact": 19427657.38246128
   },
   "721": {
-    "locations": [
-      {
-        "country": "CO",
-        "regionId": 19,
-        "affectedArea": 27.480884557355747
-      }
-    ],
-    "totalImpact": null
+    "locations": []
   },
   "734": {
     "locations": [
@@ -347,27 +340,13 @@
         "affectedArea": 20.945256167207297
       }
     ],
-    "totalImpact": null
+    "totalImpact": 6583162.64733772
   },
   "887": {
-    "locations": [
-      {
-        "country": "EC",
-        "regionId": 1906,
-        "affectedArea": 24.555957933065912
-      }
-    ],
-    "totalImpact": null
+    "locations": []
   },
   "905": {
-    "locations": [
-      {
-        "country": "EC",
-        "regionId": 1905,
-        "affectedArea": 169.07598124207857
-      }
-    ],
-    "totalImpact": null
+    "locations": []
   },
   "1110": {
     "locations": [
@@ -377,7 +356,7 @@
         "affectedArea": 15.349014322338258
       }
     ],
-    "totalImpact": null
+    "totalImpact": 4524736.213782565
   },
   "1146": {
     "locations": [
@@ -387,7 +366,7 @@
         "affectedArea": 6.150805561288774
       }
     ],
-    "totalImpact": null
+    "totalImpact": 1615936.2783414128
   },
   "1184": {
     "locations": [
@@ -402,7 +381,7 @@
         "affectedArea": 132.16010464281533
       }
     ],
-    "totalImpact": null
+    "totalImpact": 95582869.7916557
   },
   "1449": {
     "locations": [
@@ -412,17 +391,10 @@
         "affectedArea": 6.920103628926493
       }
     ],
-    "totalImpact": null
+    "totalImpact": 1836607.3715499083
   },
   "1493": {
-    "locations": [
-      {
-        "country": "EC",
-        "regionId": 1906,
-        "affectedArea": 47.01931629994891
-      }
-    ],
-    "totalImpact": null
+    "locations": []
   },
   "1532": {
     "locations": [
@@ -436,27 +408,27 @@
   "1544": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 54.3465845645254
       }
     ],
-    "totalImpact": null
+    "totalImpact": 15259812.425300868
   },
   "1548": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 1,
         "affectedArea": 949.6579256447341
       }
     ],
-    "totalImpact": null
+    "totalImpact": 283295517.13708985
   },
   "1551": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 96.29554257582683
       },
@@ -466,132 +438,132 @@
         "affectedArea": 20.595382296499256
       }
     ],
-    "totalImpact": null
+    "totalImpact": 27781574.91886802
   },
   "1552": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 8,
         "affectedArea": 37.53123937614965
       },
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 9,
         "affectedArea": 212.44902171112432
       }
     ],
-    "totalImpact": null
+    "totalImpact": 70595322.17634076
   },
   "1571": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 1,
         "affectedArea": 134.18858188313814
       }
     ],
-    "totalImpact": null
+    "totalImpact": 37814341.95249669
   },
   "1576": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 8,
         "affectedArea": 321.1465063536814
       }
     ],
-    "totalImpact": null
+    "totalImpact": 91015542.50576323
   },
   "1578": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 78.88353387554318
       }
     ],
-    "totalImpact": null
+    "totalImpact": 22505501.728732783
   },
   "1592": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 618.4443681629057
       }
     ],
-    "totalImpact": null
+    "totalImpact": 109094710.45320298
   },
   "1595": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 8,
         "affectedArea": 82.78493668685832
       }
     ],
-    "totalImpact": null
+    "totalImpact": 21324794.659989264
   },
   "1596": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 597.3857917449814
       }
     ],
-    "totalImpact": null
+    "totalImpact": 107081894.32632974
   },
   "1599": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 25.707063212904206
       }
     ],
-    "totalImpact": null
+    "totalImpact": 7082784.005820509
   },
   "1606": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 1,
         "affectedArea": 55.25166460461783
       }
     ],
-    "totalImpact": null
+    "totalImpact": 14949720.804491665
   },
   "1622": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 8,
         "affectedArea": 328.49487290313135
       }
     ],
-    "totalImpact": null
+    "totalImpact": 92248121.4012941
   },
   "1625": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 8,
         "affectedArea": 455.42795669716327
       }
     ],
-    "totalImpact": null
+    "totalImpact": 107364390.5895286
   },
   "1632": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 336.2834737571814
       },
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 3,
         "affectedArea": 116.0907329598684
       }
@@ -601,7 +573,7 @@
   "1641": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 10,
         "affectedArea": 157.77903784565294
       }
@@ -611,32 +583,25 @@
   "1642": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 1,
         "affectedArea": 193.15633804631622
       }
     ],
-    "totalImpact": null
+    "totalImpact": 56051146.884942465
   },
   "1646": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 185.83231855999992
       }
     ],
-    "totalImpact": null
+    "totalImpact": 56612741.599350415
   },
   "2275": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 809,
-        "affectedArea": 27.147621355226228
-      }
-    ],
-    "totalImpact": null
+    "locations": []
   },
   "2416": {
     "locations": [
@@ -679,34 +644,13 @@
     "totalImpact": 30568269.787262496
   },
   "2618": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 27.460573658297847
-      }
-    ],
-    "totalImpact": 3952333.585281628
+    "locations": []
   },
   "2677": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 2229.973101267017
-      }
-    ],
-    "totalImpact": 293394811.0738536
+    "locations": []
   },
   "2678": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 4363.676361828766
-      }
-    ],
-    "totalImpact": 483084813.1348905
+    "locations": []
   },
   "2709": {
     "locations": [
@@ -739,54 +683,19 @@
     "totalImpact": 28741155.16967608
   },
   "2868": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 9.812818160151442
-      }
-    ],
-    "totalImpact": 1407348.3584880654
+    "locations": []
   },
   "2917": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 217.05563315667368
-      }
-    ],
-    "totalImpact": 32490181.0547447
+    "locations": []
   },
   "2974": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 1.794846095961416
-      }
-    ],
-    "totalImpact": 257502.06004247183
+    "locations": []
   },
   "2975": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 2232.2458980650563
-      }
-    ],
-    "totalImpact": 293613525.5712876
+    "locations": []
   },
   "2976": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 821.7317145898835
-      }
-    ],
-    "totalImpact": 138141321.4944596
+    "locations": []
   },
   "3080": {
     "locations": [
@@ -809,14 +718,7 @@
     "totalImpact": 9315184.726623364
   },
   "3565": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 783.2049003085642
-      }
-    ],
-    "totalImpact": 130745283.69177663
+    "locations": []
   },
   "3633": {
     "locations": [
@@ -829,14 +731,7 @@
     "totalImpact": 9315184.726623364
   },
   "3634": {
-    "locations": [
-      {
-        "country": "PE",
-        "regionId": 1702,
-        "affectedArea": 783.2049003085642
-      }
-    ],
-    "totalImpact": 130745283.69177663
+    "locations": []
   },
   "3656": {
     "locations": [
@@ -860,7 +755,7 @@
   "3686": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 572.8608016239875
       },
@@ -875,7 +770,7 @@
         "affectedArea": 126.3835909717285
       }
     ],
-    "totalImpact": null
+    "totalImpact": 104447364.08485925
   },
   "3699": {
     "locations": [
@@ -889,7 +784,7 @@
   "3700": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 1,
         "affectedArea": 86.2822553204991
       },
@@ -899,7 +794,7 @@
         "affectedArea": 414.73374308259184
       }
     ],
-    "totalImpact": null
+    "totalImpact": 23726554.246370714
   },
   "3702": {
     "locations": [
@@ -929,7 +824,7 @@
   "3703": {
     "locations": [
       {
-        "country": "GY",
+        "country": "GU",
         "regionId": 7,
         "affectedArea": 17.580924383079193
       },
@@ -964,7 +859,7 @@
         "affectedArea": 4011.799817323619
       }
     ],
-    "totalImpact": null
+    "totalImpact": 4817602.127366395
   },
   "3705": {
     "locations": [
