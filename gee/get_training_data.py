@@ -105,7 +105,7 @@ class TrainingData:
             [utils.pad_patch(patch, self.patch_size) for patch in data])
         print(f"Retrieved {data.shape[0]} patches")
 
-        outpath = (f"{path.split('.geojson')[0]}{self.patch_size}px_" +
+        outpath = (f"{path.split('.geojson')[0]}_{self.patch_size}px_" +
                    f"{start_date}_{end_date}")
         save_patch_arrays(data, outpath, label_class)
         fig = utils.plot_numpy_grid(
