@@ -37,30 +37,30 @@ mining_calculator_api_key = os.getenv("MINING_CALCULATOR_API_KEY")
 
 MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/cumulative"
 MINING_GEOJSONS = [
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
-        2018,
-    ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
-        2019,
-    ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
-        2020,
-    ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
-        2021,
-    ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
-        2022,
-    ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
-        2023,
-    ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
+    #     2018,
+    # ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
+    #     2019,
+    # ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
+    #     2020,
+    # ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
+    #     2021,
+    # ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
+    #     2022,
+    # ),
+    # (
+    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
+    #     2023,
+    # ),
     (
         "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
         2024,
@@ -75,18 +75,6 @@ INDIGENOUS_TERRITORIES_GEOJSON = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_F
 PROTECTED_AREAS_GEOJSON = (
     f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/protected_areas.geojson"
 )
-DATASETS_TO_PROCESS = [
-    {
-        "name": "indigenous_territories",
-        "gdf": gpd.read_file(INDIGENOUS_TERRITORIES_GEOJSON),
-        "output_subfolder": "mining_by_indigenous_territories",
-    },
-    {
-        "name": "protected_areas",
-        "gdf": gpd.read_file(PROTECTED_AREAS_GEOJSON),
-        "output_subfolder": "mining_by_protected_areas",
-    },
-]
 
 with open("scripts/boundaries/mining_calculator_ignore.json") as f:
     # these are regions which are missing in the mining calculator and should be ignored,
@@ -370,6 +358,8 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
     with open(output_file.replace(".geojson", ".json"), "w") as f:
         json.dump(result, f, indent=2)
 
+    return result
+
 
 if __name__ == "__main__":
     admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GPKG)
@@ -389,16 +379,53 @@ if __name__ == "__main__":
             for col in intersected_with_admin.columns
         ]
 
+        datasets_to_process = [
+            {
+                "name": "indigenous_territories",
+                "file": INDIGENOUS_TERRITORIES_GEOJSON,
+                "output_subfolder": "mining_by_indigenous_territories",
+            },
+            {
+                "name": "protected_areas",
+                "file": PROTECTED_AREAS_GEOJSON,
+                "output_subfolder": "mining_by_protected_areas",
+            },
+        ]
+
         # process each dataset (indigenous territories and protected areas)
-        for dataset in DATASETS_TO_PROCESS:
+        for dataset in datasets_to_process:
+            gdf = gpd.read_file(dataset["file"])
             output_file = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/{dataset['output_subfolder']}/{file}"
 
             summary = intersect_with_it_or_pa_and_summarize(
                 mining_admin_intersect_gdf=intersected_with_admin,
-                areas_of_interest_gdf=dataset["gdf"],
+                areas_of_interest_gdf=gdf,
                 output_file=output_file,
             )
 
-            enrich_summary_with_mining_calculator_and_save(summary, output_file)
+            result = enrich_summary_with_mining_calculator_and_save(
+                summary, output_file
+            )
+
+            # transform json result into dataframe
+            result_df = pd.DataFrame(
+                [
+                    {
+                        "id": int(k),
+                        "totalImpact": v["totalImpact"] if "totalImpact" in v else None,
+                        "totalAffectedArea": sum(
+                            loc.get("affectedArea", 0) for loc in v.get("locations", [])
+                        ),
+                    }
+                    for k, v in result.items()
+                ]
+            )
+            # merge back to original gdf and save
+            gdf_merged = gdf.merge(result_df, on="id", how="left")
+            # filter only areas with impact
+            gdf_merged = gdf_merged[gdf_merged["totalAffectedArea"] > 0]
+            save_to_geojson(
+                gdf_merged, dataset["file"].replace(".geojson", "_impacts.geojson")
+            )
 
     compile_error_report()
