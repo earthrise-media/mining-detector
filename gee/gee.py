@@ -41,9 +41,6 @@ class GEE_Data_Extractor:
                  clear_threshold=None, collection='S2L1C',
                  ee_project=EE_PROJECT):
         self.tiles = tiles
-        self.start_date = start_date
-        self.end_date = end_date
-        self.clear_threshold = clear_threshold
         self.batch_size = batch_size
         self.bandIds = BAND_IDS.get(collection)
 
