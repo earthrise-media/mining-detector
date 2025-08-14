@@ -315,7 +315,7 @@ id,admin_country,admin_country_code,admin_name_field,admin_id_field,intersected_
 4,Guyana_Francesa,GF,Sinnamary,GF1312,27.54396443564495
 4,Suriname,SR,Sipaliwini,SR09,0.023317680779439725
 5,Guyana,GY,Barima-Waini,GY01,49256.398137236865
-5,Guyana,GY,Cuyuni-Mazaruni,GY07,204531.8797584556
+5,Guyana,GY,Cuyuni-Mazaruni,GY07,204534.92829555634
 5,Guyana,GY,Demerara-Mahaica,GY04,704.4516492069534
 5,Guyana,GY,East Berbice-Corentyne,GY06,27.362107213740284
 5,Guyana,GY,Essequibo Islands-West Demerara,GY03,3748.865846775876
@@ -324,7 +324,7 @@ id,admin_country,admin_country_code,admin_name_field,admin_id_field,intersected_
 5,Guyana,GY,Upper Demerara-Berbice,GY10,14860.6495639704
 5,Guyana,GY,Upper Takutu-Upper Essequibo,GY09,3264.797737171973
 5,Venezuela,VE,Dalla Costa,VE070902,257.17095784018653
-5,Venezuela,VE,San Isidro,VE070903,1175.624668666867
+5,Venezuela,VE,San Isidro,VE070903,1178.6732057676138
 5,Venezuela,VE,Sección Capital Sifontes,VE070901,132.63009502019918
 6,Ecuador,EC,NANGARITZA,1903,2.8196466607774013
 6,Peru,PE,ALTO AMAZONAS,1602,55.01640818819136
@@ -364,7 +364,7 @@ id,admin_country,admin_country_code,admin_name_field,admin_id_field,intersected_
 7,Suriname,SR,Para,SR06,7257.525371101106
 7,Suriname,SR,Sipaliwini,SR09,160876.3146463024
 8,Guyana,GY,Barima-Waini,GY01,1893.800093789202
-8,Guyana,GY,Cuyuni-Mazaruni,GY07,1378.3859048335237
+8,Guyana,GY,Cuyuni-Mazaruni,GY07,1375.3373677327768
 8,Venezuela,VE,Almirante Luis Brión,VE100102,731.8013750634242
 8,Venezuela,VE,Ariapo,VE071002,1058.2578819669254
 8,Venezuela,VE,Ascensión Farreras,VE070203,399.819443569754
@@ -382,7 +382,7 @@ id,admin_country,admin_country_code,admin_name_field,admin_id_field,intersected_
 8,Venezuela,VE,Pedro Cova,VE070603,6467.100735365996
 8,Venezuela,VE,Pijiguaos,VE070206,176.23063165579254
 8,Venezuela,VE,San Francisco,VE070703,1.790102776037534
-8,Venezuela,VE,San Isidro,VE070903,40325.63047319723
+8,Venezuela,VE,San Isidro,VE070903,40322.58193609648
 8,Venezuela,VE,Sección Capital Cedeño,VE070201,27.044144607576413
 8,Venezuela,VE,Sección Capital Gran Sabana,VE070401,8142.242946856256
 8,Venezuela,VE,Sección Capital Roscio,VE070801,2134.5430422751424

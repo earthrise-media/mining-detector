@@ -19,7 +19,8 @@ from pathlib import Path
 
 SOURCE_DATA_FOLDER = "data/boundaries/national_admin/source_data"
 OUTPUT_DATA_FOLDER = "data/boundaries/national_admin/out"
-
+AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
+SIMPLIFY_TOLERANCE = 0.001
 
 def combine_geojsons(files_metadata):
     # load frames
@@ -41,6 +42,16 @@ def combine_geojsons(files_metadata):
     # create an unique ID
     combined_gdf = combined_gdf.reset_index(drop=False)
     combined_gdf = combined_gdf.rename(columns={"index": "id"})
+    
+    # clip to amazon boundaries
+    amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)
+    amazon_limits_gdf.to_crs("EPSG:4326")
+    combined_gdf = combined_gdf.clip(amazon_limits_gdf)
+    
+    # simplify
+    combined_gdf["geometry"] = combined_gdf["geometry"].simplify(
+        tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
+    )
 
     # save combined file
     combined_gdf.to_file(

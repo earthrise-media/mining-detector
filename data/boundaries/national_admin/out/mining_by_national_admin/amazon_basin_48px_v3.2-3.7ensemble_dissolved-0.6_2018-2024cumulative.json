@@ -1539,7 +1539,7 @@
       {
         "country": "GU",
         "regionId": 7,
-        "affectedArea": 204531.8797584556
+        "affectedArea": 204534.92829555634
       },
       {
         "country": "GU",
@@ -1584,7 +1584,7 @@
       {
         "country": "VE",
         "regionId": 70903,
-        "affectedArea": 1175.624668666867
+        "affectedArea": 1178.6732057676138
       },
       {
         "country": "VE",
@@ -1759,7 +1759,7 @@
       {
         "country": "GU",
         "regionId": 7,
-        "affectedArea": 1378.3859048335237
+        "affectedArea": 1375.3373677327768
       },
       {
         "country": "VE",
@@ -1849,7 +1849,7 @@
       {
         "country": "VE",
         "regionId": 70903,
-        "affectedArea": 40325.63047319723
+        "affectedArea": 40322.58193609648
       },
       {
         "country": "VE",
@@ -1892,6 +1892,6 @@
         "affectedArea": 7805.950113020667
       }
     ],
-    "totalImpact": 578582150.1199822
+    "totalImpact": 578290765.718142
   }
 }
