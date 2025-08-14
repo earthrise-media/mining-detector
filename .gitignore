@@ -8,6 +8,7 @@ data/outputs/old
 data/old
 data/boundaries/protected_areas_and_indigenous_territories/source_data
 data/boundaries/subnational_admin/source_data
+data/boundaries/national_admin/source_data
 notebooks/scratch_paper
 figures
 models/old

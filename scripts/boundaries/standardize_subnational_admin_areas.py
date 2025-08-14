@@ -60,10 +60,10 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
     combined_gdf = combined_gdf.rename(columns={"index": "id"})
 
     # save combined file
-    # combined_gdf.to_file(output_combined_file + ".geojson", driver="GeoJSON", encoding="utf-8")
-    combined_gdf.to_file(
-        output_combined_file + ".gpkg", driver="GPKG", layer="admin_areas"
-    )
+    combined_gdf.to_file(output_combined_file + ".geojson", driver="GeoJSON", encoding="utf-8")
+    # combined_gdf.to_file(
+    #     output_combined_file + ".gpkg", driver="GPKG", layer="admin_areas"
+    # )
     print(f"Created: {output_combined_file}")
 
 

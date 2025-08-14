@@ -489,15 +489,15 @@
       {
         "country": "BR",
         "regionId": 1503606,
-        "affectedArea": 10.198866223512741
+        "affectedArea": 10.198866223511637
       },
       {
         "country": "BR",
         "regionId": 1503754,
-        "affectedArea": 22025.845491027983
+        "affectedArea": 22025.845491027994
       }
     ],
-    "totalImpact": 2560068509.0073295
+    "totalImpact": 2560068509.00733
   },
   "514": {
     "locations": [
@@ -709,15 +709,15 @@
       {
         "country": "BR",
         "regionId": 1100106,
-        "affectedArea": 10.76840462393842
+        "affectedArea": 10.768404623889941
       },
       {
         "country": "BR",
         "regionId": 1100338,
-        "affectedArea": 16.718218132361123
+        "affectedArea": 16.718218132410566
       }
     ],
-    "totalImpact": 8807389.81206616
+    "totalImpact": 8807389.812067183
   },
   "586": {
     "locations": [
@@ -784,12 +784,12 @@
       {
         "country": "BR",
         "regionId": 1503606,
-        "affectedArea": 319615.6367845021
+        "affectedArea": 319615.636784502
       },
       {
         "country": "BR",
         "regionId": 1503754,
-        "affectedArea": 59239.10998773812
+        "affectedArea": 59239.10998773816
       },
       {
         "country": "BR",
@@ -1058,7 +1058,7 @@
       {
         "country": "GF",
         "regionId": 2353,
-        "affectedArea": 1516.6201942165108
+        "affectedArea": 1516.6201942165096
       },
       {
         "country": "GF",
@@ -1349,17 +1349,17 @@
       {
         "country": "VE",
         "regionId": 70702,
-        "affectedArea": 12059.056449296751
+        "affectedArea": 12059.056449296495
       },
       {
         "country": "VE",
         "regionId": 70603,
-        "affectedArea": 15.316686627381221
+        "affectedArea": 15.316686627604025
       },
       {
         "country": "VE",
         "regionId": 70703,
-        "affectedArea": 1.7651570987080363
+        "affectedArea": 1.7651570986971878
       }
     ]
   },
@@ -1377,12 +1377,12 @@
       {
         "country": "VE",
         "regionId": 70603,
-        "affectedArea": 6401.248980321858
+        "affectedArea": 6401.24898032437
       },
       {
         "country": "VE",
         "regionId": 70801,
-        "affectedArea": 1964.8698108770104
+        "affectedArea": 1964.8698108745089
       },
       {
         "country": "VE",
@@ -1396,12 +1396,12 @@
       {
         "country": "GU",
         "regionId": 1,
-        "affectedArea": 1463.677291545052
+        "affectedArea": 1463.6772915443462
       },
       {
         "country": "GU",
         "regionId": 7,
-        "affectedArea": 1207.6921569735418
+        "affectedArea": 1207.6921569731667
       },
       {
         "country": "VE",
@@ -1411,7 +1411,7 @@
       {
         "country": "VE",
         "regionId": 70902,
-        "affectedArea": 19246.447321655494
+        "affectedArea": 19246.447321667558
       },
       {
         "country": "VE",
@@ -1421,7 +1421,7 @@
       {
         "country": "VE",
         "regionId": 70903,
-        "affectedArea": 39981.17556438505
+        "affectedArea": 39981.17556437299
       },
       {
         "country": "VE",
@@ -1429,34 +1429,34 @@
         "affectedArea": 10312.714431188218
       }
     ],
-    "totalImpact": 509907306.6155848
+    "totalImpact": 509907306.615463
   },
   "1341": {
     "locations": [
       {
         "country": "VE",
         "regionId": 70702,
-        "affectedArea": 585.2715936774895
+        "affectedArea": 585.2715936700242
       },
       {
         "country": "VE",
         "regionId": 70402,
-        "affectedArea": 128.79269485372686
+        "affectedArea": 128.792694850289
       },
       {
         "country": "VE",
         "regionId": 70603,
-        "affectedArea": 48.07530643169393
+        "affectedArea": 48.07530643184486
       },
       {
         "country": "VE",
         "regionId": 70903,
-        "affectedArea": 173.80298876021493
+        "affectedArea": 173.80298876028388
       },
       {
         "country": "VE",
         "regionId": 70401,
-        "affectedArea": 4104.643068970442
+        "affectedArea": 4104.643068980968
       }
     ]
   },
@@ -1501,7 +1501,7 @@
       {
         "country": "VE",
         "regionId": 71002,
-        "affectedArea": 1058.2578819671958
+        "affectedArea": 1058.2578819669254
       },
       {
         "country": "VE",
@@ -1511,7 +1511,7 @@
       {
         "country": "VE",
         "regionId": 70702,
-        "affectedArea": 497.8647578719109
+        "affectedArea": 497.864757872181
       },
       {
         "country": "VE",
@@ -1553,12 +1553,12 @@
       {
         "country": "VE",
         "regionId": 71002,
-        "affectedArea": 16.521842455475753
+        "affectedArea": 16.521842455205494
       },
       {
         "country": "VE",
         "regionId": 70702,
-        "affectedArea": 497.86475638679
+        "affectedArea": 497.8647563870601
       }
     ]
   },

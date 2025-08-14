@@ -66,7 +66,7 @@ MINING_GEOJSONS = [
         2024,
     ),
 ]
-ADMIN_AREAS_GPKG = "data/boundaries/subnational_admin/out/admin_areas.gpkg"
+ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 ADMIN_OUTPUT_FOLDER = "data/boundaries/subnational_admin/out/mining_by_admin_areas"
 PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/out"
@@ -75,6 +75,8 @@ INDIGENOUS_TERRITORIES_GEOJSON = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_F
 PROTECTED_AREAS_GEOJSON = (
     f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/protected_areas.geojson"
 )
+NATIONAL_ADMIN_FOLDER = "data/boundaries/national_admin/out"
+NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
 
 with open("scripts/boundaries/mining_calculator_ignore.json") as f:
     # these are regions which are missing in the mining calculator and should be ignored,
@@ -268,13 +270,13 @@ def get_mining_calculator_data(locations):
         save_error_to_cache(locations, cache_filename, error_info)
 
 
-def intersect_with_it_or_pa_and_summarize(
+def intersect_with_areas_of_interest_and_summarize(
     mining_admin_intersect_gdf, areas_of_interest_gdf, output_file
 ):
     """
-    Intersects either Indigenous territories (IT) or protected areas (PA)
+    Intersects areas of interest (countries, Indigenous Territories, protected areas)
     with the already admin-intersected mining areas. Summarizes the areas
-    by IT/PA and admin boundaries, to use in the Mining Calculator requests.
+    by area of interest and admin boundaries, to use in the Mining Calculator requests.
     """
     # intersect with IT/PA, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
@@ -362,7 +364,7 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
 
 
 if __name__ == "__main__":
-    admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GPKG)
+    admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GEOJSON)
 
     for file, year in MINING_GEOJSONS:
         mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
@@ -383,21 +385,31 @@ if __name__ == "__main__":
             {
                 "name": "indigenous_territories",
                 "file": INDIGENOUS_TERRITORIES_GEOJSON,
+                "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
                 "output_subfolder": "mining_by_indigenous_territories",
             },
             {
                 "name": "protected_areas",
                 "file": PROTECTED_AREAS_GEOJSON,
+                "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
                 "output_subfolder": "mining_by_protected_areas",
+            },
+            {
+                "name": "national_admin",
+                "file": NATIONAL_ADMIN_GEOJSON,
+                "output_folder": NATIONAL_ADMIN_FOLDER,
+                "output_subfolder": "mining_by_national_admin",
             },
         ]
 
         # process each dataset (indigenous territories and protected areas)
         for dataset in datasets_to_process:
             gdf = gpd.read_file(dataset["file"])
-            output_file = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/{dataset['output_subfolder']}/{file}"
+            output_file = (
+                f"{dataset["output_folder"]}/{dataset["output_subfolder"]}/{file}"
+            )
 
-            summary = intersect_with_it_or_pa_and_summarize(
+            summary = intersect_with_areas_of_interest_and_summarize(
                 mining_admin_intersect_gdf=intersected_with_admin,
                 areas_of_interest_gdf=gdf,
                 output_file=output_file,
@@ -412,18 +424,21 @@ if __name__ == "__main__":
                 [
                     {
                         "id": int(k),
-                        "totalImpact": v["totalImpact"] if "totalImpact" in v else None,
-                        "totalAffectedArea": sum(
+                        "economic_impact_usd": v["totalImpact"] if "totalImpact" in v else None,
+                        "mining_affected_area_ha": sum(
                             loc.get("affectedArea", 0) for loc in v.get("locations", [])
                         ),
                     }
                     for k, v in result.items()
                 ]
             )
+            # round results
+            result_df["economic_impact_usd"] = result_df["economic_impact_usd"].round(2)
+            result_df["mining_affected_area_ha"] = result_df["mining_affected_area_ha"].round(2)
             # merge back to original gdf and save
             gdf_merged = gdf.merge(result_df, on="id", how="left")
             # filter only areas with impact
-            gdf_merged = gdf_merged[gdf_merged["totalAffectedArea"] > 0]
+            gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
             save_to_geojson(
                 gdf_merged, dataset["file"].replace(".geojson", "_impacts.geojson")
             )
