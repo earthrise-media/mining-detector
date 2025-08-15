@@ -12,8 +12,8 @@ import gee
 import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size, tile_padding, batch_size, collection,
-         tries, logger):
+         clear_threshold, tile_size, tile_padding, stride_ratio, batch_size,
+         collection, tries, logger):
     """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
@@ -24,7 +24,7 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
         tiles, start_date, end_date, batch_size=batch_size,
         clear_threshold=clear_threshold, collection=collection)
     preds = data_pipeline.make_predictions(
-        model, pred_threshold, tries, logger)
+        model, pred_threshold, stride_ratio, tries, logger)
     
     logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
@@ -96,6 +96,9 @@ if __name__ == '__main__':
     parser.add_argument(
         "--tile_padding", default=24, type=int,
         help="Number of pixels to pad each tile")
+    parser.add_argument(
+        "--stride_ratio", default=2, type=int,
+        help="For area inference, the stride will be chip_size//stride_ratio.")
     parser.add_argument(
         "--batch_size", default=500, type=int,
         help="Number of tiles to process between writes")
