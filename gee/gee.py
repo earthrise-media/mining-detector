@@ -125,7 +125,8 @@ class GEE_Data_Extractor:
 
         return pixels, tile
     
-    def predict_on_tile(self, tile, model, pred_threshold, logger):
+    def predict_on_tile(self, tile, model, pred_threshold, stride_ratio,
+                        logger):
         """
         Takes in a tile of data and a model
         Outputs a gdf of predictions, and with an exception, the tile
@@ -144,7 +145,7 @@ class GEE_Data_Extractor:
             input_shape = input_shape[0]
         chip_size = input_shape[1]
         
-        stride = chip_size // 2
+        stride = chip_size // stride_ratio
         chips, chip_geoms = utils.chips_from_tile(
             pixels, tile_info, chip_size, stride)
         chips = np.array(chips)
@@ -181,12 +182,14 @@ class GEE_Data_Extractor:
                     tile_data.append(tile)
         return chips, tile_data
 
-    def make_predictions(self, model, pred_threshold, tries, logger=None):
+    def make_predictions(self, model, pred_threshold, stride_ratio, tries,
+                         logger=None):
         """
         Predict on the data for the tiles.
         Inputs:
             - model: a keras model
             - pred_threshold: cutoff in [0,1] for saving model predictions
+            - stride ratio: For area inference, stride = chip_size//stride_ratio
             - tries: number of times to attempt to predict on tiles
             - logger: python logging instance
         Outputs:
@@ -205,7 +208,7 @@ class GEE_Data_Extractor:
                     batch_tiles = tiles[i : i + self.batch_size]
                     futures = [
                         executor.submit(self.predict_on_tile, tile, model,
-                                        pred_threshold, logger)
+                                        pred_threshold, stride_ratio, logger)
                         for tile in batch_tiles
                     ]
 
