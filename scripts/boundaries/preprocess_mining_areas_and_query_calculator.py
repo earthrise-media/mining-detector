@@ -148,10 +148,24 @@ def ensure_output_path_exists(output_file):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def save_to_geojson(gdf, output_file):
+def save_to_geojson(gdf, output_file, id_column):
     ensure_output_path_exists(output_file)
     print(f"Saving {output_file}")
-    gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")
+    
+    # we're doing the steps below to add a top-level id property to the geojson,
+    # instead of just `gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")`
+    
+    # convert to GeoJSON dictionary
+    geojson_dict = json.loads(gdf.to_json())
+
+    # move id from properties to top level
+    for feature in geojson_dict['features']:
+        if 'id' in feature['properties']:
+            feature['id'] = feature['properties']['id']
+
+    # save to file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(geojson_dict, f, ensure_ascii=False)
 
 
 def get_cache_filename(locations):
@@ -424,7 +438,9 @@ if __name__ == "__main__":
                 [
                     {
                         "id": int(k),
-                        "economic_impact_usd": v["totalImpact"] if "totalImpact" in v else None,
+                        "economic_impact_usd": (
+                            v["totalImpact"] if "totalImpact" in v else None
+                        ),
                         "mining_affected_area_ha": sum(
                             loc.get("affectedArea", 0) for loc in v.get("locations", [])
                         ),
@@ -434,13 +450,17 @@ if __name__ == "__main__":
             )
             # round results
             result_df["economic_impact_usd"] = result_df["economic_impact_usd"].round(2)
-            result_df["mining_affected_area_ha"] = result_df["mining_affected_area_ha"].round(2)
+            result_df["mining_affected_area_ha"] = result_df[
+                "mining_affected_area_ha"
+            ].round(2)
             # merge back to original gdf and save
             gdf_merged = gdf.merge(result_df, on="id", how="left")
             # filter only areas with impact
             gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
             save_to_geojson(
-                gdf_merged, dataset["file"].replace(".geojson", "_impacts.geojson")
+                gdf_merged,
+                dataset["file"].replace(".geojson", "_impacts.geojson"),
+                id_column="id",
             )
 
     compile_error_report()
