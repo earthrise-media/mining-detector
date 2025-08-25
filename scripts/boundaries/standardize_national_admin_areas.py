@@ -40,8 +40,8 @@ def combine_geojsons(files_metadata):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # create an unique ID
-    combined_gdf = combined_gdf.reset_index(drop=False)
-    combined_gdf = combined_gdf.rename(columns={"index": "id"})
+    combined_gdf["id"] = combined_gdf["gid_0"]
+    assert len(combined_gdf) == combined_gdf["id"].nunique()
     
     # clip to amazon boundaries
     amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)

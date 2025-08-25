@@ -15,6 +15,7 @@
 # dependencies = [
 #     "dotenv",
 #     "geopandas",
+#     "numpy",
 #     "pandas",
 #     "requests",
 # ]
@@ -23,6 +24,7 @@ from dotenv import load_dotenv
 import os
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import requests
 import json
 from pathlib import Path
@@ -151,20 +153,27 @@ def ensure_output_path_exists(output_file):
 def save_to_geojson(gdf, output_file, id_column):
     ensure_output_path_exists(output_file)
     print(f"Saving {output_file}")
-    
+
     # we're doing the steps below to add a top-level id property to the geojson,
     # instead of just `gdf.to_file(output_file, driver="GeoJSON", encoding="utf-8")`
-    
+
     # convert to GeoJSON dictionary
     geojson_dict = json.loads(gdf.to_json())
 
+    # make sure ids are unique
+    print(len(gdf))
+    print(gdf["id"].nunique())
+    duplicates = gdf[gdf.duplicated(subset="id", keep=False)]
+    print(duplicates)
+    # assert len(gdf) == gdf["id"].nunique()
+
     # move id from properties to top level
-    for feature in geojson_dict['features']:
-        if 'id' in feature['properties']:
-            feature['id'] = feature['properties']['id']
+    for feature in geojson_dict["features"]:
+        if "id" in feature["properties"]:
+            feature["id"] = feature["properties"]["id"]
 
     # save to file
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(geojson_dict, f, ensure_ascii=False)
 
 
@@ -437,7 +446,7 @@ if __name__ == "__main__":
             result_df = pd.DataFrame(
                 [
                     {
-                        "id": int(k),
+                        "id": k,
                         "economic_impact_usd": (
                             v["totalImpact"] if "totalImpact" in v else None
                         ),
@@ -455,6 +464,14 @@ if __name__ == "__main__":
             ].round(2)
             # merge back to original gdf and save
             gdf_merged = gdf.merge(result_df, on="id", how="left")
+            # Remove mining calculations from countries to ignore, since they don't have
+            # any mining calculator data in the API. Any mining calculations in them are artifacts of
+            # areas from other countries that might have overlapped.
+            gdf_merged["economic_impact_usd"] = np.where(
+                gdf_merged["country"].isin(["Venezuela", "FrenchGuiana", "French Guiana"]),
+                np.nan,
+                gdf_merged["economic_impact_usd"],
+            )
             # filter only areas with impact
             gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
             save_to_geojson(

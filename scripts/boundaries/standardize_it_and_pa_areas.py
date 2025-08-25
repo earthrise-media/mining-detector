@@ -21,16 +21,17 @@ import geopandas as gpd
 import numpy as np
 import json
 from pathlib import Path
+import hashlib
 
 SOURCE_DATA_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/source_data"
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
 SIMPLIFY_TOLERANCE = 0.001
-AMAZON_LIMITS_GEOJSON =  "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
+AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 
 with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
-    files_metadata = json.load(f)
+    FILES_METADATA = json.load(f)
 
 
 def detect_shapefile_encoding(shapefile_path):
@@ -47,6 +48,7 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
     # combine frames
     combined_gdf = gpd.pd.concat(all_frames, ignore_index=True)
     output_combined_file = f"{output_folder}/{filename}"
+    print(f"Creating: {output_combined_file}")
 
     # ensure output directory exists
     output_path = Path(output_combined_file)
@@ -58,9 +60,26 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
         )
 
-    # create an unique ID
-    combined_gdf = combined_gdf.reset_index(drop=False)
-    combined_gdf = combined_gdf.rename(columns={"index": "id"})
+    # create an ID
+    combined_gdf["id_field_str"] = combined_gdf["id_field"].astype(str)
+    combined_gdf["status_field_filled"] = combined_gdf["status_field"].fillna("unknown")
+    # generate ngroup within each country_code + id_field combination for different status_field
+    combined_gdf["disambig_num"] = combined_gdf.groupby(
+        ["country_code", "id_field_str"]
+    )["status_field_filled"].transform(lambda x: x.astype("category").cat.codes)
+    combined_gdf["id"] = (
+        combined_gdf["country_code"]
+        + combined_gdf["id_field_str"]
+        + "_"
+        + combined_gdf["disambig_num"].astype(str)
+    )
+    del combined_gdf["disambig_num"]
+    del combined_gdf["id_field_str"]
+    del combined_gdf["status_field_filled"]
+
+    print(combined_gdf["id"].nunique())
+    print(len(combined_gdf))
+    # assert len(combined_gdf) == combined_gdf["id"].nunique()
 
     # save combined file
     combined_gdf.to_file(output_combined_file, driver="GeoJSON", encoding="utf-8")
@@ -102,7 +121,7 @@ def standardize_and_combine_shapefiles(files_metadata):
 
         # standardize crs
         gdf = gdf.to_crs("EPSG:4326")
-        
+
         # only keep the ones that intersect the Amazon boundaries
         intersecting_mask = gdf.intersects(amazon_limits_gdf.union_all())
         gdf = gdf[intersecting_mask]
@@ -110,9 +129,12 @@ def standardize_and_combine_shapefiles(files_metadata):
         # include area units and country name from file metadata
         gdf["area_units"] = file["area_units"]
         gdf["country"] = file["country"]
+        gdf["country_code"] = file["country_code"]
 
         # include other columns
-        cols_to_export = ["country"] + cols_to_export + ["area_units", "geometry"]
+        cols_to_export = (
+            ["country", "country_code"] + cols_to_export + ["area_units", "geometry"]
+        )
 
         # add to lists
         if file["type"] == "indigenous-territory":
@@ -136,4 +158,4 @@ def standardize_and_combine_shapefiles(files_metadata):
 
 
 if __name__ == "__main__":
-    standardize_and_combine_shapefiles(files_metadata)
+    standardize_and_combine_shapefiles(FILES_METADATA)

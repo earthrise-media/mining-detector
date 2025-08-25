@@ -1,5 +1,5 @@
 {
-  "0": {
+  "BOL": {
     "locations": [
       {
         "country": "BO",
@@ -139,7 +139,7 @@
     ],
     "totalImpact": 319365669.9053341
   },
-  "1": {
+  "BRA": {
     "locations": [
       {
         "country": "BR",
@@ -1354,7 +1354,7 @@
     ],
     "totalImpact": 219674731303.38956
   },
-  "2": {
+  "COL": {
     "locations": [
       {
         "country": "CO",
@@ -1389,7 +1389,7 @@
     ],
     "totalImpact": null
   },
-  "3": {
+  "ECU": {
     "locations": [
       {
         "country": "EC",
@@ -1439,7 +1439,7 @@
     ],
     "totalImpact": null
   },
-  "4": {
+  "GUF": {
     "locations": [
       {
         "country": "GF",
@@ -1529,7 +1529,7 @@
     ],
     "totalImpact": 6626.614763333191
   },
-  "5": {
+  "GUY": {
     "locations": [
       {
         "country": "GU",
@@ -1594,7 +1594,7 @@
     ],
     "totalImpact": null
   },
-  "6": {
+  "PER": {
     "locations": [
       {
         "country": "EC",
@@ -1699,7 +1699,7 @@
     ],
     "totalImpact": 6744646331.759177
   },
-  "7": {
+  "SUR": {
     "locations": [
       {
         "country": "GF",
@@ -1749,7 +1749,7 @@
     ],
     "totalImpact": null
   },
-  "8": {
+  "VEN": {
     "locations": [
       {
         "country": "GU",
