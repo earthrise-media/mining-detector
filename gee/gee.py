@@ -1,15 +1,15 @@
 import concurrent.futures
 import logging
 import os
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
+from descarteslabs.geo import DLTile
 import ee
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 from google.api_core import retry
 from tqdm import tqdm
-import tensorflow as tf
 
 import utils
 
@@ -25,9 +25,8 @@ BAND_IDS = {
 }
 
 class GEE_Data_Extractor:
-    def __init__(self, start_date, end_date, batch_size=128,
-                 clear_threshold=None, collection='S2L1C', max_workers=8):
-        self.batch_size = batch_size
+    def __init__(self, start_date, end_date, clear_threshold=None,
+                 collection='S2L1C', max_workers=8):
         self.bandIds = BAND_IDS.get(collection)
         self.collection = collection
         self.max_workers = max_workers 
@@ -80,7 +79,7 @@ class GEE_Data_Extractor:
         return composite
 
     @retry.Retry(timeout=240)
-    def get_tile_data(self, tile: Tile):
+    def get_tile_data(self, tile: DLTile):
         """Download Sentinel-2 (or other collection) data for a tile.
 
         Inputs:
@@ -101,7 +100,7 @@ class GEE_Data_Extractor:
                 "bandIds": self.bandIds,
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
-                # "grid": {"crsCode": tile.crs},  # caused issues
+                # "grid": {"crsCode": tile.crs},  # caused issues in the past
             }
         )
 
@@ -123,7 +122,7 @@ class GEE_Data_Extractor:
     
         Parameters
         ----------
-        tile : Tile object with geometry and tilesize.
+        tile : DLTile object with geometry and tilesize.
         model : keras.Model
         pred_threshold : float Cutoff for considering a prediction positive.
         stride_ratio : int 
@@ -133,7 +132,7 @@ class GEE_Data_Extractor:
         Returns
         -------
         preds_gdf : GeoDataFrame
-        failed_tile : Tile if prediction failed, else None.
+        failed_tile : DLTile if prediction failed, else None.
         """
         try:
             pixels, tile_info = self.get_tile_data(tile)
@@ -172,8 +171,8 @@ class GEE_Data_Extractor:
 
         return preds_gdf, None
 
-    def get_tile_data_concurrent(self, tiles) ->
-        Tuple[List[np.ndarray], List[object]]:
+    def get_tile_data_concurrent(
+        self, tiles) -> Tuple[List[np.ndarray], List[object]]:
         """
         Download all tile data concurrently.
         Args:
@@ -202,8 +201,8 @@ class GEE_Data_Extractor:
 
         return data, tile_metadata
 
-    def make_predictions(self, tiles, model, pred_threshold, stride_ratio,
-                         tries, logger=None) -> gpd.GeoDataFrame:
+    def make_predictions(self, tiles, model, pred_threshold, stride_ratio=1,
+                         tries=2, logger=None) -> gpd.GeoDataFrame:
         """
         Predict on the data for the tiles, with retry logic.
         Args:
