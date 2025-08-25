@@ -263,7 +263,6 @@ class TrainingData:
             ]
 
             extractor = gee.GEE_Data_Extractor(
-                tiles,
                 start_date,
                 end_date,
                 clear_threshold=self.clear_threshold,
@@ -271,8 +270,8 @@ class TrainingData:
             )
             self.bandIds = extractor.bandIds
 
-            chips, tile_data = extractor.get_patches()
-            for (pixels, tile), (_, row) in zip(zip(chips, tile_data),
+            data, tile_metadata = extractor.get_tile_data_concurrent(tiles)
+            for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
                                                 group.iterrows()):
                 pixels = np.array(utils.pad_patch(pixels, ts))
 
