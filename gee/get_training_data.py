@@ -131,6 +131,11 @@ class Tile:
         ulx, uly = self.transform * (0, 0)
         return f"res{int(self.resolution)}_px{int(self.tilesize)}_ulx{ulx:.2f}_uly{uly:.2f}"
 
+    @property
+    def key(self) -> str:
+        """Stable identifier (compatible with DLTile.key)."""
+        return self.tile_id()
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d.pop("geometry", None)
