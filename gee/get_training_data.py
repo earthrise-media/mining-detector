@@ -272,7 +272,8 @@ class TrainingData:
             self.bandIds = extractor.bandIds
 
             chips, tile_data = extractor.get_patches()
-            for (pixels, tile), (_, row) in zip(zip(chips, tile_data), group.iterrows()):
+            for (pixels, tile), (_, row) in zip(zip(chips, tile_data),
+                                                group.iterrows()):
                 pixels = np.array(utils.pad_patch(pixels, ts))
 
                 # Write GeoTIFF
@@ -282,7 +283,8 @@ class TrainingData:
                                               dtype='uint16')
                 meta = profile | {'crs': tile.crs, 'transform': tile.transform}
 
-                tif_name = f"{tile.tile_id()}_{row.start_date}_{row.end_date}.tif"
+                tif_name = (f"{self.collection}{tile.tile_id()}" +
+                            f"_{row.start_date}_{row.end_date}.tif")
                 out_dir = self.outdir / str(row.split) / str(row.label)
                 out_dir.mkdir(parents=True, exist_ok=True)
                 tif_path = out_dir / tif_name
@@ -317,7 +319,7 @@ class TrainingData:
                 c = i % n_cols
                 grid[r*ts:(r+1)*ts, c*ts:(c+1)*ts, :] = thumb
 
-            # Save PNG at the root output_dir (mixing train/val as requested)
+            # Save PNG at the root output_dir (mixing train/val)
             png_name = f"{Path(source_file).stem}_{start_date}_{end_date}.png"
             png_path = self.outdir / png_name
             imageio.imwrite(png_path.as_posix(), grid)
