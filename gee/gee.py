@@ -1,18 +1,21 @@
 import concurrent.futures
 import logging
 import os
+from typing import List, Optional, Tuple
 
 import ee
 import geopandas as gpd
-from google.api_core import retry
-import tensorflow as tf
 import numpy as np
 import pandas as pd
+from google.api_core import retry
 from tqdm import tqdm
+import tensorflow as tf
 
 import utils
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
+ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
+              project=EE_PROJECT)
 
 BAND_IDS = {
     "S1": ["VV", "VH"],
@@ -22,208 +25,180 @@ BAND_IDS = {
 }
 
 class GEE_Data_Extractor:
-    """
-    Pull image data from Earth Engine for a set of tiles.
-    Inputs:
-        - tiles: a list of DLTile objects
-        - start_date: the start date of the data
-        - end_date: the end date of the data
-        - clear_threshold: the threshold for cloud cover
-        - batch_size: the number of tiles to process in each batch
-    Methods: Functions are run in parallel.
-        - get_data: pull the data for the tiles. Returns numpy arrays of chips
-        - predict: predict on the data for the tiles. Returns a gdf of predictions and geoms
-        - process_tile: Function h
-
-    """
-
     def __init__(self, tiles, start_date, end_date, batch_size=128,
-                 clear_threshold=None, collection='S2L1C',
-                 ee_project=EE_PROJECT):
+                 clear_threshold=None, collection='S2L1C', max_workers=8):
         self.tiles = tiles
         self.batch_size = batch_size
         self.bandIds = BAND_IDS.get(collection)
+        self.collection = collection
+        self.max_workers = max_workers 
+        self.composite = self._build_composite(
+            collection, start_date, end_date, clear_threshold)
 
-        ee.Initialize(
-            opt_url="https://earthengine-highvolume.googleapis.com",
-            project=ee_project,
-        )
-
+    def _build_composite(self, collection, start_date, end_date,
+                         clear_threshold):
         if collection == 'S2L1C':
             s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
-
-            # Cloud Score+ from L1C data; can be applied to L1C or L2A.
             csPlus = ee.ImageCollection(
                 "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
             QA_BAND = "cs_cdf"
-
-            self.composite = (
+            composite = (
                 s2.filterDate(start_date, end_date)
                 .linkCollection(csPlus, [QA_BAND])
                 .map(lambda img:
-                     img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
+                    img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
                 .median())
 
         elif collection == 'S2L2A':
             s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-
-            # Cloud Score+ from L1C data; can be applied to L1C or L2A.
             csPlus = ee.ImageCollection(
                 "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
             QA_BAND = "cs_cdf"
-
-            self.composite = (
+            composite = (
                 s2.filterDate(start_date, end_date)
                 .linkCollection(csPlus, [QA_BAND])
                 .map(lambda img:
-                     img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
+                    img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
                 .median())
 
         elif collection == 'S1':
             s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
-            self.composite = (
+            composite = (
                 s1.filterDate(start_date, end_date)
                 .filter(ee.Filter.eq('instrumentMode', 'IW'))
                 .filter(ee.Filter.listContains(
-                        "transmitterReceiverPolarisation", "VV"))
+                    "transmitterReceiverPolarisation", "VV"))
                 .filter(ee.Filter.listContains(
-                        "transmitterReceiverPolarisation", "VH"))
+                    "transmitterReceiverPolarisation", "VH"))
                 .mosaic())
 
         elif collection == 'EmbeddingsV1':
             emb = ee.ImageCollection("GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL")
-            self.composite = emb.filterDate(start_date, end_date).mosaic()
+            composite = emb.filterDate(start_date, end_date).mosaic()
 
         else:
-            raise ValueError('Collection {collection} not recognized.')
-    
+            raise ValueError(f'Collection {collection} not recognized.')
+        return composite
+
     @retry.Retry(timeout=240)
     def get_tile_data(self, tile):
-        """
-        Download Sentinel-2 data for a tile.
+        """Download Sentinel-2 (or other collection) data for a tile.
+
         Inputs:
-            - tile: a DLTile object
-            - composite: a Sentinel-2 image collection
+        - tile: a DLTile object
         Outputs:
-            - pixels: a numpy array containing the Sentinel-2 data
+        - pixels: a numpy array with shape (H, W, bands)
+        - tile:   the same tile object (for metadata)
         """
         tile_geom = ee.Geometry.Rectangle(tile.geometry.bounds)
         composite_tile = self.composite.clipToBoundsAndScale(
-            geometry=tile_geom, width=tile.tilesize + 2, height=tile.tilesize + 2
+            geometry=tile_geom,
+            width=tile.tilesize + 2,
+            height=tile.tilesize + 2,
         )
+
         pixels = ee.data.computePixels(
             {
                 "bandIds": self.bandIds,
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
-                #'grid': {'crsCode': tile.crs} this was causing weird issues
+                # "grid": {"crsCode": tile.crs},  # caused issues
             }
         )
 
-        # convert from a structured array to a numpy array
-        pixels = np.array(pixels.tolist())
+        if isinstance(pixels, np.ndarray):
+            if pixels.dtype.fields is not None:
+                pixels = np.stack([pixels[band] for band in self.bandIds],
+                                 axis=-1)
+            else:
+                pass
+        else:
+            pixels = np.array(pixels)
 
-        return pixels, tile
-    
-    def predict_on_tile(self, tile, model, pred_threshold, stride_ratio,
-                        logger):
+        return pixels.astype(np.float32, copy=False), tile
+
+
+    def get_patches(self) -> Tuple[List[np.ndarray], List[object]]:
         """
-        Takes in a tile of data and a model
-        Outputs a gdf of predictions, and with an exception, the tile
+        Download all tile data concurrently.
+        Returns:
+            - chips: list of numpy arrays (one per tile)
+            - tile_data: list of tile objects
         """
-        try:
-            pixels, tile_info = self.get_tile_data(tile)
-        except Exception as e:
-            logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
-            return gpd.GeoDataFrame(), tile
-        
-        pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
-        pixels = np.clip(pixels / 10000.0, 0, 1)
-
-        input_shape = model.layers[0].input_shape
-        if type(input_shape) == list:  # For an ensemble of models
-            input_shape = input_shape[0]
-        chip_size = input_shape[1]
-        
-        stride = chip_size // stride_ratio
-        chips, chip_geoms = utils.chips_from_tile(
-            pixels, tile_info, chip_size, stride)
-        chips = np.array(chips)
-        chip_geoms.to_crs("EPSG:4326", inplace=True)
-
-        try:
-            preds = model.predict(chips, verbose=0)
-            idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
-        except Exception as e:
-            logger.error(f"Error in model.predict for tile {tile_info}: {e}")
-            return gpd.GeoDataFrame(), tile
-
-        preds_gdf = gpd.GeoDataFrame(
-            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-        preds_gdf['mean'] = np.mean(preds[idx], axis=1)
-        preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
-        
-        return preds_gdf, None
-
-    def get_patches(self):
         chips = []
         tile_data = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            for i in range(0, len(self.tiles), self.batch_size):
-                batch_tiles = self.tiles[i : i + self.batch_size]
 
-                futures = [executor.submit(self.get_tile_data, tile)
-                               for tile in batch_tiles]
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers) as executor:
+            future_to_tile = {
+                executor.submit(self.get_tile_data, tile): tile
+                for tile in self.tiles
+            }
 
-                for future in concurrent.futures.as_completed(futures):
-                    result = future.result()
-                    pixels, tile = result
+            for future in concurrent.futures.as_completed(future_to_tile):
+                tile = future_to_tile[future]
+                try:
+                    pixels, tile = future.result()
                     chips.append(pixels)
                     tile_data.append(tile)
+                except Exception as e:
+                    print(f"Failed to fetch {tile.tile_id()}: {e}")
+
         return chips, tile_data
 
     def make_predictions(self, model, pred_threshold, stride_ratio, tries,
-                         logger=None):
+                         logger=None) -> gpd.GeoDataFrame:
         """
-        Predict on the data for the tiles.
+        Predict on the data for the tiles, with retry logic.
         Inputs:
             - model: a keras model
             - pred_threshold: cutoff in [0,1] for saving model predictions
-            - stride ratio: For area inference, stride = chip_size//stride_ratio
+            - stride_ratio: For area inference, stride = chip_size//stride_ratio
             - tries: number of times to attempt to predict on tiles
             - logger: python logging instance
         Outputs:
-            - predictions: a gdf of predictions
+            - predictions: GeoDataFrame of predictions
         """
-        if not logger:
+        if logger is None:
             logger = logging.getLogger()
-        predictions = gpd.GeoDataFrame()
+        predictions = []
         tiles = self.tiles.copy()
-        
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            while tries:
-                logger.info(f"{tries} tries remaining.")
-                fails = []
-                for i in tqdm(range(0, len(tiles), self.batch_size)):
-                    batch_tiles = tiles[i : i + self.batch_size]
-                    futures = [
-                        executor.submit(self.predict_on_tile, tile, model,
-                                        pred_threshold, stride_ratio, logger)
-                        for tile in batch_tiles
-                    ]
 
-                    for future in concurrent.futures.as_completed(futures):
-                        pred_gdf, failed_tile = future.result()
-                        if failed_tile is not None:
-                            fails.append(failed_tile)
-                        else:
-                            predictions = pd.concat(
-                                [predictions, pred_gdf], ignore_index=True)
+        while tries and tiles:
+            logger.info(f"{tries} tries remaining.")
+            fails = []
 
-                    print(f"Found {len(predictions)} positives.")
-                logger.info(f"{len(fails)} failed tiles.")
-                tiles = fails.copy()
-                tries -= 1
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.max_workers) as executor:
+                future_to_tile = {
+                    executor.submit(self.predict_on_tile, tile, model,
+                                    pred_threshold, stride_ratio, logger): tile
+                    for tile in tiles
+                }
+
+            for future in tqdm(
+                concurrent.futures.as_completed(future_to_tile),
+                total=len(future_to_tile)):
+                tile = future_to_tile[future]
+                try:
+                    pred_gdf, failed_tile = future.result()
+                    if failed_tile is not None:
+                        fails.append(failed_tile)
+                    else:
+                        predictions_list.append(pred_gdf)
+                except Exception as e:
+                    logger.error(f"Tile {tile.tile_id()} raised exception: {e}")
+                    fails.append(tile)
+
+            logger.info(f"{len(fails)} tiles failed this round.")
+            tiles = fails
+            tries -= 1
+
+        if predictions_list:
+            predictions = pd.concat(predictions_list, ignore_index=True)
+        else:
+            predictions = gpd.GeoDataFrame()
 
         return predictions
+
 

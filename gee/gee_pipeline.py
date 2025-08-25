@@ -13,7 +13,7 @@ import utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
          clear_threshold, tile_size, tile_padding, stride_ratio, batch_size,
-         collection, tries, logger):
+         max_workers, collection, tries, logger):
     """Run model inference on specified region of interest."""
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
@@ -102,6 +102,9 @@ if __name__ == '__main__':
     parser.add_argument(
         "--batch_size", default=500, type=int,
         help="Number of tiles to process between writes")
+    parser.add_argument(
+        "--max_workers", default=8, type=int,
+        help="Limit to throttle concurrent requests to Earth Engine")
     parser.add_argument(
         "--collection", default='S2L1C', type=str,
         choices=list(gee.BAND_IDS.keys()),
