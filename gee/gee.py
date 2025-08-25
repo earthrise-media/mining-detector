@@ -80,7 +80,7 @@ class GEE_Data_Extractor:
         return composite
 
     @retry.Retry(timeout=240)
-    def get_tile_data(self, tile):
+    def get_tile_data(self, tile: Tile):
         """Download Sentinel-2 (or other collection) data for a tile.
 
         Inputs:
@@ -198,7 +198,7 @@ class GEE_Data_Extractor:
                     data.append(pixels)
                     tile_metadata.append(tile)
                 except Exception as e:
-                    print(f"Failed to fetch {tile.tile_id()}: {e}")
+                    print(f"Failed to fetch {tile.key}: {e}")
 
         return data, tile_metadata
 
@@ -245,7 +245,7 @@ class GEE_Data_Extractor:
                     else:
                         predictions_list.append(pred_gdf)
                 except Exception as e:
-                    logger.error(f"Tile {tile.tile_id()} raised exception: {e}")
+                    logger.error(f"Tile {tile.key} raised exception: {e}")
                     fails.append(tile)
 
             logger.info(f"{len(fails)} tiles failed this round.")
