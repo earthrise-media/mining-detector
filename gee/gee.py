@@ -25,9 +25,8 @@ BAND_IDS = {
 }
 
 class GEE_Data_Extractor:
-    def __init__(self, tiles, start_date, end_date, batch_size=128,
+    def __init__(self, start_date, end_date, batch_size=128,
                  clear_threshold=None, collection='S2L1C', max_workers=8):
-        self.tiles = tiles
         self.batch_size = batch_size
         self.bandIds = BAND_IDS.get(collection)
         self.collection = collection
@@ -117,54 +116,112 @@ class GEE_Data_Extractor:
 
         return pixels.astype(np.float32, copy=False), tile
 
+    def predict_on_tile(self, tile, model, pred_threshold, stride_ratio,
+                        logger):
+        """
+        Predict on a single tile.
+    
+        Parameters
+        ----------
+        tile : Tile object with geometry and tilesize.
+        model : keras.Model
+        pred_threshold : float Cutoff for considering a prediction positive.
+        stride_ratio : int 
+            Stride ratio for sliding window: stride = chip_size // stride_ratio.
+        logger : logging.Logger instance.
 
-    def get_patches(self) -> Tuple[List[np.ndarray], List[object]]:
+        Returns
+        -------
+        preds_gdf : GeoDataFrame
+        failed_tile : Tile if prediction failed, else None.
+        """
+        try:
+            pixels, tile_info = self.get_tile_data(tile)
+        except Exception as e:
+            logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+    
+        pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
+        pixels = np.clip(pixels / 10000.0, 0, 1)
+
+        # Determine chip size
+        input_shape = model.layers[0].input_shape
+        if isinstance(input_shape, list):  # ensemble of models
+            input_shape = input_shape[0]
+        chip_size = input_shape[1]
+        stride = chip_size // stride_ratio
+
+        # Split into chips
+        chips, chip_geoms = utils.chips_from_tile(
+            pixels, tile_info, chip_size, stride)
+        chips = np.array(chips)
+        chip_geoms.to_crs("EPSG:4326", inplace=True)
+
+        try:
+            preds = model.predict(chips, verbose=0)
+            idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
+        except Exception as e:
+            logger.error(
+                f"Error in model.predict for tile {tile_info.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+
+        preds_gdf = gpd.GeoDataFrame(
+            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
+        preds_gdf['mean'] = np.mean(preds[idx], axis=1)
+        preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
+
+        return preds_gdf, None
+
+    def get_tile_data_concurrent(self, tiles) ->
+        Tuple[List[np.ndarray], List[object]]:
         """
         Download all tile data concurrently.
+        Args:
+            tiles: list of tile objects
         Returns:
-            - chips: list of numpy arrays (one per tile)
+            - patches: list of numpy arrays (one per tile)
             - tile_data: list of tile objects
         """
-        chips = []
-        tile_data = []
+        data, tile_metadata = [], []
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_workers) as executor:
             future_to_tile = {
                 executor.submit(self.get_tile_data, tile): tile
-                for tile in self.tiles
+                for tile in tiles
             }
 
             for future in concurrent.futures.as_completed(future_to_tile):
                 tile = future_to_tile[future]
                 try:
                     pixels, tile = future.result()
-                    chips.append(pixels)
-                    tile_data.append(tile)
+                    data.append(pixels)
+                    tile_metadata.append(tile)
                 except Exception as e:
                     print(f"Failed to fetch {tile.tile_id()}: {e}")
 
-        return chips, tile_data
+        return data, tile_metadata
 
-    def make_predictions(self, model, pred_threshold, stride_ratio, tries,
-                         logger=None) -> gpd.GeoDataFrame:
+    def make_predictions(self, tiles, model, pred_threshold, stride_ratio,
+                         tries, logger=None) -> gpd.GeoDataFrame:
         """
         Predict on the data for the tiles, with retry logic.
-        Inputs:
+        Args:
+            - tiles: list of tile objects
             - model: a keras model
             - pred_threshold: cutoff in [0,1] for saving model predictions
             - stride_ratio: For area inference, stride = chip_size//stride_ratio
             - tries: number of times to attempt to predict on tiles
             - logger: python logging instance
-        Outputs:
+        Returns:
             - predictions: GeoDataFrame of predictions
         """
         if logger is None:
             logger = logging.getLogger()
         predictions = []
-        tiles = self.tiles.copy()
+        retry_tiles = tiles.copy()
 
-        while tries and tiles:
+        while tries and retry_tiles:
             logger.info(f"{tries} tries remaining.")
             fails = []
 
@@ -173,12 +230,13 @@ class GEE_Data_Extractor:
                 future_to_tile = {
                     executor.submit(self.predict_on_tile, tile, model,
                                     pred_threshold, stride_ratio, logger): tile
-                    for tile in tiles
+                    for tile in retry_tiles
                 }
 
             for future in tqdm(
                 concurrent.futures.as_completed(future_to_tile),
                 total=len(future_to_tile)):
+                
                 tile = future_to_tile[future]
                 try:
                     pred_gdf, failed_tile = future.result()
@@ -191,7 +249,7 @@ class GEE_Data_Extractor:
                     fails.append(tile)
 
             logger.info(f"{len(fails)} tiles failed this round.")
-            tiles = fails
+            retry_tiles = fails
             tries -= 1
 
         if predictions_list:

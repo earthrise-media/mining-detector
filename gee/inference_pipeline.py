@@ -21,10 +21,10 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     tiles = utils.create_tiles(region, tile_size, tile_padding)
     logger.info(f"Created {len(tiles)} tiles")
     data_pipeline = gee.GEE_Data_Extractor(
-        tiles, start_date, end_date, batch_size=batch_size,
+        start_date, end_date, batch_size=batch_size,
         clear_threshold=clear_threshold, collection=collection)
     preds = data_pipeline.make_predictions(
-        model, pred_threshold, stride_ratio, tries, logger)
+        tiles, model, pred_threshold, stride_ratio, tries, logger)
     
     logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
