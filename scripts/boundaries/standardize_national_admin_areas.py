@@ -12,15 +12,20 @@
 # requires-python = ">=3.12"
 # dependencies = [
 #     "geopandas",
+#     "pandas",
+#     "shapely",
 # ]
 # ///
 import geopandas as gpd
+import pandas as pd
+from shapely.ops import unary_union
 from pathlib import Path
 
 SOURCE_DATA_FOLDER = "data/boundaries/national_admin/source_data"
 OUTPUT_DATA_FOLDER = "data/boundaries/national_admin/out"
 AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 SIMPLIFY_TOLERANCE = 0.001
+
 
 def combine_geojsons(files_metadata):
     # load frames
@@ -31,7 +36,7 @@ def combine_geojsons(files_metadata):
     # combine frames
     combined_gdf = gpd.pd.concat(frames, ignore_index=True)
     output_combined_file = f"{OUTPUT_DATA_FOLDER}/national_admin"
-    
+
     # lowercase column names
     combined_gdf.columns = [x.lower() for x in combined_gdf.columns]
 
@@ -42,12 +47,23 @@ def combine_geojsons(files_metadata):
     # create an unique ID
     combined_gdf["id"] = combined_gdf["gid_0"]
     assert len(combined_gdf) == combined_gdf["id"].nunique()
-    
+
     # clip to amazon boundaries
     amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)
     amazon_limits_gdf.to_crs("EPSG:4326")
     combined_gdf = combined_gdf.clip(amazon_limits_gdf)
-    
+
+    # create a single polygon for the whole Amazon area
+    whole_amazon = {
+        "gid_0": "AMAZ",
+        "country": "Entire Amazon",
+        "id": "AMAZ",
+        "geometry": unary_union(amazon_limits_gdf.geometry),
+    }
+    whole_amazon_gdf = gpd.GeoDataFrame([whole_amazon], crs=combined_gdf.crs)
+    # concatenate back to original gdf
+    combined_gdf = pd.concat([whole_amazon_gdf, combined_gdf])
+
     # simplify
     combined_gdf["geometry"] = combined_gdf["geometry"].simplify(
         tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True

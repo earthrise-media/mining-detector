@@ -128,6 +128,8 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
 
     # calculate original areas (before split)
     mining_gdf = calculate_area_using_utm(mining_gdf, "original_area_ha", "hectares")
+    print("Total mining area sum (ha):")
+    print(mining_gdf["original_area_ha"].sum())
 
     print("Performing intersection...")
     intersected = gpd.overlay(mining_gdf, gdf_to_intersect, how="intersection")
@@ -136,6 +138,8 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
     intersected = calculate_area_using_utm(
         intersected, "intersected_area_ha", "hectares"
     )
+    print("Intersected mining area sum (ha):")
+    print(intersected["intersected_area_ha"].sum())
 
     # calculate area statistics
     intersected["area_ratio"] = (
@@ -301,7 +305,7 @@ def intersect_with_areas_of_interest_and_summarize(
     with the already admin-intersected mining areas. Summarizes the areas
     by area of interest and admin boundaries, to use in the Mining Calculator requests.
     """
-    # intersect with IT/PA, calculate areas
+    # intersect with area of interest, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
         mining_admin_intersect_gdf, areas_of_interest_gdf
     )
@@ -406,6 +410,12 @@ if __name__ == "__main__":
 
         datasets_to_process = [
             {
+                "name": "national_admin",
+                "file": NATIONAL_ADMIN_GEOJSON,
+                "output_folder": NATIONAL_ADMIN_FOLDER,
+                "output_subfolder": "mining_by_national_admin",
+            },
+            {
                 "name": "indigenous_territories",
                 "file": INDIGENOUS_TERRITORIES_GEOJSON,
                 "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
@@ -417,15 +427,9 @@ if __name__ == "__main__":
                 "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
                 "output_subfolder": "mining_by_protected_areas",
             },
-            {
-                "name": "national_admin",
-                "file": NATIONAL_ADMIN_GEOJSON,
-                "output_folder": NATIONAL_ADMIN_FOLDER,
-                "output_subfolder": "mining_by_national_admin",
-            },
         ]
 
-        # process each dataset (indigenous territories and protected areas)
+        # process each dataset
         for dataset in datasets_to_process:
             gdf = gpd.read_file(dataset["file"])
             output_file = (
@@ -437,6 +441,9 @@ if __name__ == "__main__":
                 areas_of_interest_gdf=gdf,
                 output_file=output_file,
             )
+            summary_mining_affected_area_ha = summary.groupby("id")[
+                "intersected_area_ha"
+            ].sum()
 
             result = enrich_summary_with_mining_calculator_and_save(
                 summary, output_file
@@ -446,15 +453,15 @@ if __name__ == "__main__":
             result_df = pd.DataFrame(
                 [
                     {
-                        "id": k,
+                        "id": id,
                         "economic_impact_usd": (
                             v["totalImpact"] if "totalImpact" in v else None
                         ),
-                        "mining_affected_area_ha": sum(
-                            loc.get("affectedArea", 0) for loc in v.get("locations", [])
-                        ),
+                        # we need to get the affected area from the original summary df,
+                        # since the mining calculator doesn't return results for every possible area
+                        "mining_affected_area_ha": summary_mining_affected_area_ha[id],
                     }
-                    for k, v in result.items()
+                    for id, v in result.items()
                 ]
             )
             # round results
@@ -468,10 +475,13 @@ if __name__ == "__main__":
             # any mining calculator data in the API. Any mining calculations in them are artifacts of
             # areas from other countries that might have overlapped.
             gdf_merged["economic_impact_usd"] = np.where(
-                gdf_merged["country"].isin(["Venezuela", "FrenchGuiana", "French Guiana"]),
+                gdf_merged["country"].isin(
+                    ["Venezuela", "FrenchGuiana", "French Guiana"]
+                ),
                 np.nan,
                 gdf_merged["economic_impact_usd"],
             )
+
             # save unfiltered
             save_to_geojson(
                 gdf_merged,
