@@ -472,7 +472,13 @@ if __name__ == "__main__":
                 np.nan,
                 gdf_merged["economic_impact_usd"],
             )
-            # filter only areas with impact
+            # save unfiltered
+            save_to_geojson(
+                gdf_merged,
+                dataset["file"].replace(".geojson", "_impacts_unfiltered.geojson"),
+                id_column="id",
+            )
+            # filter and save only areas with impact
             gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
             save_to_geojson(
                 gdf_merged,
