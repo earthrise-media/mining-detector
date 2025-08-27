@@ -166,8 +166,8 @@ class TrainingData:
                     )
                 meta = profile | {'crs': tile.crs, 'transform': transform}
 
-                tif_name = (f"{self.collection}{tile.key}" +
-                            f"_{row.start_date}_{row.end_date}.tif")
+                tif_name = (f"{self.collection}_clear{self.clear_threshold}" +
+                            f"_{tile.key}_{row.start_date}_{row.end_date}.tif")
                 out_dir = self.outdir / str(row.split) / str(row.label)
                 out_dir.mkdir(parents=True, exist_ok=True)
                 tif_path = out_dir / tif_name
@@ -183,6 +183,7 @@ class TrainingData:
                 rgb_tiles.append(rgb)
 
         png_fname = (f"{Path(source_file).stem}_{self.collection}" +
+                     f"_clear{self.clear_threshold}" +
                      f"_{start_date}_{end_date}.png")
         png_path = self.outdir / png_fname
         write_thumbnail_grid(rgb_tiles, png_path, ts,
