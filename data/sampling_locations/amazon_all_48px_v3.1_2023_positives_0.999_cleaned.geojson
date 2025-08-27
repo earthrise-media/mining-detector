@@ -731,7 +731,6 @@
 { "type": "Feature", "properties": { "pred": 0.99983656406402588 }, "geometry": { "type": "Point", "coordinates": [ -60.770517, 6.381046 ] } },
 { "type": "Feature", "properties": { "pred": 1.0 }, "geometry": { "type": "Point", "coordinates": [ -69.96518241508268, -12.832422250623264 ] } },
 { "type": "Feature", "properties": { "pred": 0.99995577335357666 }, "geometry": { "type": "Point", "coordinates": [ -61.542006, 6.2416465 ] } },
-{ "type": "Feature", "properties": { "pred": 0.99964380264282227 }, "geometry": { "type": "Point", "coordinates": [ -75.382734749797166, -10.354745417482798 ] } },
 { "type": "Feature", "properties": { "pred": 0.99999034404754639 }, "geometry": { "type": "Point", "coordinates": [ -51.196629, -6.954287 ] } },
 { "type": "Feature", "properties": { "pred": 0.99958032369613647 }, "geometry": { "type": "Point", "coordinates": [ -57.357027, -5.8909265 ] } },
 { "type": "Feature", "properties": { "pred": 1.0 }, "geometry": { "type": "Point", "coordinates": [ -50.8434345, -7.842416 ] } },
