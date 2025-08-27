@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Iterable, List
 
+from affine import Affine
 from descarteslabs.geo import DLTile
 import geopandas as gpd
 import imageio
@@ -21,10 +22,73 @@ import numpy as np
 import random
 import rasterio
 from rasterio.transform import from_origin
+from shapely.geometry import Point, box
 from tqdm import tqdm
 
 import gee
 import utils
+
+
+import numpy as np
+import geopandas as gpd
+from shapely.geometry import Point, box
+from affine import Affine
+from descarteslabs.geo import DLTile
+
+
+class CenteredTile:
+    """
+    DLTile-like tile centered on a given lat/lon, not snapped to DL global grid.
+
+    Attributes match DLTile where possible (key, crs, bounds, geotrans, shape).
+    """
+
+    def __init__(self, lat, lon, tilesize=48, resolution=10.0, pad=0):
+        self.lat = float(lat)
+        self.lon = float(lon)
+        self.tilesize = int(tilesize)
+        self.resolution = float(resolution)
+        self.pad = int(pad)
+
+        snap_tile = DLTile.from_latlon(
+            self.lat, self.lon,
+            resolution=self.resolution,
+            tilesize=self.tilesize,
+            pad=0
+        )
+        self.crs = snap_tile.crs
+
+        point = gpd.GeoSeries(
+            [Point(self.lon, self.lat)], crs="EPSG:4326").to_crs(self.crs)
+        x_center, y_center = float(point.x.iloc[0]), float(point.y.iloc[0])
+
+        half_m = (self.tilesize * self.resolution) / 2.0
+        raw_minx = x_center - half_m
+        raw_maxx = x_center + half_m
+        raw_miny = y_center - half_m
+        raw_maxy = y_center + half_m
+
+        ulx = np.floor(raw_minx / self.resolution) * self.resolution
+        uly = np.ceil(raw_maxy / self.resolution) * self.resolution
+
+        self.geotrans = Affine.translation(ulx, uly) * Affine.scale(self.resolution, -self.resolution)
+
+        width = height = self.tilesize
+        minx = ulx
+        maxx = ulx + width * self.resolution
+        maxy = uly
+        miny = uly - height * self.resolution
+        self.bounds = (minx, miny, maxx, maxy)
+        
+        self.shape = (self.tilesize, self.tilesize)
+        self.key = f"custom-{self.lat:.6f}-{self.lon:.6f}-{self.resolution:.1f}-{self.tilesize}px"
+
+        bbox_proj = box(minx, miny, maxx, maxy)
+        self.geometry = gpd.GeoSeries([bbox_proj], crs=self.crs).to_crs("EPSG:4326").iloc[0]
+
+    def __repr__(self):
+        return f"<CenteredTile key={self.key} res={self.resolution} size={self.tilesize}>"
+
 
 class TrainingData:
     def __init__(
@@ -51,7 +115,7 @@ class TrainingData:
             gdf = gdf.to_crs(epsg=4326)
 
         tiles: list[DLTile] = [
-            DLTile.from_latlon(
+            CenteredTile(
                 float(row.geometry.y),
                 float(row.geometry.x),
                 resolution=self.resolution,
@@ -157,14 +221,7 @@ class TrainingData:
                 height, width, bands = pixels.shape
                 profile = self._build_profile(height, width, bands,
                                               dtype='uint16')
-                minx, miny, maxx, maxy = tile.bounds
-                transform = from_origin(
-                    minx,  
-                    maxy,  
-                    tile.resolution,  # pixel width
-                    -tile.resolution   # pixel height
-                    )
-                meta = profile | {'crs': tile.crs, 'transform': transform}
+                meta = profile | {'crs': tile.crs, 'transform': tile.geotrans}
 
                 tif_name = (f"{self.collection}_clear{self.clear_threshold}" +
                             f"_{tile.key}_{row.start_date}_{row.end_date}.tif")
