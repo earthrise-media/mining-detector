@@ -182,12 +182,12 @@ class TrainingData:
                     rgb = np.array(utils.pad_patch(rgb, ts))
                 rgb_tiles.append(rgb)
 
-        png_fname = (f"{Path(source_file).stem}_{self.collection}" +
-                     f"_clear{self.clear_threshold}" +
-                     f"_{start_date}_{end_date}.png")
-        png_path = self.outdir / png_fname
-        write_thumbnail_grid(rgb_tiles, png_path, ts,
-                             max_tiles=max_tiles_per_png)
+            png_fname = (f"{Path(source_file).stem}_{self.collection}" +
+                         f"_clear{self.clear_threshold}" +
+                         f"_{start_date}_{end_date}.png")
+            png_path = self.outdir / png_fname
+            write_thumbnail_grid(rgb_tiles, png_path, ts,
+                                 max_tiles=max_tiles_per_png)
 
         return tiles_written
 
