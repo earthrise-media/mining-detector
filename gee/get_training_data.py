@@ -140,6 +140,66 @@ class TrainingData:
             "compress": "deflate",
         }
 
+    def _write_tile_geotiff(
+        self,
+        pixels: np.ndarray,
+        tile: DLTile | CenteredTile,
+        split: str,
+        label: str,
+        start_date: str,
+        end_date: str,
+    ) -> tuple[Path, np.ndarray]:
+        """
+        Write a single tile's pixels to GeoTIFF and return path + RGB preview.
+
+        Parameters
+        ----------
+        pixels : np.ndarray
+            HxWxB array of pixel values.
+        tile : DLTile | CenteredTile
+            Tile object with CRS and geotransform.
+        split : str
+            Dataset split (e.g. 'train', 'val', 'test').
+        label : str
+            Label/class name.
+        start_date : str
+            Acquisition start date.
+        end_date : str
+            Acquisition end date.
+
+        Returns
+        -------
+        tif_path : Path
+            Path to written GeoTIFF.
+        rgb : np.ndarray
+            RGB preview image (HxWx3 uint8).
+        """
+        ts = self.patch_size
+        pixels = np.array(utils.pad_patch(pixels, ts))
+
+        chw = np.moveaxis(pixels.astype("uint16"), -1, 0)  # (B,H,W)
+        height, width, bands = pixels.shape
+        profile = self._build_profile(height, width, bands, dtype="uint16")
+        profile |= {"crs": tile.crs, "transform": tile.geotrans}
+
+        tif_name = (
+            f"{self.collection}_clear{self.clear_threshold}"
+            f"_{tile.key}_{start_date}_{end_date}.tif"
+        )
+        out_dir = self.outdir / split / label
+        out_dir.mkdir(parents=True, exist_ok=True)
+        tif_path = out_dir / tif_name
+
+        with rasterio.open(tif_path, "w", **profile) as dst:
+            dst.write(chw)
+
+        # Build RGB preview
+        rgb = self._to_rgb(pixels)
+        if rgb.shape[:2] != (ts, ts):
+            rgb = np.array(utils.pad_patch(rgb, ts))
+
+        return tif_path, rgb
+
     def _to_rgb(self, pixels: np.ndarray) -> np.ndarray:
         """Convert HxWxB array to uint8 RGB for preview.
         Prefers S2 B4/B3/B2; falls back to first 3 bands if needed.
@@ -217,29 +277,14 @@ class TrainingData:
             
             for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
                                                 group.iterrows()):
-                pixels = np.array(utils.pad_patch(pixels, ts))
-
-                # Write GeoTIFF
-                chw = np.moveaxis(pixels.astype('uint16'), -1, 0)  # (B,H,W)
-                height, width, bands = pixels.shape
-                profile = self._build_profile(height, width, bands,
-                                              dtype='uint16')
-                meta = profile | {'crs': tile.crs, 'transform': tile.geotrans}
-
-                tif_name = (f"{self.collection}_clear{self.clear_threshold}" +
-                            f"_{tile.key}_{row.start_date}_{row.end_date}.tif")
-                out_dir = self.outdir / str(row.split) / str(row.label)
-                out_dir.mkdir(parents=True, exist_ok=True)
-                tif_path = out_dir / tif_name
-                with rasterio.open(tif_path, 'w', **meta) as dst:
-                    dst.write(chw)
-
+                tif_path, rgb = self._write_tile_geotiff(
+                    pixels, tile,
+                    split=row.split,
+                    label=row.label,
+                    start_date=str(row.start_date),
+                    end_date=str(row.end_date),
+                )
                 tiles_written.append(tile)
-
-                # Collect RGB for thumbnail grid
-                rgb = self._to_rgb(pixels)
-                if rgb.shape[:2] != (ts, ts):
-                    rgb = np.array(utils.pad_patch(rgb, ts))
                 rgb_tiles.append(rgb)
 
             png_fname = (f"{Path(source_file).stem}_{self.collection}" +
