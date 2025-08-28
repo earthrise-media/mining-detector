@@ -12,7 +12,7 @@ import pandas as pd
 from tensorflow.keras import Model
 from tqdm import tqdm
 
-from utils import CenteredTile, pad_patch, chips_from_tile
+from tile_utils import CenteredTile, pad_patch, chips_from_tile
 
 TileType = Union[DLTile, CenteredTile]
 
