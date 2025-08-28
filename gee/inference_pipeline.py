@@ -9,7 +9,7 @@ import geopandas as gpd
 import keras
 
 import gee
-import utils
+import tile_utils
 
 def main(model_path, region_path, start_date, end_date, pred_threshold,
          clear_threshold, tile_size, tile_padding, stride_ratio, batch_size,
@@ -18,7 +18,7 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     model = keras.models.load_model(model_path)
     region = gpd.read_file(region_path).geometry[0].__geo_interface__
     
-    tiles = utils.create_tiles(region, tile_size, tile_padding)
+    tiles = tile_utils.create_tiles(region, tile_size, tile_padding)
     logger.info(f"Created {len(tiles)} tiles")
     data_pipeline = gee.GEE_Data_Extractor(
         start_date, end_date, batch_size=batch_size,

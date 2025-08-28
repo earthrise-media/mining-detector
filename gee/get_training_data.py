@@ -22,7 +22,7 @@ import rasterio
 from tqdm import tqdm
 
 import gee
-from utils import CenteredTile, pad_patch
+from tile_utils import CenteredTile, pad_patch
 
 class TrainingData:
     def __init__(
