@@ -167,29 +167,3 @@ def unit_norm(samples):
             np.array(samples.astype(float))[:, :, i] - means[i]
         ) / deviations[i]
     return normalized_samples
-
-
-def plot_numpy_grid(patches):
-    num_img = int(np.ceil(np.sqrt(len(patches))))
-    padding = 1
-    h, w, c = patches[0].shape
-    mosaic = np.zeros((num_img * (h + padding), num_img * (w + padding), c))
-    counter = 0
-    for i in range(num_img):
-        for j in range(num_img):
-            if counter < len(patches):
-                mosaic[
-                    i * (h + padding) : (i + 1) * h + i * padding,
-                    j * (w + padding) : (j + 1) * w + j * padding,
-                ] = patches[counter]
-            else:
-                mosaic[
-                    i * (h + padding) : (i + 1) * h + i * padding,
-                    j * (w + padding) : (j + 1) * w + j * padding,
-                ] = np.zeros((h, w, c))
-            counter += 1
-
-    fig, ax = plt.subplots(figsize=(num_img, num_img), dpi=150)
-    ax.axis("off")
-    ax.imshow(mosaic)
-    return fig
