@@ -71,7 +71,8 @@ class CenteredTile:
         ulx = np.floor(raw_minx / self.resolution) * self.resolution
         uly = np.ceil(raw_maxy / self.resolution) * self.resolution
 
-        self.geotrans = Affine.translation(ulx, uly) * Affine.scale(self.resolution, -self.resolution)
+        self.geotrans = Affine.translation(ulx, uly) * Affine.scale(
+            self.resolution, -self.resolution)
 
         width = height = self.tilesize
         minx = ulx
@@ -81,10 +82,12 @@ class CenteredTile:
         self.bounds = (minx, miny, maxx, maxy)
         
         self.shape = (self.tilesize, self.tilesize)
-        self.key = f"custom-{self.lat:.6f}-{self.lon:.6f}-{self.resolution:.1f}-{self.tilesize}px"
+        self.key = (f"custom_{self.lat:.6f}_{self.lon:.6f}" +
+                    f"_{self.resolution:.1f}_{self.tilesize}px")
 
         bbox_proj = box(minx, miny, maxx, maxy)
-        self.geometry = gpd.GeoSeries([bbox_proj], crs=self.crs).to_crs("EPSG:4326").iloc[0]
+        self.geometry = gpd.GeoSeries(
+            [bbox_proj], crs=self.crs).to_crs("EPSG:4326").iloc[0]
 
     def __repr__(self):
         return f"<CenteredTile key={self.key} res={self.resolution} size={self.tilesize}>"
