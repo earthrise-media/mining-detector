@@ -13,85 +13,16 @@ import os
 from pathlib import Path
 from typing import Iterable, List
 
-from affine import Affine
-from descarteslabs.geo import DLTile
 import geopandas as gpd
 import imageio
 import math
 import numpy as np
 import random
 import rasterio
-from rasterio.transform import from_origin
-from shapely.geometry import Point, box
 from tqdm import tqdm
 
 import gee
-import utils
-
-
-import numpy as np
-import geopandas as gpd
-from shapely.geometry import Point, box
-from affine import Affine
-from descarteslabs.geo import DLTile
-
-
-class CenteredTile:
-    """
-    DLTile-like tile centered on a given lat/lon, not snapped to DL global grid.
-
-    Attributes match DLTile where possible (key, crs, bounds, geotrans, shape).
-    """
-
-    def __init__(self, lat, lon, tilesize=48, resolution=10.0, pad=0):
-        self.lat = float(lat)
-        self.lon = float(lon)
-        self.tilesize = int(tilesize)
-        self.resolution = float(resolution)
-        self.pad = int(pad)
-
-        snap_tile = DLTile.from_latlon(
-            self.lat, self.lon,
-            resolution=self.resolution,
-            tilesize=self.tilesize,
-            pad=0
-        )
-        self.crs = snap_tile.crs
-
-        point = gpd.GeoSeries(
-            [Point(self.lon, self.lat)], crs="EPSG:4326").to_crs(self.crs)
-        x_center, y_center = float(point.x.iloc[0]), float(point.y.iloc[0])
-
-        half_m = (self.tilesize * self.resolution) / 2.0
-        raw_minx = x_center - half_m
-        raw_maxx = x_center + half_m
-        raw_miny = y_center - half_m
-        raw_maxy = y_center + half_m
-
-        ulx = np.floor(raw_minx / self.resolution) * self.resolution
-        uly = np.ceil(raw_maxy / self.resolution) * self.resolution
-
-        self.geotrans = Affine.translation(ulx, uly) * Affine.scale(
-            self.resolution, -self.resolution)
-
-        width = height = self.tilesize
-        minx = ulx
-        maxx = ulx + width * self.resolution
-        maxy = uly
-        miny = uly - height * self.resolution
-        self.bounds = (minx, miny, maxx, maxy)
-        
-        self.shape = (self.tilesize, self.tilesize)
-        self.key = (f"custom_{self.lat:.6f}_{self.lon:.6f}" +
-                    f"_{self.resolution:.1f}_{self.tilesize}px")
-
-        bbox_proj = box(minx, miny, maxx, maxy)
-        self.geometry = gpd.GeoSeries(
-            [bbox_proj], crs=self.crs).to_crs("EPSG:4326").iloc[0]
-
-    def __repr__(self):
-        return f"<CenteredTile key={self.key} res={self.resolution} size={self.tilesize}>"
-
+from utils import CenteredTile, pad_patch
 
 class TrainingData:
     def __init__(
@@ -111,13 +42,13 @@ class TrainingData:
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         
-    def create_tiles(self, gdf: gpd.GeoDataFrame) -> list[DLTile]:
+    def _points_to_tiles(self, gdf: gpd.GeoDataFrame) -> list[CenteredTile]:
         if gdf.crs is None:
             gdf = gdf.set_crs(epsg=4326)
         else:
             gdf = gdf.to_crs(epsg=4326)
 
-        tiles: list[DLTile] = [
+        tiles: list[CenteredTile] = [
             CenteredTile(
                 float(row.geometry.y),
                 float(row.geometry.x),
@@ -127,7 +58,7 @@ class TrainingData:
             )
             for _, row in gdf.iterrows()
             ]
-        print(f"{len(tiles)} tiles to created")
+        print(f"{len(tiles)} tiles created")
         return tiles
 
     def _build_profile(self, height: int, width: int, count: int, dtype: str = "uint16") -> dict:
@@ -143,20 +74,20 @@ class TrainingData:
     def _write_tile_geotiff(
         self,
         pixels: np.ndarray,
-        tile: DLTile | CenteredTile,
+        tile: CenteredTile,
         split: str,
         label: str,
         start_date: str,
         end_date: str,
-    ) -> tuple[Path, np.ndarray]:
+    ) -> Path:
         """
-        Write a single tile's pixels to GeoTIFF and return path + RGB preview.
+        Writes a single tile's pixels to GeoTIFF and returns its path.
 
         Parameters
         ----------
         pixels : np.ndarray
             HxWxB array of pixel values.
-        tile : DLTile | CenteredTile
+        tile : CenteredTile
             Tile object with CRS and geotransform.
         split : str
             Dataset split (e.g. 'train', 'val', 'test').
@@ -171,12 +102,7 @@ class TrainingData:
         -------
         tif_path : Path
             Path to written GeoTIFF.
-        rgb : np.ndarray
-            RGB preview image (HxWx3 uint8).
         """
-        ts = self.patch_size
-        pixels = np.array(utils.pad_patch(pixels, ts))
-
         chw = np.moveaxis(pixels.astype("uint16"), -1, 0)  # (B,H,W)
         height, width, bands = pixels.shape
         profile = self._build_profile(height, width, bands, dtype="uint16")
@@ -193,20 +119,20 @@ class TrainingData:
         with rasterio.open(tif_path, "w", **profile) as dst:
             dst.write(chw)
 
-        # Build RGB preview
-        rgb = self._to_rgb(pixels)
-        if rgb.shape[:2] != (ts, ts):
-            rgb = np.array(utils.pad_patch(rgb, ts))
+        return tif_path
 
-        return tif_path, rgb
+    def make_rgb_preview(
+        self, pixels: np.ndarray, scale: float = 3000.0) -> np.ndarray:
+        """Convert multispectral tile to RGB preview (uint8).
 
-    def _to_rgb(self, pixels: np.ndarray) -> np.ndarray:
-        """Convert HxWxB array to uint8 RGB for preview.
-        Prefers S2 B4/B3/B2; falls back to first 3 bands if needed.
+        Parameters
+        ----------
+        pixels : np.ndarray
+            HxWxB array of reflectance-like values.
+        scale : float, default=3000.0
+            Normalization scale factor (default chosen for Sentinel-2 L1C).
         """
-        # Scale for S2 reflectance-like values
-        scale = 3000.0
-        # Sentinel-2 RGB indices if available
+        # Sentinel-2 preferred RGB bands if available
         if hasattr(self, "bandIds") and self.bandIds is not None:
             try:
                 idx = [self.bandIds.index(b) for b in ["B4", "B3", "B2"]]
@@ -215,6 +141,7 @@ class TrainingData:
             except ValueError:
                 pass
 
+        # Fallback: use first 3 bands (or repeat if single-band)
         b = pixels.shape[-1]
         if b == 1:
             rgb = np.repeat(np.clip(pixels[..., [0]] / scale, 0, 1), 3, axis=-1)
@@ -225,11 +152,15 @@ class TrainingData:
             if pad:
                 rgb = np.concatenate([rgb, np.zeros_like(rgb[..., :pad])],
                                      axis=-1)
-            return (rgb * 255).astype(np.uint8)
 
+        return (rgb * 255).astype(np.uint8)
 
-    def get_patches(self, gdf: gpd.GeoDataFrame, max_tiles_per_png: int = 1000) -> List[DLTile]:
-        """Extract patches from a GeoDataFrame and write georeferenced GeoTIFFs.
+    def get_patches(
+        self,
+        gdf: gpd.GeoDataFrame,
+        max_tiles_per_png: int = 1000
+    ) -> List[CenteredTile]:
+        """Extract image patches for a GeoDataFrame of lat/lon Points.
 
         Parameters
         ----------
@@ -241,13 +172,17 @@ class TrainingData:
 
         Returns
         -------
-        tiles_written : List[DLTile]
-            The DLTile objects written.
+        tiles_written : List[CenteredTile]
+            The CenteredTile objects written.
+
+        Additional Outputs
+        ------------------
+        Written PNGs of RGB thumbnails, collected by 'source_file'
         """
         assert {'source_file','label','start_date','end_date','split','geometry'}.issubset(gdf.columns), (
             "gdf must have columns ['source_file','label','start_date','end_date','split','geometry']"
         )
-        tiles_written: List[DLTile] = []
+        tiles_written: List[CenteredTile] = []
 
         for source_file, group in tqdm(gdf.groupby('source_file')):
             print(f"Retrieving data for {source_file}")
@@ -263,7 +198,7 @@ class TrainingData:
             end_date = str(end_dates[0])
             ts = self.patch_size
             
-            tiles = self.create_tiles(group)
+            tiles = self._points_to_tiles(group)
 
             extractor = gee.GEE_Data_Extractor(
                 start_date,
@@ -272,19 +207,21 @@ class TrainingData:
                 collection=self.collection,
             )
             self.bandIds = extractor.bandIds
-
             data, tile_metadata = extractor.get_tile_data_concurrent(tiles)
             
             for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
                                                 group.iterrows()):
-                tif_path, rgb = self._write_tile_geotiff(
+                pixels = pad_patch(pixels, self.patch_size)
+                tif_path = self._write_tile_geotiff(
                     pixels, tile,
-                    split=row.split,
-                    label=row.label,
+                    split=str(row.split),
+                    label=str(row.label),
                     start_date=str(row.start_date),
                     end_date=str(row.end_date),
                 )
                 tiles_written.append(tile)
+
+                rgb = self.make_rgb_preview(pixels)
                 rgb_tiles.append(rgb)
 
             png_fname = (f"{Path(source_file).stem}_{self.collection}" +
@@ -296,25 +233,8 @@ class TrainingData:
 
         return tiles_written
 
-
-def tile_geodataframe(tiles: Iterable[DLTile], to_crs: str | int = 4326) -> gpd.GeoDataFrame:
-    """Build a GeoDataFrame of tile footprints for inspection/QA."""
-    geoms = [t.geometry for t in tiles]
-    gdf = gpd.GeoDataFrame(
-        {
-            "tile_id": [t.key for t in tiles],
-            "tilesize": [t.tilesize for t in tiles],
-            "resolution": [t.resolution for t in tiles],
-        },
-        geometry=geoms,
-        crs="EPSG:4326",
-    )
-    if to_crs is not None:
-        gdf = gdf.to_crs(to_crs)
-    return gdf
-
-def write_thumbnail_grid(thumbs: list[np.ndarray], out_path: Path, ts: int,
-                         max_tiles: int = 1000) -> None:
+def write_thumbnail_grid(thumbs: list[np.ndarray], out_path: Path,
+                         tilesize: int, max_tiles: int = 1000) -> None:
     """Downsample, arrange, and save a grid of RGB thumbnails."""
     if len(thumbs) == 0:
         return
@@ -325,6 +245,7 @@ def write_thumbnail_grid(thumbs: list[np.ndarray], out_path: Path, ts: int,
     n = len(thumbs)
     n_cols = int(math.ceil(math.sqrt(n)))
     n_rows = int(math.ceil(n / n_cols))
+    ts = tilesize
     H = n_rows * ts
     W = n_cols * ts
     grid = np.zeros((H, W, 3), dtype=np.uint8)
