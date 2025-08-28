@@ -1,9 +1,68 @@
+
+from affine import Affine
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import shapely
+from shapely.geometry import Point, Polygon, box
 
 from descarteslabs.geo import DLTile
+
+
+class CenteredTile:
+    """
+    DLTile-like tile centered on a given lat/lon, not snapped to DL global grid.
+
+    Attributes match DLTile where possible (key, crs, bounds, geotrans, shape).
+    """
+
+    def __init__(self, lat, lon, tilesize=48, resolution=10.0, pad=0):
+        self.lat = float(lat)
+        self.lon = float(lon)
+        self.tilesize = int(tilesize)
+        self.resolution = float(resolution)
+        self.pad = int(pad)
+
+        snap_tile = DLTile.from_latlon(
+            self.lat, self.lon,
+            resolution=self.resolution,
+            tilesize=self.tilesize,
+            pad=0
+        )
+        self.crs = snap_tile.crs
+
+        point = gpd.GeoSeries(
+            [Point(self.lon, self.lat)], crs="EPSG:4326").to_crs(self.crs)
+        x_center, y_center = float(point.x.iloc[0]), float(point.y.iloc[0])
+
+        half_m = (self.tilesize * self.resolution) / 2.0
+        raw_minx = x_center - half_m
+        raw_maxx = x_center + half_m
+        raw_miny = y_center - half_m
+        raw_maxy = y_center + half_m
+
+        ulx = np.floor(raw_minx / self.resolution) * self.resolution
+        uly = np.ceil(raw_maxy / self.resolution) * self.resolution
+
+        self.geotrans = Affine.translation(ulx, uly) * Affine.scale(
+            self.resolution, -self.resolution)
+
+        width = height = self.tilesize
+        minx = ulx
+        maxx = ulx + width * self.resolution
+        maxy = uly
+        miny = uly - height * self.resolution
+        self.bounds = (minx, miny, maxx, maxy)
+        
+        self.shape = (self.tilesize, self.tilesize)
+        self.key = (f"custom_{round(self.lat, 6)}_{round(self.lon, 6)}" +
+                    f"_{self.resolution:.1f}_{self.tilesize}px")
+
+        bbox_proj = box(minx, miny, maxx, maxy)
+        self.geometry = gpd.GeoSeries(
+            [bbox_proj], crs=self.crs).to_crs("EPSG:4326").iloc[0]
+
+    def __repr__(self):
+        return f"<CenteredTile key={self.key} res={self.resolution} size={self.tilesize}>"
 
 
 def create_tiles(region, tilesize, padding, resolution=10):
@@ -119,7 +178,7 @@ def chips_from_tile(data, tile, width, stride):
                 north + (j + width) * y_per_pixel,
             ]
             tile_geometry = [nw_coord, sw_coord, se_coord, ne_coord, nw_coord]
-            chip_coords.append(shapely.geometry.Polygon(tile_geometry))
+            chip_coords.append(Polygon(tile_geometry))
     chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile.crs)
     return chips, chip_coords
 
