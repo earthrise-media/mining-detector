@@ -167,15 +167,30 @@ class GEE_Data_Extractor:
 
         try:
             preds = model.predict(chips, verbose=0)
-            idx = np.where(np.mean(preds, axis=1) > pred_threshold)[0]
         except Exception as e:
             logger.error(
                 f"Error in model.predict for tile {tile_info.key}: {e}")
             return gpd.GeoDataFrame(), tile
 
+        if preds.ndim == 2:
+            if preds.shape[1] == 1:
+                # sigmoid binary classifier
+                mean_preds = preds.squeeze()
+            elif preds.shape[1] == 2:
+                # softmax binary classifier
+                mean_preds = preds[:, 1]
+            else:
+                # ensemble of M sigmoid models
+                mean_preds = np.mean(preds, axis=1)
+        else:
+            # already shape (N,)
+            mean_preds = preds
+
+        idx = np.where(mean_preds > pred_threshold)[0]
+
         preds_gdf = gpd.GeoDataFrame(
             geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-        preds_gdf['mean'] = np.mean(preds[idx], axis=1)
+        preds_gdf['mean'] = mean_preds
         preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
 
         return preds_gdf, None
