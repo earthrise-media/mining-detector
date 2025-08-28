@@ -1,17 +1,20 @@
 import concurrent.futures
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 
 from descarteslabs.geo import DLTile
 import ee
 import geopandas as gpd
+from google.api_core import retry
 import numpy as np
 import pandas as pd
-from google.api_core import retry
+from tensorflow.keras import Model
 from tqdm import tqdm
 
-import utils
+from utils import CenteredTile, pad_patch, chips_from_tile
+
+TileType = Union[DLTile, CenteredTile]
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
@@ -79,11 +82,11 @@ class GEE_Data_Extractor:
         return composite
 
     @retry.Retry(timeout=240)
-    def get_tile_data(self, tile: DLTile):
+    def get_tile_data(self, tile: TileType) -> Tuple[np.ndarray, TileType]:
         """Download Sentinel-2 (or other collection) data for a tile.
 
         Inputs:
-        - tile: a DLTile object
+        - tile: a TileType object
         Outputs:
         - pixels: a numpy array with shape (H, W, bands)
         - tile:   the same tile object (for metadata)
@@ -115,15 +118,21 @@ class GEE_Data_Extractor:
 
         return pixels.astype(np.float32, copy=False), tile
 
-    def predict_on_tile(self, tile, model, pred_threshold, stride_ratio,
-                        logger):
+    def predict_on_tile(
+        self,
+        tile: TileType,
+        model: Model,
+        pred_threshold: float,
+        stride_ratio: int,
+        logger: logging.Logger,
+    ) -> Tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """
         Predict on a single tile.
     
         Parameters
         ----------
-        tile : DLTile object with geometry and tilesize.
-        model : keras.Model
+        tile : TileType object with geometry and tilesize.
+        model : a keras Model
         pred_threshold : float Cutoff for considering a prediction positive.
         stride_ratio : int 
             Stride ratio for sliding window: stride = chip_size // stride_ratio.
@@ -132,7 +141,7 @@ class GEE_Data_Extractor:
         Returns
         -------
         preds_gdf : GeoDataFrame
-        failed_tile : DLTile if prediction failed, else None.
+        failed_tile : TileType if prediction failed, else None.
         """
         try:
             pixels, tile_info = self.get_tile_data(tile)
@@ -140,7 +149,7 @@ class GEE_Data_Extractor:
             logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
     
-        pixels = np.array(utils.pad_patch(pixels, tile_info.tilesize))
+        pixels = np.array(pad_patch(pixels, tile_info.tilesize))
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         # Determine chip size
@@ -151,7 +160,7 @@ class GEE_Data_Extractor:
         stride = chip_size // stride_ratio
 
         # Split into chips
-        chips, chip_geoms = utils.chips_from_tile(
+        chips, chip_geoms = chips_from_tile(
             pixels, tile_info, chip_size, stride)
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
@@ -172,7 +181,7 @@ class GEE_Data_Extractor:
         return preds_gdf, None
 
     def get_tile_data_concurrent(
-        self, tiles) -> Tuple[List[np.ndarray], List[object]]:
+        self, tiles: List[TileType]) -> Tuple[List[np.ndarray], List[TileType]]:
         """
         Download all tile data concurrently.
         Args:
@@ -201,8 +210,15 @@ class GEE_Data_Extractor:
 
         return data, tile_metadata
 
-    def make_predictions(self, tiles, model, pred_threshold, stride_ratio=1,
-                         tries=2, logger=None) -> gpd.GeoDataFrame:
+    def make_predictions(
+        self,
+        tiles: List[TileType],
+        model: Model,
+        pred_threshold: float,
+        stride_ratio: int = 1,
+        tries: int = 2,
+        logger: logging.Logger = None,
+    ) -> gpd.GeoDataFrame:
         """
         Predict on the data for the tiles, with retry logic.
         Args:
@@ -217,7 +233,7 @@ class GEE_Data_Extractor:
         """
         if logger is None:
             logger = logging.getLogger()
-        predictions = []
+        predictions_list = []
         retry_tiles = tiles.copy()
 
         while tries and retry_tiles:
