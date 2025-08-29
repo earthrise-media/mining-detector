@@ -26,8 +26,13 @@ OUTPUT_DATA_FOLDER = "data/boundaries/subnational_admin/out"
 SIMPLIFY_TOLERANCE = 0.001
 AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 
-with open("scripts/boundaries/subnational_admin_files_metadata.json") as f:
-    files_metadata = json.load(f)
+# these are the admin areas used for the mining calculator
+with open("scripts/boundaries/subnational_admin_for_calculator_files_metadata.json") as f:
+    CALCULATOR_FILES_METADATA = json.load(f)
+
+# these are the level 1 admin areas for display on the site
+with open("scripts/boundaries/subnational_admin_for_display_files_metadata.json") as f:
+    DISPLAY_FILES_METADATA = json.load(f)
 
 
 def detect_shapefile_encoding(shapefile_path):
@@ -55,9 +60,8 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
         )
 
-    # create an unique ID
-    combined_gdf = combined_gdf.reset_index(drop=False)
-    combined_gdf = combined_gdf.rename(columns={"index": "id"})
+    # create an unique ID    
+    combined_gdf["id"] = combined_gdf["country_code"].str.strip() + "_" + combined_gdf["id_field"].str.strip()
 
     # save combined file
     combined_gdf.to_file(output_combined_file + ".geojson", driver="GeoJSON", encoding="utf-8")
@@ -67,7 +71,7 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
     print(f"Created: {output_combined_file}")
 
 
-def standardize_and_combine_shapefiles(files_metadata):
+def standardize_and_combine_shapefiles(files_metadata, output_filename):
     admin_areas = []
     amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)
     amazon_limits_gdf.to_crs("EPSG:4326")
@@ -122,10 +126,11 @@ def standardize_and_combine_shapefiles(files_metadata):
     combine_and_save_frames(
         admin_areas,
         OUTPUT_DATA_FOLDER,
-        "admin_areas",
+        output_filename,
         simplify=True,
     )
 
 
 if __name__ == "__main__":
-    standardize_and_combine_shapefiles(files_metadata)
+    standardize_and_combine_shapefiles(CALCULATOR_FILES_METADATA, "admin_areas")
+    standardize_and_combine_shapefiles(DISPLAY_FILES_METADATA, "admin_areas_display")

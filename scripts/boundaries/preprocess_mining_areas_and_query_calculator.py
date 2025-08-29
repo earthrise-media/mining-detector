@@ -69,7 +69,6 @@ MINING_GEOJSONS = [
     ),
 ]
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
-ADMIN_OUTPUT_FOLDER = "data/boundaries/subnational_admin/out/mining_by_admin_areas"
 PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/out"
 )
@@ -79,6 +78,8 @@ PROTECTED_AREAS_GEOJSON = (
 )
 NATIONAL_ADMIN_FOLDER = "data/boundaries/national_admin/out"
 NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
+SUBNATIONAL_ADMIN_FOLDER = "data/boundaries/subnational_admin/out"
+SUBNATIONAL_ADMIN_GEOJSON = f"{SUBNATIONAL_ADMIN_FOLDER}/admin_areas_display.geojson"
 
 with open("scripts/boundaries/mining_calculator_ignore.json") as f:
     # these are regions which are missing in the mining calculator and should be ignored,
@@ -356,6 +357,10 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
             # skip if this combination exists in the exclusion list
             if (country_clean, region_id_clean) in exclusion_set:
                 continue
+            
+            # ignore if location has no affected area, areas <= 0 break the calculator
+            if row["intersected_area_ha"] <= 0:
+                continue
 
             locations.append(
                 {
@@ -414,6 +419,12 @@ if __name__ == "__main__":
                 "file": NATIONAL_ADMIN_GEOJSON,
                 "output_folder": NATIONAL_ADMIN_FOLDER,
                 "output_subfolder": "mining_by_national_admin",
+            },
+            {
+                "name": "subnational_admin",
+                "file": SUBNATIONAL_ADMIN_GEOJSON,
+                "output_folder": SUBNATIONAL_ADMIN_FOLDER,
+                "output_subfolder": "mining_by_subnational_admin",
             },
             {
                 "name": "indigenous_territories",
