@@ -267,24 +267,24 @@ class GEE_Data_Extractor:
                             self.predict_on_tile, tile, model,
                             pred_threshold, stride_ratio, logger
                         )
-                    for tile in batch_tiles
-            ]
+                        for tile in batch_tiles
+                    ]
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    pred_gdf, failed_tile = future.result()
-                    if failed_tile is not None:
-                        fails.append(failed_tile)
-                    elif not pred_gdf.empty:
-                        predictions = pd.concat(
-                            [predictions, pred_gdf], ignore_index=True
-                        )
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        pred_gdf, failed_tile = future.result()
+                        if failed_tile is not None:
+                            fails.append(failed_tile)
+                        elif not pred_gdf.empty:
+                            predictions = pd.concat(
+                                [predictions, pred_gdf], ignore_index=True)
 
-                    print(f"Found {len(predictions)} positives.", flush=True)
+                        print(f"Found {len(predictions)} total positives.",
+                              flush=True)
 
-                except Exception as e:
-                    logger.error(f"Tile {tile.key} raised exception: {e}")
-                    fails.append(tile)
+                    except Exception as e:
+                        logger.error(f"Tile {tile.key} raised exception: {e}")
+                        fails.append(tile)
 
             logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
