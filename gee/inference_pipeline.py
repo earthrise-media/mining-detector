@@ -21,8 +21,8 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     tiles = tile_utils.create_tiles(region, tile_size, tile_padding)
     logger.info(f"Created {len(tiles)} tiles")
     data_pipeline = gee.GEE_Data_Extractor(
-        start_date, end_date, batch_size=batch_size,
-        clear_threshold=clear_threshold, collection=collection)
+        start_date, end_date, clear_threshold=clear_threshold,
+        collection=collection, max_workers=max_workers)
     preds = data_pipeline.make_predictions(
         tiles, model, pred_threshold, stride_ratio, tries, logger)
     
