@@ -257,8 +257,8 @@ class GEE_Data_Extractor:
             logger.info(f"{tries} tries remaining.")
             fails = []
 
-            for i in tqdm(range(0, len(retry_tiles), self.batch_size)):
-                batch_tiles = retry_tiles[i : i + self.batch_size]
+            for i in tqdm(range(0, len(retry_tiles), batch_size)):
+                batch_tiles = retry_tiles[i : i + batch_size]
 
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=self.max_workers) as executor:
