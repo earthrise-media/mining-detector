@@ -232,6 +232,7 @@ class GEE_Data_Extractor:
         pred_threshold: float,
         stride_ratio: int = 1,
         tries: int = 2,
+        batch_size: int = 500,
         logger: logging.Logger = None,
     ) -> gpd.GeoDataFrame:
         """
@@ -242,50 +243,52 @@ class GEE_Data_Extractor:
             - pred_threshold: cutoff in [0,1] for saving model predictions
             - stride_ratio: For area inference, stride = chip_size//stride_ratio
             - tries: number of times to attempt to predict on tiles
+            - batch_size: limit on concurrent futures for inference
             - logger: python logging instance
         Returns:
             - predictions: GeoDataFrame of predictions
         """
         if logger is None:
             logger = logging.getLogger()
-        predictions_list = []
+        predictions = gpd.GeoDataFrame()
         retry_tiles = tiles.copy()
 
         while tries and retry_tiles:
             logger.info(f"{tries} tries remaining.")
             fails = []
 
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.max_workers) as executor:
-                future_to_tile = {
-                    executor.submit(self.predict_on_tile, tile, model,
-                                    pred_threshold, stride_ratio, logger): tile
-                    for tile in retry_tiles
-                }
+            for i in tqdm(range(0, len(retry_tiles), self.batch_size)):
+                batch_tiles = retry_tiles[i : i + self.batch_size]
 
-            for future in tqdm(
-                concurrent.futures.as_completed(future_to_tile),
-                total=len(future_to_tile)):
-                
-                tile = future_to_tile[future]
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=self.max_workers) as executor:
+                    futures = [
+                        executor.submit(
+                            self.predict_on_tile, tile, model,
+                            pred_threshold, stride_ratio, logger
+                        )
+                    for tile in batch_tiles
+            ]
+
+            for future in concurrent.futures.as_completed(futures):
                 try:
                     pred_gdf, failed_tile = future.result()
                     if failed_tile is not None:
                         fails.append(failed_tile)
-                    else:
-                        predictions_list.append(pred_gdf)
+                    elif not pred_gdf.empty:
+                        predictions = pd.concat(
+                            [predictions, pred_gdf], ignore_index=True
+                        )
+
+                    print(f"Found {len(predictions)} positives.", flush=True)
+
                 except Exception as e:
                     logger.error(f"Tile {tile.key} raised exception: {e}")
                     fails.append(tile)
 
-            logger.info(f"{len(fails)} tiles failed this round.")
+            logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
             tries -= 1
-
-        if predictions_list:
-            predictions = pd.concat(predictions_list, ignore_index=True)
-        else:
-            predictions = gpd.GeoDataFrame()
 
         return predictions
 
