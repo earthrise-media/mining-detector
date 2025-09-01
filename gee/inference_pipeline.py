@@ -24,7 +24,7 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
         start_date, end_date, clear_threshold=clear_threshold,
         collection=collection, max_workers=max_workers)
     preds = data_pipeline.make_predictions(
-        tiles, model, pred_threshold, stride_ratio, tries, logger)
+        tiles, model, pred_threshold, stride_ratio, tries, batch_size, logger)
     
     logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
