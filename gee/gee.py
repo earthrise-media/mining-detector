@@ -284,7 +284,6 @@ class GEE_Data_Extractor:
 
                     except Exception as e:
                         logger.error(f"Tile raised exception: {e}")
-                        fails.append(tile)
 
             logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
