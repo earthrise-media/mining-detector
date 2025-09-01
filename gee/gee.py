@@ -283,7 +283,7 @@ class GEE_Data_Extractor:
                               flush=True)
 
                     except Exception as e:
-                        logger.error(f"Tile {tile.key} raised exception: {e}")
+                        logger.error(f"Tile raised exception: {e}")
                         fails.append(tile)
 
             logger.info(f"{len(fails)} failed tiles.")
