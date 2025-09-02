@@ -140,30 +140,30 @@ def pad_patch(patch, height, width=None):
 
     return padded_patch
 
-def chips_from_tile(data, tile, width, stride):
-    (west, south, east, north) = tile.bounds
+def chips_from_tile(pixels, tile_info, chip_size, stride):
+    (west, south, east, north) = tile_info.bounds
     delta_x = east - west
     delta_y = north - south  
 
-    x_per_pixel = delta_x / data.shape[1]  
-    y_per_pixel = delta_y / data.shape[0]  
+    x_per_pixel = delta_x / pixels.shape[1]  
+    y_per_pixel = delta_y / pixels.shape[0]  
 
     chips = []
     chip_coords = []
 
-    for i in range(0, data.shape[1] - width + stride, stride): 
-        for j in range(0, data.shape[0] - width + stride, stride): 
-            patch = data[j : j + width, i : i + width]
+    for i in range(0, pixels.shape[1] - chip_size + stride, stride): 
+        for j in range(0, pixels.shape[0] - chip_size + stride, stride): 
+            patch = pixels[j : j + chip_size, i : i + chip_size]
             chips.append(patch)
 
             nw = (west + i * x_per_pixel, north - j * y_per_pixel)
-            ne = (west + (i + width) * x_per_pixel, north - j * y_per_pixel)
-            sw = (west + i * x_per_pixel, north - (j + width) * y_per_pixel)
-            se = (west + (i + width) * x_per_pixel,
-                  north - (j + width) * y_per_pixel)
+            ne = (west + (i + chip_size) * x_per_pixel, north - j * y_per_pixel)
+            sw = (west + i * x_per_pixel, north - (j + chip_size) * y_per_pixel)
+            se = (west + (i + chip_size) * x_per_pixel,
+                  north - (j + chip_size) * y_per_pixel)
+
             chip_coords.append(Polygon([nw, sw, se, ne, nw]))
 
-    chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile.crs)
+    chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile_info.crs)
     return chips, chip_coords
-
 
