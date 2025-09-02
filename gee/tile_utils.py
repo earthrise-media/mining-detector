@@ -140,45 +140,29 @@ def pad_patch(patch, height, width=None):
 
     return padded_patch
 
-
 def chips_from_tile(data, tile, width, stride):
-    """
-    Break a larger tile of Sentinel data into a set of patches that
-    a model can process.
-    Inputs:
-        - data: Sentinel data. Typically a numpy masked array
-        - tile_coords: bounds of the tile in the format (west, south, east, north)
-        - stride: number of pixels between each patch
-    Outputs:
-        - chips: A list of numpy arrays of the shape the model requires
-        - chip_coords: A geodataframe of the polygons corresponding to each chip
-    """
     (west, south, east, north) = tile.bounds
     delta_x = east - west
-    delta_y = south - north
-    x_per_pixel = delta_x / np.shape(data)[0]
-    y_per_pixel = delta_y / np.shape(data)[1]
+    delta_y = north - south  
 
-    # The tile is broken into the number of whole patches
-    # Regions extending beyond will not be padded and processed
-    chip_coords = []
+    x_per_pixel = delta_x / data.shape[1]  
+    y_per_pixel = delta_y / data.shape[0]  
+
     chips = []
+    chip_coords = []
 
-    # Extract patches and create a shapely polygon for each patch
-    for i in range(0, np.shape(data)[0] - width + stride, stride):
-        for j in range(0, np.shape(data)[1] - width + stride, stride):
+    for i in range(0, data.shape[1] - width + stride, stride): 
+        for j in range(0, data.shape[0] - width + stride, stride): 
             patch = data[j : j + width, i : i + width]
             chips.append(patch)
 
-            nw_coord = [west + i * x_per_pixel, north + j * y_per_pixel]
-            ne_coord = [west + (i + width) * x_per_pixel, north + j * y_per_pixel]
-            sw_coord = [west + i * x_per_pixel, north + (j + width) * y_per_pixel]
-            se_coord = [
-                west + (i + width) * x_per_pixel,
-                north + (j + width) * y_per_pixel,
-            ]
-            tile_geometry = [nw_coord, sw_coord, se_coord, ne_coord, nw_coord]
-            chip_coords.append(Polygon(tile_geometry))
+            nw = (west + i * x_per_pixel, north - j * y_per_pixel)
+            ne = (west + (i + width) * x_per_pixel, north - j * y_per_pixel)
+            sw = (west + i * x_per_pixel, north - (j + width) * y_per_pixel)
+            se = (west + (i + width) * x_per_pixel,
+                  north - (j + width) * y_per_pixel)
+            chip_coords.append(Polygon([nw, sw, se, ne, nw]))
+
     chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile.crs)
     return chips, chip_coords
 

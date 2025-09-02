@@ -178,22 +178,24 @@ class GEE_Data_Extractor:
                 mean_preds = preds.squeeze()
             elif preds.shape[1] == 2:
                 # softmax binary classifier
-                mean_preds = preds[:, 1]
+                mean_preds = preds[:, 1] 
             else:
-                # ensemble of M sigmoid models
+                # ensemble of M>2 sigmoid models 
                 mean_preds = np.mean(preds, axis=1)
+                # (Note: M=2 case would be misconstrued as softmax binary)
         else:
             # already shape (N,)
             mean_preds = preds
 
         idx = np.where(mean_preds > pred_threshold)[0]
 
-        preds_gdf = gpd.GeoDataFrame({
-                "mean": mean_preds[idx],
-                "preds": [str(list(v)) for v in preds[idx]],
-                },
-            geometry=chip_geoms.loc[idx, "geometry"],
-            crs="EPSG:4326")
+        preds_gdf = gpd.GeoDataFrame(
+            {"mean": mean_preds[idx]},
+            geometry=chip_geoms.iloc[idx, "geometry"],
+            crs="EPSG:4326"
+        )
+        if preds.shape[1] > 2:
+             preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
 
         return preds_gdf, None
 
@@ -281,11 +283,10 @@ class GEE_Data_Extractor:
                             predictions = pd.concat(
                                 [predictions, pred_gdf], ignore_index=True)
 
-                        print(f"Found {len(predictions)} total positives.",
-                              flush=True)
-
                     except Exception as e:
                         logger.error(f"Tile raised exception: {e}")
+
+                print(f"Found {len(predictions)} total positives.", flush=True)
 
             logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
