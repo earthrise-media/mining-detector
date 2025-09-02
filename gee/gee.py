@@ -188,10 +188,12 @@ class GEE_Data_Extractor:
 
         idx = np.where(mean_preds > pred_threshold)[0]
 
-        preds_gdf = gpd.GeoDataFrame(
-            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-        preds_gdf['mean'] = mean_preds
-        preds_gdf['preds'] = [str(list(v)) for v in preds[idx]]
+        preds_gdf = gpd.GeoDataFrame({
+                "mean": mean_preds[idx],
+                "preds": [str(list(v)) for v in preds[idx]],
+                },
+            geometry=chip_geoms.loc[idx, "geometry"],
+            crs="EPSG:4326")
 
         return preds_gdf, None
 
