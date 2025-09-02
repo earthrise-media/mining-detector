@@ -1,6 +1,7 @@
 import concurrent.futures
 import logging
 import os
+import platform
 from typing import List, Optional, Tuple, Union
 
 from descarteslabs.geo import DLTile
@@ -9,6 +10,7 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from tensorflow.keras import Model
 from tqdm import tqdm
 
@@ -26,6 +28,10 @@ BAND_IDS = {
     "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
     "EmbeddingsV1": [f"A{x:02d}" for x in range(64)]
 }
+
+if platform.system() == 'Darwin':
+    tf.config.run_functions_eagerly(True)
+    tf.data.experimental.enable_debug_mode()
 
 class GEE_Data_Extractor:
     def __init__(self, start_date, end_date, clear_threshold=None,
@@ -182,7 +188,7 @@ class GEE_Data_Extractor:
             else:
                 # ensemble of M>2 sigmoid models 
                 mean_preds = np.mean(preds, axis=1)
-                # (Note: M=2 case would be misconstrued as softmax binary)
+                # (Note: M=2 ensemble would be misconstrued as softmax binary)
         else:
             # already shape (N,)
             mean_preds = preds
@@ -191,7 +197,7 @@ class GEE_Data_Extractor:
 
         preds_gdf = gpd.GeoDataFrame(
             {"mean": mean_preds[idx]},
-            geometry=chip_geoms.iloc[idx, "geometry"],
+            geometry=chip_geoms.loc[idx, "geometry"],
             crs="EPSG:4326"
         )
         if preds.shape[1] > 2:
