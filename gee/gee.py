@@ -196,10 +196,8 @@ class GEE_Data_Extractor:
         idx = np.where(mean_preds > pred_threshold)[0]
 
         preds_gdf = gpd.GeoDataFrame(
-            {"mean": mean_preds[idx]},
-            geometry=chip_geoms.loc[idx, "geometry"],
-            crs="EPSG:4326"
-        )
+            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
+        preds_gdf['mean'] = mean_preds[idx]
         if preds.shape[1] > 2:
              preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
 
