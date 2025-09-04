@@ -23,16 +23,14 @@ def main(model_path, region_path, start_date, end_date, pred_threshold,
     data_pipeline = gee.GEE_Data_Extractor(
         start_date, end_date, clear_threshold=clear_threshold,
         collection=collection, max_workers=max_workers)
+    outpath = get_outpath(
+         model_path, region_path, start_date, end_date, pred_threshold)
     preds = data_pipeline.make_predictions(
-        tiles, model, pred_threshold, stride_ratio, tries, batch_size, logger)
+        tiles, model, pred_threshold, stride_ratio, tries, batch_size,
+        logger, outpath)
     
     logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
-
-    if len(preds) > 0:
-        outpath = get_outpath(
-            model_path, region_path, start_date, end_date, pred_threshold)
-        preds.to_file(outpath, index=False)
 
 def get_outpath(model_path, region_path, start_date, end_date, pred_threshold):
     """Format an outpath from input parameters."""  

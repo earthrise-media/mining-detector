@@ -241,7 +241,8 @@ class GEE_Data_Extractor:
         stride_ratio: int = 1,
         tries: int = 2,
         batch_size: int = 500,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
+        outpath: Optional[str] = None,
     ) -> gpd.GeoDataFrame:
         """
         Predict on the data for the tiles, with retry logic.
@@ -278,19 +279,27 @@ class GEE_Data_Extractor:
                         for tile in batch_tiles
                     ]
 
+                batch_predictions = []
                 for future in concurrent.futures.as_completed(futures):
                     try:
                         pred_gdf, failed_tile = future.result()
                         if failed_tile is not None:
                             fails.append(failed_tile)
                         elif not pred_gdf.empty:
-                            predictions = pd.concat(
-                                [predictions, pred_gdf], ignore_index=True)
-
+                            batch_predictions.append(pred_gdf)
                     except Exception as e:
                         logger.error(f"Tile raised exception: {e}")
 
-                print(f"Found {len(predictions)} total positives.", flush=True)
+                if batch_predictions:
+                     batch_gdf = pd.concat(
+                         batch_predictions, ignore_index=True)
+                     predictions = pd.concat(
+                         [predictions, batch_gdf], ignore_index=True)
+                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
+                     logger.info(f"Found {len(batch_gdf)} new positives.")
+                     
+                     if outpath is not None:
+                         predictions.to_file(outpath, index=False)
 
             logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
