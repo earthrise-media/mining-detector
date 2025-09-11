@@ -165,6 +165,14 @@ class GEE_Data_Extractor:
         chip_size = input_shape[1]
         stride = chip_size // stride_ratio
 
+        tile_width = tile_info.tilesize + 2 * tile_info.pad
+        if tile_width % stride != 0:
+            logger.warning(
+                f"Padded tile width {tile_width}px is not evenly divisible "
+                f"by stride {stride}px (chip_size={chip_size}, "
+                f"stride_ratio={stride_ratio}). Inference may miss some pixels."
+            )
+
         # Split into chips
         chips, chip_geoms = chips_from_tile(
             pixels, tile_info, chip_size, stride)
