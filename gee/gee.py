@@ -1,4 +1,5 @@
 import concurrent.futures
+from dataclasses import dataclass
 import logging
 import os
 import platform
@@ -11,7 +12,6 @@ from google.api_core import retry
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tensorflow.keras import Model
 from tqdm import tqdm
 
 from tile_utils import CenteredTile, pad_patch, chips_from_tile
@@ -33,17 +33,31 @@ if platform.system() == 'Darwin':
     tf.config.run_functions_eagerly(True)
     tf.data.experimental.enable_debug_mode()
 
-class GEE_Data_Extractor:
-    def __init__(self, start_date, end_date, clear_threshold=None,
-                 collection='S2L1C', max_workers=8):
-        self.bandIds = BAND_IDS.get(collection)
-        self.collection = collection
-        self.max_workers = max_workers 
-        self.composite = self._build_composite(
-            collection, start_date, end_date, clear_threshold)
+@dataclass
+class DataConfig:
+    tile_size: int = 576
+    tile_padding: int = 0
+    collection: str = "S2L1C"
+    clear_threshold: float = 0.6
+    max_workers: int = 8
 
-    def _build_composite(self, collection, start_date, end_date,
-                         clear_threshold):
+@dataclass
+class InferenceConfig:
+    pred_threshold: float = 0.5
+    stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
+    tries: int = 2
+    max_concurrent_tiles: int = 500
+    
+class GEE_Data_Extractor:
+    def __init__(self, start_date: str, end_date: str, config: DataConfig):
+        self.config = config
+        self.bandIds = BAND_IDS.get(self.config.collection)
+        self.composite = self._build_composite(start_date, end_date)
+
+    def _build_composite(self, start_date: str, end_date: str):
+        collection = self.config.collection
+        clear_threshold = self.config.clear_threshold
+        
         if collection == 'S2L1C':
             s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
             csPlus = ee.ImageCollection(
@@ -124,93 +138,6 @@ class GEE_Data_Extractor:
 
         return pixels.astype(np.float32, copy=False), tile
 
-    def predict_on_tile(
-        self,
-        tile: TileType,
-        model: Model,
-        pred_threshold: float,
-        stride_ratio: int,
-        logger: logging.Logger,
-    ) -> Tuple[gpd.GeoDataFrame, Optional[TileType]]:
-        """
-        Predict on a single tile.
-    
-        Parameters
-        ----------
-        tile : TileType object with geometry and tilesize.
-        model : a keras Model
-        pred_threshold : float Cutoff for considering a prediction positive.
-        stride_ratio : int 
-            Stride ratio for sliding window: stride = chip_size // stride_ratio.
-        logger : logging.Logger instance.
-
-        Returns
-        -------
-        preds_gdf : GeoDataFrame
-        failed_tile : TileType if prediction failed, else None.
-        """
-        try:
-            pixels, tile_info = self.get_tile_data(tile)
-        except Exception as e:
-            logger.error(f"Error in get_tile_data for tile {tile.key}: {e}")
-            return gpd.GeoDataFrame(), tile
-    
-        pixels = np.array(pad_patch(pixels, tile_info.tilesize))
-        pixels = np.clip(pixels / 10000.0, 0, 1)
-
-        # Determine chip size
-        input_shape = model.layers[0].input_shape
-        if isinstance(input_shape, list):  # ensemble of models
-            input_shape = input_shape[0]
-        chip_size = input_shape[1]
-        stride = chip_size // stride_ratio
-
-        tile_width = tile_info.tilesize + 2 * tile_info.pad
-        if tile_width % stride != 0:
-            logger.warning(
-                f"Padded tile width {tile_width}px is not evenly divisible "
-                f"by stride {stride}px (chip_size={chip_size}, "
-                f"stride_ratio={stride_ratio}). Inference may miss some pixels."
-            )
-
-        # Split into chips
-        chips, chip_geoms = chips_from_tile(
-            pixels, tile_info, chip_size, stride)
-        chips = np.array(chips)
-        chip_geoms.to_crs("EPSG:4326", inplace=True)
-
-        try:
-            preds = model.predict(chips, verbose=0)
-        except Exception as e:
-            logger.error(
-                f"Error in model.predict for tile {tile_info.key}: {e}")
-            return gpd.GeoDataFrame(), tile
-
-        if preds.ndim == 2:
-            if preds.shape[1] == 1:
-                # sigmoid binary classifier
-                mean_preds = preds.squeeze()
-            elif preds.shape[1] == 2:
-                # softmax binary classifier
-                mean_preds = preds[:, 1] 
-            else:
-                # ensemble of M>2 sigmoid models 
-                mean_preds = np.mean(preds, axis=1)
-                # (Note: M=2 ensemble would be misconstrued as softmax binary)
-        else:
-            # already shape (N,)
-            mean_preds = preds
-
-        idx = np.where(mean_preds > pred_threshold)[0]
-
-        preds_gdf = gpd.GeoDataFrame(
-            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-        preds_gdf['prob'] = mean_preds[idx]
-        if preds.shape[1] > 2:
-             preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
-
-        return preds_gdf, None
-
     def get_tile_data_concurrent(
         self, tiles: List[TileType]) -> Tuple[List[np.ndarray], List[TileType]]:
         """
@@ -241,49 +168,125 @@ class GEE_Data_Extractor:
 
         return data, tile_metadata
 
-    def make_predictions(
+class InferenceEngine:
+    """Handles tile inference, retries, and aggregation."""
+
+    def __init__(
         self,
-        tiles: List[TileType],
-        model: Model,
-        pred_threshold: float,
-        stride_ratio: int = 1,
-        tries: int = 2,
-        batch_size: int = 500,
-        logger: Optional[logging.Logger] = None,
-        outpath: Optional[str] = None,
-    ) -> gpd.GeoDataFrame:
+        data_extractor: GEE_Data_Extractor,
+        model: tf.keras.Model,
+        config: InferenceConfig,
+        logger: Optional[logging.Logger] = None):
+        
+        self.data_extractor = data_extractor
+        self.model = model
+        self.config = config
+        self.logger = logger or logging.getLogger()
+        
+    def predict_on_tile(
+        self, tile: TileType) -> Tuple[gpd.GeoDataFrame, Optional[TileType]]:
+        """
+        Predict on a single tile.
+    
+        Parameters
+        ----------
+        tile : TileType object with geometry and tilesize.
+
+        Returns
+        -------
+        preds_gdf : GeoDataFrame
+        failed_tile : TileType if prediction failed, else None.
+        """
+        try:
+            pixels, tile_info = self.data_extractor.get_tile_data(tile)
+        except Exception as e:
+            self.logger.error(f"Error in get_tile_data, tile {tile.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+    
+        pixels = np.array(pad_patch(pixels, tile_info.tilesize))
+        pixels = np.clip(pixels / 10000.0, 0, 1)
+
+        # Determine chip size
+        input_shape = self.model.layers[0].input_shape
+        if isinstance(input_shape, list):  # ensemble of models
+            input_shape = input_shape[0]
+        chip_size = input_shape[1]
+        stride = chip_size // self.config.stride_ratio
+
+        tile_width = tile_info.tilesize + 2 * tile_info.pad
+        if tile_width % stride != 0:
+            self.logger.warning(
+                f"Padded tile width {tile_width}px is not evenly divisible "
+                f"by stride {stride}px (chip_size={chip_size}, "
+                f"stride_ratio={stride_ratio}). Inference may miss some pixels."
+            )
+
+        # Split into chips
+        chips, chip_geoms = chips_from_tile(
+            pixels, tile_info, chip_size, stride)
+        chips = np.array(chips)
+        chip_geoms.to_crs("EPSG:4326", inplace=True)
+
+        try:
+            preds = self.model.predict(chips, verbose=0)
+        except Exception as e:
+            self.logger.error(
+                f"Error in model.predict for tile {tile_info.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+
+        if preds.ndim == 2:
+            if preds.shape[1] == 1:
+                # sigmoid binary classifier
+                mean_preds = preds.squeeze()
+            elif preds.shape[1] == 2:
+                # softmax binary classifier
+                mean_preds = preds[:, 1] 
+            else:
+                # ensemble of M>2 sigmoid models 
+                mean_preds = np.mean(preds, axis=1)
+                # (Note: M=2 ensemble would be misconstrued as softmax binary)
+        else:
+            # already shape (N,)
+            mean_preds = preds
+
+        idx = np.where(mean_preds > self.config.pred_threshold)[0]
+
+        preds_gdf = gpd.GeoDataFrame(
+            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
+        preds_gdf['prob'] = mean_preds[idx]
+        if preds.shape[1] > 2:
+             preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
+
+        return preds_gdf, None
+
+    def make_predictions(self, tiles: List[TileType],
+                         outpath: Optional[str] = None) -> gpd.GeoDataFrame:
         """
         Predict on the data for the tiles, with retry logic.
         Args:
             - tiles: list of tile objects
-            - model: a keras model
-            - pred_threshold: cutoff in [0,1] for saving model predictions
-            - stride_ratio: For area inference, stride = chip_size//stride_ratio
-            - tries: number of times to attempt to predict on tiles
-            - batch_size: limit on concurrent futures for inference
-            - logger: python logging instance
+            - outpath: optional path to write predictions
         Returns:
             - predictions: GeoDataFrame of predictions
         """
-        if logger is None:
-            logger = logging.getLogger()
         predictions = gpd.GeoDataFrame()
         retry_tiles = tiles.copy()
+        tries_remaining = self.config.tries
+        max_concurent_tiles = self.config.max_concurrent_tiles
+        max_workers = self.data_extractor.config.max_workers
 
-        while tries and retry_tiles:
-            logger.info(f"{tries} tries remaining.")
+        while tries_remaining and retry_tiles:
+            self.logger.info(f"{tries_remaining} tries remaining.")
             fails = []
 
-            for i in tqdm(range(0, len(retry_tiles), batch_size)):
-                batch_tiles = retry_tiles[i : i + batch_size]
+            for i in tqdm(
+                range(0, len(retry_tiles), max_concurent_tiles)):
+                batch_tiles = retry_tiles[i : i + max_concurent_tiles]
 
                 with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=self.max_workers) as executor:
+                    max_workers=max_workers) as executor:
                     futures = [
-                        executor.submit(
-                            self.predict_on_tile, tile, model,
-                            pred_threshold, stride_ratio, logger
-                        )
+                        executor.submit(self.predict_on_tile, tile)
                         for tile in batch_tiles
                     ]
 
@@ -296,7 +299,7 @@ class GEE_Data_Extractor:
                         elif not pred_gdf.empty:
                             batch_predictions.append(pred_gdf)
                     except Exception as e:
-                        logger.error(f"Tile raised exception: {e}")
+                        self.logger.error(f"Tile raised exception: {e}")
 
                 if batch_predictions:
                      batch_gdf = pd.concat(
@@ -304,14 +307,14 @@ class GEE_Data_Extractor:
                      predictions = pd.concat(
                          [predictions, batch_gdf], ignore_index=True)
                      print(f"Found {len(batch_gdf)} new positives.", flush=True)
-                     logger.info(f"Found {len(batch_gdf)} new positives.")
+                     self.logger.info(f"Found {len(batch_gdf)} new positives.")
                      
                      if outpath is not None:
                          predictions.to_file(outpath, index=False)
 
-            logger.info(f"{len(fails)} failed tiles.")
+            self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
-            tries -= 1
+            tries_remaining -= 1
 
         return predictions
 
