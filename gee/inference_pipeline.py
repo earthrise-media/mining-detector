@@ -1,9 +1,9 @@
-
 import argparse
+from dataclasses import dataclass, fields
 from datetime import datetime
 import logging
 import logging.handlers
-import os
+from pathlib import Path
 
 import geopandas as gpd
 import keras
@@ -11,114 +11,145 @@ import keras
 import gee
 import tile_utils
 
-def main(model_path, region_path, start_date, end_date, pred_threshold,
-         clear_threshold, tile_size, tile_padding, stride_ratio, batch_size,
-         max_workers, collection, tries, logger):
-    """Run model inference on specified region of interest."""
-    model = keras.models.load_model(model_path)
-    region = gpd.read_file(region_path).geometry[0].__geo_interface__
-    
-    tiles = tile_utils.create_tiles(region, tile_size, tile_padding)
-    logger.info(f"Created {len(tiles)} tiles")
-    data_pipeline = gee.GEE_Data_Extractor(
-        start_date, end_date, clear_threshold=clear_threshold,
-        collection=collection, max_workers=max_workers)
-    outpath = get_outpath(
-         model_path, region_path, start_date, end_date, pred_threshold)
-    preds = data_pipeline.make_predictions(
-        tiles, model, pred_threshold, stride_ratio, tries, batch_size,
-        logger, outpath)
-    
-    logger.info(f"{len(tiles) * (tile_size / 100) ** 2} ha analyzed")
-    logger.info(f"{len(preds)} chips with predictions above {pred_threshold}")
+@dataclass
+class InferenceConfig:
+    model_path: Path = Path('../models/48px_v3.2-3.7ensemble_2024-02-13.h5')
+    region_path: Path = Path('../data/boundaries/amazon_basin.geojson')
+    start_date: datetime = datetime(2023, 1, 1)
+    end_date: datetime = datetime(2023, 12, 31)
+    pred_threshold: float = 0.5
+    clear_threshold: float = 0.6
+    tile_size: int = 576
+    tile_padding: int = 0
+    stride_ratio: int = 1
+    batch_size: int = 500
+    max_workers: int = 8
+    collection: str = 'S2L1C'
+    tries: int = 2
 
-def get_outpath(model_path, region_path, start_date, end_date, pred_threshold):
-    """Format an outpath from input parameters."""  
-    model_version = '_'.join(os.path.basename(model_path).split('_')[:2])
-    region_name = os.path.basename(region_path).split('.geojson')[0]
-    period = f'{start_date.date().isoformat()}_{end_date.date().isoformat()}'
-    outdir = f'../data/outputs/{model_version}'
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    outpath = os.path.join(
-        outdir,
-        f'{region_name}_{model_version}_{pred_threshold:.2f}_{period}.geojson')
-    return outpath
+    def get_outpath(self) -> Path:
+        model_version = '_'.join(self.model_path.stem.split('_')[:2])
+        region_name = self.region_path.stem
+        period = f'{self.start_date.date().isoformat()}_{self.end_date.date().isoformat()}'
+        outdir = Path('../data/outputs') / model_version
+        outdir.mkdir(parents=True, exist_ok=True)
+        return outdir / f'{region_name}_{model_version}_{self.pred_threshold:.2f}_{period}.geojson'
 
-def valid_datetime(s):
-    """Formulate a datetime object from an isoformat date string."""
+def valid_datetime(s: str) -> datetime:
+    if isinstance(s, datetime):
+        return s
     try:
         return datetime.strptime(s, "%Y-%m-%d")
     except ValueError:
-        msg = f"Not a valid date: '{s}'."
-        raise argparse.ArgumentTypeError(msg)
+        raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
 
-def get_logger(path, maxBytes=1e6, backupCount=5, level=logging.INFO):
-    """Create a logging instance with a RotatingFileHandler."""
-    logdir = os.path.dirname(path)
-    if not os.path.exists(logdir):
-        os.mkdir(logdir)
-        
+def get_logger(logpath: Path, maxBytes=1e6,
+               backupCount=5, level=logging.INFO) -> logging.Logger:
+    logpath.parent.mkdir(parents=True, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
-        path, maxBytes=maxBytes, backupCount=backupCount)
-
+        logpath, maxBytes=maxBytes, backupCount=backupCount
+    )
     logger = logging.getLogger()
     logger.addHandler(handler)
     logger.setLevel(level)
     return logger
 
+
+def main(config: InferenceConfig, logger: logging.Logger):
+    logger.info(f"Loading model from {config.model_path}")
+    model = keras.models.load_model(config.model_path)
+
+    logger.info(f"Loading region from {config.region_path}")
+    region = gpd.read_file(config.region_path).geometry[0].__geo_interface__
+
+    tiles = tile_utils.create_tiles(
+        region, config.tile_size, config.tile_padding)
+    logger.info(f"Created {len(tiles)} tiles")
+
+    data_pipeline = gee.GEE_Data_Extractor(
+        config.start_date,
+        config.end_date,
+        clear_threshold=config.clear_threshold,
+        collection=config.collection,
+        max_workers=config.max_workers
+    )
+
+    outpath = config.get_outpath()
+    preds = data_pipeline.make_predictions(
+        tiles,
+        model,
+        config.pred_threshold,
+        config.stride_ratio,
+        config.tries,
+        config.batch_size,
+        logger,
+        outpath
+    )
+
+    analyzed_area = len(tiles) * (config.tile_size / 100) ** 2
+    logger.info(f"{analyzed_area} ha analyzed")
+    logger.info(f"{len(preds)} chips with predictions above {config.pred_threshold}")
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model_path", default='../models/48px_v3.2-3.7ensemble_2024-02-13.h5',
-        type=str, help="Path to saved Keras model")
-    parser.add_argument(
-        "--region_path",
-        default='../data/boundaries/amazon_basin/amazon_2.geojson',
-        type=str, help="Path to ROI geojson")
-    parser.add_argument(
-        "--start_date", default='2023-01-01', type=valid_datetime,
-        help="Start date in YYYY-MM-DD format")
-    parser.add_argument(
-        "--end_date", default='2023-12-31', type=valid_datetime,
-        help="End date in YYYY-MM-DD format")
-    parser.add_argument(
-        "--pred_threshold", default=0.5, type=float,
-        help="Prediction threshold")
-    parser.add_argument(
-        "--clear_threshold", default=0.6, type=float,
-        help="Clear sky (cloud absence) threshold")
-    parser.add_argument(
-        "--tile_size", default=576, type=int,
-        help="Tile width in pixels for requests to GEE")
-    parser.add_argument(
-        "--tile_padding", default=24, type=int,
-        help="Number of pixels to pad each tile")
-    parser.add_argument(
-        "--stride_ratio", default=2, type=int,
-        help="For area inference, the stride will be chip_size//stride_ratio.")
-    parser.add_argument(
-        "--batch_size", default=500, type=int,
-        help="Number of tiles to process between writes")
-    parser.add_argument(
-        "--max_workers", default=8, type=int,
-        help="Limit to throttle concurrent requests to Earth Engine")
-    parser.add_argument(
-        "--collection", default='S2L1C', type=str,
-        choices=list(gee.BAND_IDS.keys()),
-        help=f"Satellite image collection, one of: {', '.join(gee.BAND_IDS.keys())}")
-    parser.add_argument(
-        "--tries", default=2, type=int,
-        help="Number of times to try tiles in case of errors.")
-    parser.add_argument(
-        "--logdir",
-        default=f"../logs/",
-        type=str, help="Path to ROI geojson")
+    defaults = InferenceConfig()
+
+    parser = argparse.ArgumentParser(description="Run bulk ML inference.")
+    parser.add_argument("--model_path", type=Path,
+                        default=defaults.model_path,
+                        help="Path to saved Keras model")
+    parser.add_argument("--region_path", type=Path,
+                        default=defaults.region_path,
+                        help="Path to ROI geojson")
+    parser.add_argument("--start_date", type=valid_datetime,
+                        default=defaults.start_date,
+                        help="Start date in YYYY-MM-DD format")
+    parser.add_argument("--end_date", type=valid_datetime,
+                        default=defaults.end_date,
+                        help="End date in YYYY-MM-DD format")
+    parser.add_argument("--pred_threshold", type=float,
+                        default=defaults.pred_threshold,
+                        help="Prediction threshold")
+    parser.add_argument("--clear_threshold", type=float,
+                        default=defaults.clear_threshold,
+                        help="Clear sky (cloud absence) threshold")
+    parser.add_argument("--tile_size", type=int,
+                        default=defaults.tile_size,
+                        help="Tile width in pixels for requests to GEE")
+    parser.add_argument("--tile_padding", type=int,
+                        default=defaults.tile_padding,
+                        help="Number of pixels to pad each tile")
+    parser.add_argument("--stride_ratio", type=int,
+                        default=defaults.stride_ratio,
+                        help="Stride is defined by tile_size//stride_ratio")
+    parser.add_argument("--batch_size", type=int,
+                        default=defaults.batch_size,
+                        help="Number of tiles to process per batch")
+    parser.add_argument("--max_workers", type=int,
+                        default=defaults.max_workers,
+                        help="Maximum concurrent GEE requests")
+    parser.add_argument("--collection", type=str,
+                        default=defaults.collection,
+                        choices=list(gee.BAND_IDS.keys()),
+                        help="Satellite image collection")
+    parser.add_argument("--tries", type=int,
+                        default=defaults.tries,
+                        help="Number of retries per tile")
+    parser.add_argument("--logdir", type=Path,
+                        default=Path("../logs"),
+                        help="Directory for log files")
+
     args = parser.parse_args()
 
-    logpath = os.path.join(
-        args.logdir, f'gee_{os.path.basename(args.region_path)}.log')
+    config_dict = {
+        f.name: getattr(args, f.name) for f in fields(InferenceConfig)
+    }
+    config = InferenceConfig(**config_dict)
+
+    logpath = args.logdir / f"gee_{config.region_path.name}.log"
     logger = get_logger(logpath)
-    delattr(args, 'logdir')
-    logger.info(f'{datetime.now().isoformat()}: {vars(args)}')
-    main(logger=logger, **vars(args))
+    logger.info(f"{datetime.now().isoformat()}: {vars(config)}")
+
+    main(config, logger)
+
+
