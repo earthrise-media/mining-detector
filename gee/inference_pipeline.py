@@ -7,6 +7,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import tensorflow as tf
+import torch
 
 import gee
 import tile_utils
@@ -47,6 +48,10 @@ def main(data_config: gee.DataConfig,
 
     model = tf.keras.models.load_model(cli_args.model_path, compile=False)
     region = gpd.read_file(cli_args.region_path).geometry[0].__geo_interface__
+    if cli_args.embed_model_path is not None:
+        embed_model = torch.load(cli_args.embed_model_path, weights_only=False)
+    else:
+        embed_model = None
 
     tiles = tile_utils.create_tiles(
         region, data_config.tile_size, data_config.tile_padding)
@@ -69,6 +74,7 @@ def main(data_config: gee.DataConfig,
         data_extractor=data_extractor,
         model=model,
         config=inference_config,
+        embed_model=embed_model,
         logger=logger
     )
     preds = engine.make_predictions(tiles, outpath=outpath)
@@ -116,6 +122,13 @@ if __name__ == '__main__':
     parser.add_argument("--tries", type=int,
                         default=inference_defaults.tries,
                         help="Number of retries per tile")
+    parser.add_argument("--embed_model_chip_size", type=int,
+                        default=inference_defaults.embed_model_chip_size,
+                        help="Input size for embedding model")
+    parser.add_argument("--geo_chip_size", type=int,
+                        default=inference_defaults.geo_chip_size,
+                        help="Input size for embedding model")
+
     # General args
     parser.add_argument("--model_path", type=Path,
                         default="../models/48px_v3.2-3.7ensemble_2024-02-13.h5",
@@ -123,6 +136,9 @@ if __name__ == '__main__':
     parser.add_argument("--region_path", type=Path,
                         default="../data/boundaries/amazon_basin.geojson",
                         help="Path to ROI geojson")
+    parser.add_argument("--embed_model_path", type=Path,
+                        default=None,
+                        help="Path to optional pretrained foundation model")
     parser.add_argument("--start_date", type=valid_datetime,
                         default=datetime(2023, 1, 1),
                         help="Start date in YYYY-MM-DD format")
