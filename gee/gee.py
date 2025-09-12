@@ -12,6 +12,8 @@ from google.api_core import retry
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from tile_utils import CenteredTile, pad_patch, chips_from_tile
@@ -28,6 +30,9 @@ BAND_IDS = {
     "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
     "EmbeddingsV1": [f"A{x:02d}" for x in range(64)]
 }
+
+SSL4EO_PATH = 'SSL4EO/pretrained/dino_vit_small_patch16_224.pt'
+# Load via: torch.load(SSL4EO_PATH, weights_only=False)
 
 if platform.system() == 'Darwin':
     tf.config.run_functions_eagerly(True)
@@ -47,6 +52,8 @@ class InferenceConfig:
     stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
+    embed_model_chip_size: int = 224
+    geo_chip_size: Optional[int] = None # Required if using an embed_model
     
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -176,13 +183,49 @@ class InferenceEngine:
         data_extractor: GEE_Data_Extractor,
         model: tf.keras.Model,
         config: InferenceConfig,
+        embed_model: Optional[torch.nn.Module] = None,
         logger: Optional[logging.Logger] = None):
         
         self.data_extractor = data_extractor
         self.model = model
         self.config = config
+        self.embed_model = embed_model
         self.logger = logger or logging.getLogger()
+
+        if self.embed_model is not None and self.config.geo_chip_size is None:
+            raise ValueError(
+                "geo_chip_size must be specified when using an embed_model."
+            )
+
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
+
+        if self.embed_model is not None:
+            self.embed_model = self.embed_model.to(self.device)
+            self.embed_model.eval()
+
+    def embed(self, chips: np.ndarray):
+        """Embed chips via a foundation model."""
+        model_chip_size = self.config.embed_model_chip_size
+        geo_chip_size = self.config.geo_chip_size
         
+        tensor = torch.from_numpy(chips).permute(0, 3, 1, 2)  # NHWC → NCHW
+        if geo_chip_size != model_chip_size:
+            tensor = F.interpolate(
+                tensor, size=(model_chip_size, model_chip_size),
+                mode='bicubic', align_corners=False)
+
+        tensor = tensor.to(self.device)
+        with torch.no_grad():
+            outputs = self.embed_model(tensor)
+            if isinstance(outputs, dict):
+                outputs = outputs[list(outputs.keys())[0]]
+        return outputs.cpu().numpy()
+    
     def predict_on_tile(
         self, tile: TileType) -> Tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """
@@ -207,10 +250,13 @@ class InferenceEngine:
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         # Determine chip size
-        input_shape = self.model.layers[0].input_shape
-        if isinstance(input_shape, list):  # ensemble of models
-            input_shape = input_shape[0]
-        chip_size = input_shape[1]
+        if self.config.geo_chip_size is None:
+            input_shape = self.model.layers[0].input_shape
+            if isinstance(input_shape, list):  # ensemble of models
+                input_shape = input_shape[0]
+            chip_size = input_shape[1]
+        else:
+            chip_size = self.config.geo_chip_size
         stride = chip_size // self.config.stride_ratio
 
         tile_width = tile_info.tilesize + 2 * tile_info.pad
@@ -228,7 +274,11 @@ class InferenceEngine:
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
         try:
-            preds = self.model.predict(chips, verbose=0)
+            if self.embed_model is None:
+                preds = self.model.predict(chips, verbose=0)
+            else:
+                embeddings = self.embed(chips)
+                preds = self.model.predict(embeddings, verbose=0)
         except Exception as e:
             self.logger.error(
                 f"Error in model.predict for tile {tile_info.key}: {e}")

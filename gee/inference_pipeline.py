@@ -45,7 +45,7 @@ def main(data_config: gee.DataConfig,
          cli_args: argparse.Namespace,
          logger: logging.Logger):
 
-    model = tf.keras.models.load_model(cli_args.model_path)
+    model = tf.keras.models.load_model(cli_args.model_path, compile=False)
     region = gpd.read_file(cli_args.region_path).geometry[0].__geo_interface__
 
     tiles = tile_utils.create_tiles(
