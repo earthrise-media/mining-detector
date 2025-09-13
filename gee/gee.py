@@ -41,7 +41,7 @@ if platform.system() == 'Darwin':
 @dataclass
 class DataConfig:
     tile_size: int = 576
-    tile_padding: int = 0
+    tile_padding: int = 24
     collection: str = "S2L1C"
     clear_threshold: float = 0.6
     max_workers: int = 8
@@ -49,7 +49,7 @@ class DataConfig:
 @dataclass
 class InferenceConfig:
     pred_threshold: float = 0.5
-    stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
+    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
     embed_model_chip_size: int = 224
