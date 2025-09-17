@@ -27,6 +27,7 @@ ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
 BAND_IDS = {
     "S1": ["VV", "VH"],
     "S2L1C": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B10", "B11", "B12"],
+    "S2L1C-12band": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
     "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
     "EmbeddingsV1": [f"A{x:02d}" for x in range(64)]
 }
@@ -65,7 +66,7 @@ class GEE_Data_Extractor:
         collection = self.config.collection
         clear_threshold = self.config.clear_threshold
         
-        if collection == 'S2L1C':
+        if collection in ['S2L1C', 'S2L1C-12band']:
             s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
             csPlus = ee.ImageCollection(
                 "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
