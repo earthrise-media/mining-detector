@@ -304,7 +304,7 @@ class InferenceEngine:
 
         preds_gdf = gpd.GeoDataFrame(
             geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
-        preds_gdf['prob'] = mean_preds[idx]
+        preds_gdf['confidence'] = mean_preds[idx]
         if preds.shape[1] > 2:
              preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
 
