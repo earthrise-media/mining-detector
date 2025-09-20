@@ -15,12 +15,11 @@ class CenteredTile:
     Attributes match DLTile where possible (key, crs, bounds, geotrans, shape).
     """
 
-    def __init__(self, lat, lon, tilesize=48, resolution=10.0, pad=0):
+    def __init__(self, lat, lon, tilesize=48, resolution=10.0):
         self.lat = float(lat)
         self.lon = float(lon)
         self.tilesize = int(tilesize)
         self.resolution = float(resolution)
-        self.pad = int(pad)
 
         snap_tile = DLTile.from_latlon(
             self.lat, self.lon,
