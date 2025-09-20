@@ -159,7 +159,7 @@ class GEE_Data_Extractor:
         data, tile_metadata = [], []
 
         with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.max_workers) as executor:
+            max_workers=self.config.max_workers) as executor:
             future_to_tile = {
                 executor.submit(self.get_tile_data, tile): tile
                 for tile in tiles
