@@ -33,10 +33,13 @@ class TrainingData:
         clear_threshold: float = 0.75,
         outdir: str | Path = "../data/training_patches",
     ) -> None:
-        self.patch_size = int(patch_size)
+        self.config = gee.DataConfig(
+            tile_size=patch_size,
+            tile_padding=0,
+            collection=collection,
+            clear_threshold=clear_threshold
+        )
         self.resolution = float(resolution)
-        self.clear_threshold = float(clear_threshold)
-        self.collection = collection
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         
@@ -51,7 +54,7 @@ class TrainingData:
                 float(row.geometry.y),
                 float(row.geometry.x),
                 resolution=self.resolution,
-                tilesize=self.patch_size,
+                tilesize=self.config.tile_size,
             )
             for _, row in gdf.iterrows()
             ]
@@ -106,7 +109,7 @@ class TrainingData:
         profile |= {"crs": tile.crs, "transform": tile.geotrans}
 
         tif_name = (
-            f"{self.collection}_clear{self.clear_threshold}"
+            f"{self.config.collection}_clear{self.config.clear_threshold}"
             f"_{tile.key}_{start_date}_{end_date}.tif"
         )
         out_dir = self.outdir / split / label
@@ -193,22 +196,21 @@ class TrainingData:
                 )
             start_date = str(start_dates[0])
             end_date = str(end_dates[0])
-            ts = self.patch_size
+            ts = self.config.tile_size
             
             tiles = self._points_to_tiles(group)
 
             extractor = gee.GEE_Data_Extractor(
                 start_date,
                 end_date,
-                clear_threshold=self.clear_threshold,
-                collection=self.collection,
+                config=self.config
             )
             self.bandIds = extractor.bandIds
             data, tile_metadata = extractor.get_tile_data_concurrent(tiles)
             
             for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
                                                 group.iterrows()):
-                pixels = pad_patch(pixels, self.patch_size)
+                pixels = pad_patch(pixels, self.config.tile_size)
                 tif_path = self._write_tile_geotiff(
                     pixels, tile,
                     split=str(row.split),
@@ -221,8 +223,8 @@ class TrainingData:
                 rgb = self.make_rgb_preview(pixels)
                 rgb_tiles.append(rgb)
 
-            png_fname = (f"{Path(source_file).stem}_{self.collection}" +
-                         f"_clear{self.clear_threshold}" +
+            png_fname = (f"{Path(source_file).stem}_{self.config.collection}" +
+                         f"_clear{self.config.clear_threshold}" +
                          f"_{start_date}_{end_date}.png")
             png_path = self.outdir / png_fname
             write_thumbnail_grid(rgb_tiles, png_path, ts,
