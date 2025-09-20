@@ -29,14 +29,12 @@ class TrainingData:
         self,
         patch_size: int,
         resolution: float = 10.0,
-        pad: float = 0.0,
         collection: str = "S2L1C",
         clear_threshold: float = 0.75,
         outdir: str | Path = "../data/training_patches",
     ) -> None:
         self.patch_size = int(patch_size)
         self.resolution = float(resolution)
-        self.pad = float(pad)
         self.clear_threshold = float(clear_threshold)
         self.collection = collection
         self.outdir = Path(outdir)
@@ -54,7 +52,6 @@ class TrainingData:
                 float(row.geometry.x),
                 resolution=self.resolution,
                 tilesize=self.patch_size,
-                pad=self.pad,
             )
             for _, row in gdf.iterrows()
             ]
