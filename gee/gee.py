@@ -1,4 +1,5 @@
 import concurrent.futures
+import logging
 import os
 
 import ee
@@ -14,8 +15,10 @@ import utils
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 
 BAND_IDS = {
-    "S1": ["VV", "VH"],  
-    "S2": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"]
+    "S1": ["VV", "VH"],
+    "S2L1C": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B10", "B11", "B12"],
+    "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
+    "EmbeddingsV1": [f"A{x:02d}" for x in range(64)]
 }
 
 class GEE_Data_Extractor:
@@ -34,8 +37,9 @@ class GEE_Data_Extractor:
 
     """
 
-    def __init__(self, tiles, start_date, end_date, batch_size,
-                 clear_threshold=None, collection='S2', ee_project=EE_PROJECT):
+    def __init__(self, tiles, start_date, end_date, batch_size=128,
+                 clear_threshold=None, collection='S2L1C',
+                 ee_project=EE_PROJECT):
         self.tiles = tiles
         self.start_date = start_date
         self.end_date = end_date
@@ -48,8 +52,23 @@ class GEE_Data_Extractor:
             project=ee_project,
         )
 
-        if collection == 'S2':
+        if collection == 'S2L1C':
             s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
+
+            # Cloud Score+ from L1C data; can be applied to L1C or L2A.
+            csPlus = ee.ImageCollection(
+                "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+            QA_BAND = "cs_cdf"
+
+            self.composite = (
+                s2.filterDate(start_date, end_date)
+                .linkCollection(csPlus, [QA_BAND])
+                .map(lambda img:
+                     img.updateMask(img.select(QA_BAND).gte(clear_threshold)))
+                .median())
+
+        elif collection == 'S2L2A':
+            s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
 
             # Cloud Score+ from L1C data; can be applied to L1C or L2A.
             csPlus = ee.ImageCollection(
@@ -72,7 +91,11 @@ class GEE_Data_Extractor:
                         "transmitterReceiverPolarisation", "VV"))
                 .filter(ee.Filter.listContains(
                         "transmitterReceiverPolarisation", "VH"))
-                .mosaic())  
+                .mosaic())
+
+        elif collection == 'EmbeddingsV1':
+            emb = ee.ImageCollection("GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL")
+            self.composite = emb.filterDate(start_date, end_date).mosaic()
 
         else:
             raise ValueError('Collection {collection} not recognized.')
