@@ -37,36 +37,16 @@ load_dotenv()
 
 mining_calculator_api_key = os.getenv("MINING_CALCULATOR_API_KEY")
 
-MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/cumulative"
+MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/difference"
 MINING_GEOJSONS = [
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
-    #     2018,
-    # ),
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
-    #     2019,
-    # ),
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
-    #     2020,
-    # ),
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
-    #     2021,
-    # ),
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
-    #     2022,
-    # ),
-    # (
-    #     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
-    #     2023,
-    # ),
-    (
-        "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
-        2024,
-    ),
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
+    "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
 ]
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
@@ -260,6 +240,7 @@ def get_mining_calculator_data(locations):
         return cached_data.get("totalImpact")
 
     try:
+        print("Making a request to the mining calculator...")
         response = requests.post(
             "https://miningcalculator.conservation-strategy.org/api/calculate",
             headers={
@@ -325,6 +306,7 @@ def intersect_with_areas_of_interest_and_summarize(
             "admin_country_code",
             "admin_name_field",
             "admin_id_field",
+            "admin_year",
         ]
     )[["intersected_area_ha"]].sum()
     # save to csv
@@ -357,7 +339,7 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
             # skip if this combination exists in the exclusion list
             if (country_clean, region_id_clean) in exclusion_set:
                 continue
-            
+
             # ignore if location has no affected area, areas <= 0 break the calculator
             if row["intersected_area_ha"] <= 0:
                 continue
@@ -389,7 +371,9 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
             total_impact = get_mining_calculator_data(locations)
             result[key]["totalImpact"] = total_impact
 
-    with open(output_file.replace(".geojson", ".json"), "w") as f:
+    output_json = output_file.replace(".geojson", ".json")
+    print(f"Saving to: {output_json}")
+    with open(output_json, "w") as f:
         json.dump(result, f, indent=2)
 
     return result
@@ -398,7 +382,7 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
 if __name__ == "__main__":
     admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GEOJSON)
 
-    for file, year in MINING_GEOJSONS:
+    for file in MINING_GEOJSONS:
         mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
         print(f"Reading: {mining_file}")
         mining_gdf = gpd.read_file(mining_file)
@@ -455,6 +439,26 @@ if __name__ == "__main__":
             summary_mining_affected_area_ha = summary.groupby("id")[
                 "intersected_area_ha"
             ].sum()
+
+            # calculate mining area affected per year
+            summary_mining_affected_area_ha_yearly = (
+                summary.groupby(["id", "admin_year"])["intersected_area_ha"]
+                .sum()
+                .reset_index()
+                .sort_values(by=["id", "admin_year"])
+            )
+            # cumulative sum for each id
+            summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
+                summary_mining_affected_area_ha_yearly.groupby("id")[
+                    "intersected_area_ha"
+                ].cumsum()
+            )
+            # save yearly summary to a json
+            summary_mining_affected_area_ha_yearly.to_json(
+                dataset["file"].replace(".geojson", "_yearly.json"),
+                index=False,
+                orient="records",
+            )
 
             result = enrich_summary_with_mining_calculator_and_save(
                 summary, output_file
