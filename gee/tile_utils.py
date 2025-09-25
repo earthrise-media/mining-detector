@@ -82,7 +82,7 @@ def create_tiles(region, tilesize, pad, resolution=10):
 
 def ensure_tile_shape(raster, height, width=None):
     """
-    Ensure a raster tile has the exact requested shape by trimming 
+    Ensure tile raster data has the exact requested shape by trimming 
     (from center) if too large or padding (reflect) if too small.
 
     Parameters
@@ -132,8 +132,8 @@ def ensure_tile_shape(raster, height, width=None):
 
     return padded
 
-def chips_from_tile(pixels, tile_info, chip_size, stride):
-    (west, south, east, north) = tile_info.bounds
+def chips_from_tile(pixels, tile, chip_size, stride):
+    (west, south, east, north) = tile.bounds
     delta_x = east - west
     delta_y = north - south  
 
@@ -156,6 +156,6 @@ def chips_from_tile(pixels, tile_info, chip_size, stride):
 
             chip_coords.append(Polygon([nw, sw, se, ne, nw]))
 
-    chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile_info.crs)
+    chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile.crs)
     return chips, chip_coords
 

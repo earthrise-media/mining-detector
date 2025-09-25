@@ -139,7 +139,6 @@ class GEE_Data_Extractor:
         - tile: a TileType object
         Outputs:
         - pixels: a numpy array with shape (H, W, bands)
-        - tile:   the same tile object (for metadata)
         """
         tile_geom = ee.Geometry.Rectangle(tile.geometry.bounds)
         out_size = tile.tilesize + 2 * tile.pad
@@ -167,19 +166,18 @@ class GEE_Data_Extractor:
             pixels = np.array(pixels)
 
         pixels = ensure_tile_shape(pixels, out_size)
-        return pixels.astype(np.float32, copy=False), tile
+        return pixels.astype(np.float32, copy=False)
 
     def get_tile_data_concurrent(
-        self, tiles: List[TileType]) -> Tuple[List[np.ndarray], List[TileType]]:
+        self, tiles: List[TileType]) -> List[np.ndarray]:
         """
         Download all tile data concurrently.
         Args:
             tiles: list of tile objects
         Returns:
             - data: list of numpy arrays (one per tile)
-            - tile_data: list of tile objects
         """
-        data, tile_metadata = [], []
+        data = []
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.config.max_workers) as executor:
@@ -191,13 +189,12 @@ class GEE_Data_Extractor:
             for future in concurrent.futures.as_completed(future_to_tile):
                 tile = future_to_tile[future]
                 try:
-                    pixels, tile = future.result()
+                    pixels = future.result()
                     data.append(pixels)
-                    tile_metadata.append(tile)
                 except Exception as e:
                     print(f"Failed to fetch {tile.key}: {e}")
 
-        return data, tile_metadata
+        return data
         
     def save_tile(self, pixels: np.ndarray, tile: TileType, outdir: Path,
                   dtype="uint16") -> Path:
@@ -304,12 +301,11 @@ class InferenceEngine:
 
                 if tif_path.exists():
                     pixels = self.data_extractor.load_tile(tif_path)
-                    tile_info = tile
                 else:
-                    pixels, tile_info = self.data_extractor.get_tile_data(tile)
-                    self.data_extractor.save_tile(pixels, tile_info, cache_dir)
+                    pixels = self.data_extractor.get_tile_data(tile)
+                    self.data_extractor.save_tile(pixels, tile, cache_dir)
             else:
-                pixels, tile_info = self.data_extractor.get_tile_data(tile)
+                pixels = self.data_extractor.get_tile_data(tile)
 
         except Exception as e:
             self.logger.error(f"Error in fetching tile {tile.key}: {e}")
@@ -327,7 +323,7 @@ class InferenceEngine:
             chip_size = self.config.geo_chip_size
         stride = chip_size // self.config.stride_ratio
         
-        tile_width = tile_info.tilesize + 2 * getattr(tile_info, 'pad', 0)
+        tile_width = tile.tilesize + 2 * tile.pad
         if tile_width % stride != 0:
             self.logger.warning(
                 f"Padded tile width {tile_width}px is not evenly divisible "
@@ -337,8 +333,7 @@ class InferenceEngine:
             )
 
         # Split into chips
-        chips, chip_geoms = chips_from_tile(
-            pixels, tile_info, chip_size, stride)
+        chips, chip_geoms = chips_from_tile(pixels, tile, chip_size, stride)
         chips = np.array(chips)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
@@ -350,7 +345,7 @@ class InferenceEngine:
                 preds = self.model.predict(embeddings, verbose=0)
         except Exception as e:
             self.logger.error(
-                f"Error in model.predict for tile {tile_info.key}: {e}")
+                f"Error in model.predict for tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
 
         if preds.ndim == 2:
