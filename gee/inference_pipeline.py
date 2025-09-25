@@ -155,12 +155,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config_dict = {
-        f.name: getattr(args, f.name) for f in fields(gee.DataConfig)
+        f.name: getattr(args, f.name, None) for f in fields(gee.DataConfig)
     }
     data_config = gee.DataConfig(**config_dict)
 
     config_dict = {
-        f.name: getattr(args, f.name) for f in fields(gee.InferenceConfig)
+        f.name: getattr(args, f.name, None) for f in fields(gee.InferenceConfig)
     }
     inference_config = gee.InferenceConfig(**config_dict)
 
