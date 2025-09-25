@@ -2,35 +2,30 @@ import concurrent.futures
 from dataclasses import dataclass
 import logging
 import os
+from pathlib import Path
 import platform
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, ClassVar, Dict
 
+from affine import Affine
 from descarteslabs.geo import DLTile
 import ee
 import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
+import rasterio
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from tile_utils import CenteredTile, pad_patch, chips_from_tile
+from tile_utils import CenteredTile, ensure_tile_shape, chips_from_tile
 
 TileType = Union[DLTile, CenteredTile]
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
               project=EE_PROJECT)
-
-BAND_IDS = {
-    "S1": ["VV", "VH"],
-    "S2L1C": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B10", "B11", "B12"],
-    "S2L1C-12band": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
-    "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8A", "B8", "B9", "B11", "B12"],
-    "EmbeddingsV1": [f"A{x:02d}" for x in range(64)]
-}
 
 SSL4EO_PATH = 'SSL4EO/pretrained/dino_vit_small_patch16_224.pt'
 # Load via: torch.load(SSL4EO_PATH, weights_only=False)
@@ -41,12 +36,37 @@ if platform.system() == 'Darwin':
 
 @dataclass
 class DataConfig:
-    tile_size: int = 576
-    tile_padding: int = 24
+    tilesize: int = 576
+    pad: int = 24
     collection: str = "S2L1C"
+    bands: Optional[List[str]] = None
     clear_threshold: float = 0.6
     max_workers: int = 8
 
+    _BAND_IDS: ClassVar[Dict[str, List[str]]] = {
+        "S1": ["VV", "VH"],
+        "S2L1C": ["B1", "B2", "B3", "B4", "B5", "B6", "B7",
+                   "B8A", "B8", "B9", "B10", "B11", "B12"],
+        "S2L1C-12band": ["B1", "B2", "B3", "B4", "B5", "B6", "B7",
+                          "B8A", "B8", "B9", "B11", "B12"],
+        "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7",
+                  "B8A", "B8", "B9", "B11", "B12"],
+        "EmbeddingsV1": [f"A{x:02d}" for x in range(64)],
+    }
+
+    def __post_init__(self):
+        # Automatically resolve bands if not provided
+        if self.bands is None:
+            if self.collection not in self._BAND_IDS:
+                raise ValueError(f"No band mapping defined for collection "
+                                 f"'{self.collection}'")
+            self.bands = self._BAND_IDS[self.collection]
+
+    @classmethod
+    def available_collections(cls) -> List[str]:
+        """Return the list of supported collection IDs."""
+        return list(cls._BAND_IDS.keys())
+    
 @dataclass
 class InferenceConfig:
     pred_threshold: float = 0.5
@@ -55,11 +75,13 @@ class InferenceConfig:
     max_concurrent_tiles: int = 500
     embed_model_chip_size: int = 224
     geo_chip_size: Optional[int] = None # Required if using an embed_model
+    cache_dir: Optional[str] = None # If given, will write/read image rasters
     
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
+        self.start_date = str(start_date)
+        self.end_date = str(end_date)
         self.config = config
-        self.bandIds = BAND_IDS.get(self.config.collection)
         self.composite = self._build_composite(start_date, end_date)
 
     def _build_composite(self, start_date: str, end_date: str):
@@ -128,7 +150,7 @@ class GEE_Data_Extractor:
 
         pixels = ee.data.computePixels(
             {
-                "bandIds": self.bandIds,
+                "bandIds": self.config.bands,
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
                 # "grid": {"crsCode": tile.crs},  # caused issues in the past
@@ -137,7 +159,7 @@ class GEE_Data_Extractor:
 
         if isinstance(pixels, np.ndarray):
             if pixels.dtype.fields is not None:
-                pixels = np.stack([pixels[band] for band in self.bandIds],
+                pixels = np.stack([pixels[band] for band in self.config.bands],
                                  axis=-1)
             else:
                 pass
@@ -153,7 +175,7 @@ class GEE_Data_Extractor:
         Args:
             tiles: list of tile objects
         Returns:
-            - patches: list of numpy arrays (one per tile)
+            - data: list of numpy arrays (one per tile)
             - tile_data: list of tile objects
         """
         data, tile_metadata = [], []
@@ -175,6 +197,41 @@ class GEE_Data_Extractor:
                     print(f"Failed to fetch {tile.key}: {e}")
 
         return data, tile_metadata
+        
+    def save_tile(self, pixels: np.ndarray, tile: TileType, outdir: Path,
+                  dtype="uint16") -> Path:
+        pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
+        height, width, bands = pixels.shape
+
+        transform = tile.geotrans
+        if isinstance(transform, tuple):
+            transform = Affine(*transform)
+            
+        profile = {
+            "driver": "GTiff",
+            "height": height,
+            "width": width,
+            "count": bands,
+            "dtype": dtype,
+            "crs": tile.crs,
+            "transform": transform,
+            "compress": "deflate",
+        }
+        tif_name = (f"{self.config.collection}_{tile.key}_"
+                    f"{self.start_date}_{self.end_date}.tif")
+        outpath = Path(outdir) / tif_name
+        outpath.parent.mkdir(parents=True, exist_ok=True)
+        with rasterio.open(outpath, "w", **profile) as dst:
+            dst.write(pixels)
+
+        return outpath
+
+    def load_tile(self, path: Path) -> np.ndarray:
+        """Load a tile’s pixels from GeoTIFF."""
+        with rasterio.open(path) as src:
+            arr = src.read().astype(np.float32)  # (B,H,W)
+            arr = np.moveaxis(arr, 0, -1)  # back to (H,W,B)
+        return arr
 
 class InferenceEngine:
     """Handles tile inference, retries, and aggregation."""
@@ -226,28 +283,38 @@ class InferenceEngine:
             if isinstance(outputs, dict):
                 outputs = outputs[list(outputs.keys())[0]]
         return outputs.cpu().numpy()
-    
-    def predict_on_tile(
-        self, tile: TileType) -> Tuple[gpd.GeoDataFrame, Optional[TileType]]:
-        """
-        Predict on a single tile.
-    
-        Parameters
-        ----------
-        tile : TileType object with geometry and tilesize.
 
-        Returns
-        -------
-        preds_gdf : GeoDataFrame
-        failed_tile : TileType if prediction failed, else None.
+    def predict_on_tile(self, tile: TileType
+                        ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
+        """
+        Predict on a single tile using model and optional embed_model.
+        If cache_dir is provided, tile data will be saved to / loaded from disk.
         """
         try:
-            pixels, tile_info = self.data_extractor.get_tile_data(tile)
+            cache_dir = self.config.cache_dir
+            if cache_dir is not None:
+                tif_name = (
+                    f"{self.data_extractor.config.collection}_"
+                    f"{tile.key}_"
+                    f"{self.data_extractor.start_date}_"
+                    f"{self.data_extractor.end_date}.tif"
+                )
+                tif_path = Path(cache_dir) / tif_name
+
+                if tif_path.exists():
+                    pixels = self.data_extractor.load_tile(tif_path)
+                    tile_info = tile
+                else:
+                    pixels, tile_info = self.data_extractor.get_tile_data(tile)
+                    self.data_extractor.save_tile(pixels, tile_info, cache_dir)
+            else:
+                pixels, tile_info = self.data_extractor.get_tile_data(tile)
+
         except Exception as e:
-            self.logger.error(f"Error in get_tile_data, tile {tile.key}: {e}")
+            self.logger.error(f"Error in fetching tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
     
-        pixels = np.array(pad_patch(pixels, tile_info.tilesize))
+        pixels = np.array(ensure_tile_shape(pixels, tile_info.tilesize))
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         # Determine chip size
@@ -259,13 +326,14 @@ class InferenceEngine:
         else:
             chip_size = self.config.geo_chip_size
         stride = chip_size // self.config.stride_ratio
-
-        tile_width = tile_info.tilesize + 2 * tile_info.pad
+        
+        tile_width = tile_info.tilesize + 2 * getattr(tile_info, 'pad', 0)
         if tile_width % stride != 0:
             self.logger.warning(
                 f"Padded tile width {tile_width}px is not evenly divisible "
                 f"by stride {stride}px (chip_size={chip_size}, "
-                f"stride_ratio={stride_ratio}). Inference may miss some pixels."
+                f"stride_ratio={self.config.stride_ratio}). "
+                f"Inference may miss some pixels."
             )
 
         # Split into chips
@@ -361,6 +429,7 @@ class InferenceEngine:
                      self.logger.info(f"Found {len(batch_gdf)} new positives.")
                      
                      if outpath is not None:
+                         Path(outpath).parent.mkdir(parents=True, exist_ok=True)
                          predictions.to_file(outpath, index=False)
 
             self.logger.info(f"{len(fails)} failed tiles.")
