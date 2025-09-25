@@ -12,13 +12,11 @@ import torch
 import gee
 import tile_utils
 
-def valid_datetime(s: str) -> datetime:
-    if isinstance(s, datetime):
+def valid_date(s: str) -> str:
+    """Validate date string in YYYY-MM-DD format and return it unchanged."""
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
         return s
-    try:
-        return datetime.strptime(s, "%Y-%m-%d")
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
+    raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
 
 def get_logger(logpath: Path, maxBytes=1e6,
                backupCount=5, level=logging.INFO) -> logging.Logger:
@@ -32,14 +30,15 @@ def get_logger(logpath: Path, maxBytes=1e6,
     return logger
 
 def get_outpath(model_path: Path, region_path: Path,
-                start_date: datetime, end_date: datetime,
+                start_date: str, end_date: str,
                 pred_threshold: float) -> Path:
     model_version = '_'.join(model_path.stem.split('_')[:2])
     region_name = region_path.stem
-    period = f"{start_date.date().isoformat()}_{end_date.date().isoformat()}"
+    period = f"{start_date}_{end_date}"
     outdir = Path('../data/outputs') / model_version
     outdir.mkdir(parents=True, exist_ok=True)
     return outdir / f"{region_name}_{model_version}_{pred_threshold:.2f}_{period}.geojson"
+
 
 def main(data_config: gee.DataConfig,
          inference_config: gee.InferenceConfig,
@@ -54,7 +53,7 @@ def main(data_config: gee.DataConfig,
         embed_model = None
 
     tiles = tile_utils.create_tiles(
-        region, data_config.tile_size, data_config.tile_padding)
+        region, data_config.tilesize, data_config.pad)
     logger.info(f"Created {len(tiles)} tiles")
 
     data_extractor = gee.GEE_Data_Extractor(
@@ -79,7 +78,7 @@ def main(data_config: gee.DataConfig,
     )
     preds = engine.make_predictions(tiles, outpath=outpath)
 
-    analyzed_area = len(tiles) * (data_config.tile_size / 100) ** 2
+    analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
     logger.info(f"{len(preds)} chips with predictions above "
                 f"{inference_config.pred_threshold}")
@@ -92,15 +91,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run bulk ML inference.")
 
     # DataConfig args
-    parser.add_argument("--tile_size", type=int,
-                        default=data_defaults.tile_size,
+    parser.add_argument("--tilesize", type=int,
+                        default=data_defaults.tilesize,
                         help="Tile width in pixels for requests to GEE")
-    parser.add_argument("--tile_padding", type=int,
-                        default=data_defaults.tile_padding,
+    parser.add_argument("--pad", type=int,
+                        default=data_defaults.pad,
                         help="Number of pixels to pad each tile")
     parser.add_argument("--collection", type=str,
                         default=data_defaults.collection,
-                        choices=list(gee.BAND_IDS.keys()),
+                        choices=gee.DataConfig.available_collections(),
                         help="Satellite image collection")
     parser.add_argument("--clear_threshold", type=float,
                         default=data_defaults.clear_threshold,
@@ -128,6 +127,9 @@ if __name__ == '__main__':
     parser.add_argument("--geo_chip_size", type=int,
                         default=inference_defaults.geo_chip_size,
                         help="Input size for embedding model")
+    parser.add_argument("--cache_dir", type=str,
+                        default=inference_defaults.cache_dir,
+                        help="Optional directory to save/reload image rasters")
 
     # General args
     parser.add_argument("--model_path", type=Path,
@@ -139,11 +141,11 @@ if __name__ == '__main__':
     parser.add_argument("--embed_model_path", type=Path,
                         default=None,
                         help="Path to optional pretrained foundation model")
-    parser.add_argument("--start_date", type=valid_datetime,
-                        default=datetime(2023, 1, 1),
+    parser.add_argument("--start_date", type=valid_date,
+                        default="2023-01-01",
                         help="Start date in YYYY-MM-DD format")
-    parser.add_argument("--end_date", type=valid_datetime,
-                        default=datetime(2023, 12, 31),
+    parser.add_argument("--end_date", type=valid_date,
+                        default="2023-12-31",
                         help="End date in YYYY-MM-DD format")
     parser.add_argument("--logdir", type=Path,
                         default=Path("../logs"),

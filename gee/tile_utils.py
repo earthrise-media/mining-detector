@@ -1,12 +1,10 @@
 
 from affine import Affine
+from descarteslabs.geo import DLTile
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Point, Polygon, box
-
-from descarteslabs.geo import DLTile
-
 
 class CenteredTile:
     """
@@ -15,17 +13,18 @@ class CenteredTile:
     Attributes match DLTile where possible (key, crs, bounds, geotrans, shape).
     """
 
-    def __init__(self, lat, lon, tilesize=48, resolution=10.0):
+    def __init__(self, lat, lon, tilesize=48, resolution=10.0, pad=0):
         self.lat = float(lat)
         self.lon = float(lon)
         self.tilesize = int(tilesize)
         self.resolution = float(resolution)
+        self.pad = pad
 
         snap_tile = DLTile.from_latlon(
             self.lat, self.lon,
             resolution=self.resolution,
             tilesize=self.tilesize,
-            pad=0
+            pad=self.pad
         )
         self.crs = snap_tile.crs
 
@@ -64,80 +63,74 @@ class CenteredTile:
         return f"<CenteredTile key={self.key} res={self.resolution} size={self.tilesize}>"
 
 
-def create_tiles(region, tilesize, padding, resolution=10):
+def create_tiles(region, tilesize, pad, resolution=10):
     """
     Create a set of tiles that cover a region.
     Inputs:
         - region: a geojson polygon
         - tilesize: the size of the tiles in pixels
-        - padding: the number of pixels to pad each tile
+        - pad: the number of pixels to pad each tile
+        - resolution: spatial resolution in meters
     Outputs:
         - tiles: a list of DLTile objects
     """
     tiles = DLTile.iter_from_shape(
-        region, tilesize=tilesize, resolution=resolution, pad=padding
+        region, tilesize=tilesize, resolution=resolution, pad=pad
     )
-    tiles = [tile for tile in tiles]
-    return tiles
+    return list(tiles)
 
 
-def pad_patch(patch, height, width=None):
+def ensure_tile_shape(raster, height, width=None):
     """
-    Depending on how a polygon falls across pixel boundaries, the resulting patch can be slightly
-    bigger or smaller than intended.
-    pad_patch trims pixels extending beyond the desired number of pixels if the
-    patch is larger than desired. If the patch is smaller, it will fill the
-    edge by reflecting the values.
-    If trimmed, the patch should be trimmed from the center of the patch.
-    Inputs:
-        - patch: a numpy array of the shape the model requires
-        - height: the desired height of the patch
-        - width (optional): the desired width of the patch
-    Outputs:
-        - padded_patch: a numpy array of the desired shape
+    Ensure a raster tile has the exact requested shape by trimming 
+    (from center) if too large or padding (reflect) if too small.
+
+    Parameters
+    ----------
+    raster : np.ndarray
+        Input raster with shape (H, W, C).
+    height : int
+        Desired height.
+    width : int, optional
+        Desired width. If None, equals `height`.
+
+    Returns
+    -------
+    np.ndarray
+        Raster of shape (height, width, C).
     """
     if width is None:
         width = height
 
-    patch_height, patch_width, _ = patch.shape
+    raster_height, raster_width, _ = raster.shape
 
-    if patch_height > height:
-        trim_top = (patch_height - height) // 2
-        trim_bottom = trim_top + height
-    else:
-        trim_top = 0
-        trim_bottom = patch_height
+    # --- Compute cropping (trim from center if too big) ---
+    dh = max(raster_height - height, 0)
+    dw = max(raster_width - width, 0)
 
-    if patch_width > width:
-        trim_left = (patch_width - width) // 2
-        trim_right = trim_left + width
-    else:
-        trim_left = 0
-        trim_right = patch_width
+    trim_top = dh // 2
+    trim_bottom = raster_height - (dh - trim_top)
+    trim_left = dw // 2
+    trim_right = raster_width - (dw - trim_left)
 
-    trimmed_patch = patch[trim_top:trim_bottom, trim_left:trim_right, :]
+    cropped = raster[trim_top:trim_bottom, trim_left:trim_right, :]
 
-    if patch_height < height:
-        pad_top = (height - patch_height) // 2
-        pad_bottom = pad_top + patch_height
-        padded_patch = np.pad(
-            trimmed_patch,
-            ((pad_top, height - pad_bottom), (0, 0), (0, 0)),
-            mode="reflect",
-        )
-    else:
-        padded_patch = trimmed_patch
+    # --- Compute padding (reflect if too small) ---
+    ph = max(height - cropped.shape[0], 0)
+    pw = max(width - cropped.shape[1], 0)
 
-    if patch_width < width:
-        pad_left = (width - patch_width) // 2
-        pad_right = pad_left + patch_width
-        padded_patch = np.pad(
-            padded_patch,
-            ((0, 0), (pad_left, width - pad_right), (0, 0)),
-            mode="reflect",
-        )
+    pad_top = ph // 2
+    pad_bottom = ph - pad_top
+    pad_left = pw // 2
+    pad_right = pw - pad_left
 
-    return padded_patch
+    padded = np.pad(
+        cropped,
+        ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+        mode="reflect"
+    )
+
+    return padded
 
 def chips_from_tile(pixels, tile_info, chip_size, stride):
     (west, south, east, north) = tile_info.bounds
@@ -152,8 +145,8 @@ def chips_from_tile(pixels, tile_info, chip_size, stride):
 
     for i in range(0, pixels.shape[1] - chip_size + stride, stride): 
         for j in range(0, pixels.shape[0] - chip_size + stride, stride): 
-            patch = pixels[j : j + chip_size, i : i + chip_size]
-            chips.append(patch)
+            chip = pixels[j : j + chip_size, i : i + chip_size]
+            chips.append(chip)
 
             nw = (west + i * x_per_pixel, north - j * y_per_pixel)
             ne = (west + (i + chip_size) * x_per_pixel, north - j * y_per_pixel)
