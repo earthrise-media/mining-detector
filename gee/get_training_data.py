@@ -120,7 +120,6 @@ class TrainingData:
             
             for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
                                                 group.iterrows()):
-                pixels = ensure_tile_shape(pixels, self.config.tilesize)
                 outdir = self.outdir / str(row.split) / str(row.label)
                 extractor.save_tile(pixels, tile, outdir)
                 tiles_written.append(tile)

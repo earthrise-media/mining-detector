@@ -36,7 +36,7 @@ if platform.system() == 'Darwin':
 
 @dataclass
 class DataConfig:
-    tilesize: int = 576
+    tilesize: int = 528
     pad: int = 24
     collection: str = "S2L1C"
     bands: Optional[List[str]] = None
@@ -142,10 +142,11 @@ class GEE_Data_Extractor:
         - tile:   the same tile object (for metadata)
         """
         tile_geom = ee.Geometry.Rectangle(tile.geometry.bounds)
+        out_size = tile.tilesize + 2 * tile.pad
         composite_tile = self.composite.clipToBoundsAndScale(
             geometry=tile_geom,
-            width=tile.tilesize + 2,
-            height=tile.tilesize + 2,
+            width=out_size,
+            height=out_size,
         )
 
         pixels = ee.data.computePixels(
@@ -153,7 +154,6 @@ class GEE_Data_Extractor:
                 "bandIds": self.config.bands,
                 "expression": composite_tile,
                 "fileFormat": "NUMPY_NDARRAY",
-                # "grid": {"crsCode": tile.crs},  # caused issues in the past
             }
         )
 
@@ -166,6 +166,7 @@ class GEE_Data_Extractor:
         else:
             pixels = np.array(pixels)
 
+        pixels = ensure_tile_shape(pixels, out_size)
         return pixels.astype(np.float32, copy=False), tile
 
     def get_tile_data_concurrent(
@@ -201,7 +202,7 @@ class GEE_Data_Extractor:
     def save_tile(self, pixels: np.ndarray, tile: TileType, outdir: Path,
                   dtype="uint16") -> Path:
         pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
-        height, width, bands = pixels.shape
+        bands, height, width = pixels.shape
 
         transform = tile.geotrans
         if isinstance(transform, tuple):
@@ -314,7 +315,6 @@ class InferenceEngine:
             self.logger.error(f"Error in fetching tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
     
-        pixels = np.array(ensure_tile_shape(pixels, tile_info.tilesize))
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
         # Determine chip size
