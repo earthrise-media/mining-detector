@@ -315,6 +315,51 @@ def intersect_with_areas_of_interest_and_summarize(
     return summary
 
 
+def calculate_mining_area_timeseries(summary):
+    # calculate mining area affected per year
+    summary_mining_affected_area_ha_yearly = (
+        summary.groupby(["id", "admin_year"])["intersected_area_ha"]
+        .sum()
+        .reset_index()
+        .sort_values(by=["id", "admin_year"])
+    )
+    # cumulative sum for each id
+    summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
+        summary_mining_affected_area_ha_yearly.groupby("id")[
+            "intersected_area_ha"
+        ].cumsum()
+    )
+    years_range = summary_mining_affected_area_ha_yearly["admin_year"].unique().tolist()
+    years_range.sort()
+    complete_years = pd.DataFrame(
+        {
+            "id": summary_mining_affected_area_ha_yearly["id"].unique(),
+        }
+    )
+    # create a cartesian product of all id's with the complete set of years
+    complete_years = complete_years.merge(
+        pd.DataFrame({"admin_year": years_range}), on=None, how="cross"
+    )
+    # merge the complete years dataframe with the original summary
+    summary_mining_affected_area_ha_yearly = pd.merge(
+        complete_years,
+        summary_mining_affected_area_ha_yearly,
+        on=["id", "admin_year"],
+        how="left",
+    )
+    summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
+        summary_mining_affected_area_ha_yearly.groupby("id")[
+            "intersected_area_ha_cumulative"
+        ]
+        # fill missing nans by carrying forward the previous year's value
+        .ffill()
+        # then fillna zero for years before any detection
+        .fillna(0)
+    )
+
+    return summary_mining_affected_area_ha_yearly
+
+
 def enrich_summary_with_mining_calculator_and_save(summary, output_file):
     def cleanup_region_id(region_id, country_code):
         # cleanup region_id to match mining calculator API standard
@@ -428,7 +473,7 @@ if __name__ == "__main__":
         for dataset in datasets_to_process:
             gdf = gpd.read_file(dataset["file"])
             output_file = (
-                f"{dataset["output_folder"]}/{dataset["output_subfolder"]}/{file}"
+                f"{dataset['output_folder']}/{dataset['output_subfolder']}/{file}"
             )
 
             summary = intersect_with_areas_of_interest_and_summarize(
@@ -440,18 +485,8 @@ if __name__ == "__main__":
                 "intersected_area_ha"
             ].sum()
 
-            # calculate mining area affected per year
-            summary_mining_affected_area_ha_yearly = (
-                summary.groupby(["id", "admin_year"])["intersected_area_ha"]
-                .sum()
-                .reset_index()
-                .sort_values(by=["id", "admin_year"])
-            )
-            # cumulative sum for each id
-            summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
-                summary_mining_affected_area_ha_yearly.groupby("id")[
-                    "intersected_area_ha"
-                ].cumsum()
+            summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
+                summary
             )
             # save yearly summary to a json
             summary_mining_affected_area_ha_yearly.to_json(
