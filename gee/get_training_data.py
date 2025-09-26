@@ -116,9 +116,9 @@ class TrainingData:
                     resolution=self.resolution)
                 tiles.append(tile)
 
-            data, tile_metadata = extractor.get_tile_data_concurrent(tiles)
+            data = extractor.get_tile_data_concurrent(tiles)
             
-            for (pixels, tile), (_, row) in zip(zip(data, tile_metadata),
+            for (pixels, tile), (_, row) in zip(zip(data, tiles),
                                                 group.iterrows()):
                 outdir = self.outdir / str(row.split) / str(row.label)
                 extractor.save_tile(pixels, tile, outdir)
