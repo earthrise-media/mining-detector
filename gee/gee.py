@@ -181,18 +181,7 @@ class GEE_Data_Extractor:
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.config.max_workers) as executor:
-            future_to_tile = {
-                executor.submit(self.get_tile_data, tile): tile
-                for tile in tiles
-            }
-
-            for future in concurrent.futures.as_completed(future_to_tile):
-                tile = future_to_tile[future]
-                try:
-                    pixels = future.result()
-                    data.append(pixels)
-                except Exception as e:
-                    print(f"Failed to fetch {tile.key}: {e}")
+            data = list(executor.map(self.get_tile_data, tiles))
 
         return data
         
@@ -202,8 +191,14 @@ class GEE_Data_Extractor:
         bands, height, width = pixels.shape
 
         transform = tile.geotrans
-        if isinstance(transform, tuple):
-            transform = Affine(*transform)
+        if isinstance(transform, Affine):
+            pass
+        elif isinstance(transform, tuple):
+            # DLTile-style tuple that needs reordering
+            x_min, x_res, x_rot, y_max, y_rot, y_res = transform
+            transform = Affine(x_res, x_rot, x_min, y_rot, y_res, y_max)
+        else:
+            raise TypeError(f"Unexpected transform type: {type(transform)}")
             
         profile = {
             "driver": "GTiff",
