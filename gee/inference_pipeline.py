@@ -125,6 +125,9 @@ if __name__ == '__main__':
     parser.add_argument("--embed_model_chip_size", type=int,
                         default=inference_defaults.embed_model_chip_size,
                         help="Input size for embedding model")
+    parser.add_argument("--embedding_batch_size", type=int,
+                        default=inference_defaults.embedding_batch_size,
+                        help="Batch size for embedding model inference")
     parser.add_argument("--geo_chip_size", type=int,
                         default=inference_defaults.geo_chip_size,
                         help="Input size for embedding model")

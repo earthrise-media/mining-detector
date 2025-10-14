@@ -74,6 +74,7 @@ class InferenceConfig:
     tries: int = 2
     max_concurrent_tiles: int = 500
     embed_model_chip_size: int = 224
+    embedding_batch_size: int = 32
     geo_chip_size: Optional[int] = None # Required if using an embed_model
     cache_dir: Optional[str] = None # If given, will write/read image rasters
     
@@ -259,25 +260,7 @@ class InferenceEngine:
             self.embed_model = self.embed_model.to(self.device)
             self.embed_model.eval()
 
-    def embed_simple(self, chips: np.ndarray):
-        """Embed chips via a foundation model."""
-        model_chip_size = self.config.embed_model_chip_size
-        geo_chip_size = self.config.geo_chip_size
-        
-        tensor = torch.from_numpy(chips).permute(0, 3, 1, 2)  # NHWC → NCHW
-        if geo_chip_size != model_chip_size:
-            tensor = F.interpolate(
-                tensor, size=(model_chip_size, model_chip_size),
-                mode='bicubic', align_corners=False)
-
-        tensor = tensor.to(self.device)
-        with torch.no_grad():
-            outputs = self.embed_model(tensor)
-            if isinstance(outputs, dict):
-                outputs = outputs[list(outputs.keys())[0]]
-        return outputs.cpu().numpy()
-
-    def embed(self, chips: np.ndarray, batch_size=32):
+    def embed(self, chips: np.ndarray):
         """
         Embed chips via a foundation model.
     
@@ -297,6 +280,7 @@ class InferenceEngine:
                 mode='bicubic', align_corners=False)
 
         embeddings = []
+        batch_size = self.config.embedding_batch_size
         with torch.no_grad():
             for i in tqdm(range(0, len(tensor), batch_size)):
                 batch = tensor[i:i+batch_size].to(
@@ -307,10 +291,6 @@ class InferenceEngine:
                 embeddings.append(out.cpu())
 
         return torch.cat(embeddings, dim=0).numpy()
-
-    @tf.function(reduce_retracing=True)
-    def model_infer(self, x):
-        return self.model(x, training=False).numpy()
     
     def predict_on_tile(self, tile: TileType
                         ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
@@ -403,7 +383,7 @@ class InferenceEngine:
                     return gpd.GeoDataFrame(), tile
 
             try:
-                preds = self.model_infer(embeddings)
+                preds = self.model.predict(embeddings, verbose=0)
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -411,7 +391,7 @@ class InferenceEngine:
 
         else:
             try:
-                preds = self.model_infer(chips)
+                preds = self.model.predict(embeddings, verbose=0)
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
