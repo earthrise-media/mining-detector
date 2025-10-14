@@ -259,7 +259,7 @@ class InferenceEngine:
             self.embed_model = self.embed_model.to(self.device)
             self.embed_model.eval()
 
-    def embed(self, chips: np.ndarray):
+    def embed_simple(self, chips: np.ndarray):
         """Embed chips via a foundation model."""
         model_chip_size = self.config.embed_model_chip_size
         geo_chip_size = self.config.geo_chip_size
@@ -276,6 +276,37 @@ class InferenceEngine:
             if isinstance(outputs, dict):
                 outputs = outputs[list(outputs.keys())[0]]
         return outputs.cpu().numpy()
+
+    def embed(self, chips: np.ndarray, batch_size=32):
+        """
+        Embed chips via a foundation model.
+    
+        Args:
+            chips: np.ndarray, shape (N, H, W, C)
+            batch_size: int, number of chips per batch
+        Returns:
+            embeddings: np.ndarray, shape (N, embedding_dim)
+        """
+        model_chip_size = self.config.embed_model_chip_size
+        geo_chip_size = self.config.geo_chip_size
+
+        tensor = torch.from_numpy(chips).permute(0, 3, 1, 2)  # NHWC → NCHW
+        if geo_chip_size != model_chip_size:
+            tensor = F.interpolate(
+                tensor, size=(model_chip_size, model_chip_size),
+                mode='bicubic', align_corners=False)
+
+        embeddings = []
+        with torch.no_grad():
+            for i in tqdm(range(0, len(tensor), batch_size)):
+                batch = tensor[i:i+batch_size].to(
+                    self.device, dtype=torch.float32)
+                out = self.embed_model(batch)
+                if isinstance(out, dict):
+                    out = out[list(out.keys())[0]]
+                embeddings.append(out.cpu())
+
+        return torch.cat(embeddings, dim=0).numpy()
 
     @tf.function(reduce_retracing=True)
     def model_infer(self, x):
