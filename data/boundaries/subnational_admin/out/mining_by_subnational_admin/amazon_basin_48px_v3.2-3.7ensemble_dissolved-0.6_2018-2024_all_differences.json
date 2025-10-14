@@ -5163,13 +5163,7 @@
     "locations": []
   },
   "CO_50": {
-    "locations": [
-      {
-        "country": "CO",
-        "regionId": 50,
-        "affectedArea": 40.86899093327959
-      }
-    ]
+    "locations": []
   },
   "CO_86": {
     "locations": [
@@ -5254,13 +5248,7 @@
     ]
   },
   "CO_99": {
-    "locations": [
-      {
-        "country": "CO",
-        "regionId": 99,
-        "affectedArea": 27.293565975912347
-      }
-    ]
+    "locations": []
   },
   "EC_14": {
     "locations": [

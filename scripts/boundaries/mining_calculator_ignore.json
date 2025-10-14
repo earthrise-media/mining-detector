@@ -1,6 +1,8 @@
 [
   { "countryCode": "BO", "regionId": 80901 },
   { "countryCode": "CO", "regionId": 19 },
+  { "countryCode": "CO", "regionId": 50 },
+  { "countryCode": "CO", "regionId": 99 },
   { "countryCode": "EC", "regionId": 1403 },
   { "countryCode": "EC", "regionId": 1405 },
   { "countryCode": "EC", "regionId": 1408 },
