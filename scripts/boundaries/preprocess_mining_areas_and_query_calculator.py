@@ -280,17 +280,33 @@ def get_mining_calculator_data(locations):
 
 
 def intersect_with_areas_of_interest_and_summarize(
-    mining_admin_intersect_gdf, areas_of_interest_gdf, output_file
+    mining_admin_intersect_gdf,
+    areas_of_interest_gdf,
+    output_file,
+    ignore_if_outside_country,
 ):
     """
     Intersects areas of interest (countries, Indigenous Territories, protected areas)
     with the already admin-intersected mining areas. Summarizes the areas
     by area of interest and admin boundaries, to use in the Mining Calculator requests.
+
+    The ignore_if_outside_country argument makes the function ignore in case the area's
+    country code doesn't match the parent country code. This is useful for areas that are
+    on the border and might fall outside of the country's boundaries.
     """
     # intersect with area of interest, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
         mining_admin_intersect_gdf, areas_of_interest_gdf
     )
+    if ignore_if_outside_country:
+        intersected_with_areas_of_interest = intersected_with_areas_of_interest[
+            # this covers the entire Amazon case, which has no country_code
+            (intersected_with_areas_of_interest["country_code"].isna())
+            | (
+                intersected_with_areas_of_interest["admin_country_code"]
+                == intersected_with_areas_of_interest["country_code"]
+            )
+        ]
 
     ensure_output_path_exists(output_file)
     # # save to geojson
@@ -452,24 +468,28 @@ if __name__ == "__main__":
                 "file": NATIONAL_ADMIN_GEOJSON,
                 "output_folder": NATIONAL_ADMIN_FOLDER,
                 "output_subfolder": "mining_by_national_admin",
+                "ignore_if_outside_country": True,
             },
             {
                 "name": "subnational_admin",
                 "file": SUBNATIONAL_ADMIN_GEOJSON,
                 "output_folder": SUBNATIONAL_ADMIN_FOLDER,
                 "output_subfolder": "mining_by_subnational_admin",
+                "ignore_if_outside_country": True,
             },
             {
                 "name": "indigenous_territories",
                 "file": INDIGENOUS_TERRITORIES_GEOJSON,
                 "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
                 "output_subfolder": "mining_by_indigenous_territories",
+                "ignore_if_outside_country": True,
             },
             {
                 "name": "protected_areas",
                 "file": PROTECTED_AREAS_GEOJSON,
                 "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
                 "output_subfolder": "mining_by_protected_areas",
+                "ignore_if_outside_country": True,
             },
         ]
 
@@ -484,6 +504,7 @@ if __name__ == "__main__":
                 mining_admin_intersect_gdf=intersected_with_admin,
                 areas_of_interest_gdf=gdf,
                 output_file=output_file,
+                ignore_if_outside_country=dataset["ignore_if_outside_country"],
             )
             summary_mining_affected_area_ha = summary.groupby("id")[
                 "intersected_area_ha"

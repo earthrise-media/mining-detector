@@ -2437,28 +2437,7 @@
     "locations": []
   },
   "GF12316_0": {
-    "locations": [
-      {
-        "country": "SU",
-        "regionId": 9,
-        "affectedArea": 27.1031420655975
-      },
-      {
-        "country": "SU",
-        "regionId": 9,
-        "affectedArea": 0.0005332970457378775
-      },
-      {
-        "country": "SU",
-        "regionId": 9,
-        "affectedArea": 24.681594118396728
-      },
-      {
-        "country": "SU",
-        "regionId": 9,
-        "affectedArea": 0.09431878691150153
-      }
-    ]
+    "locations": []
   },
   "GF12317_0": {
     "locations": []
@@ -2919,78 +2898,7 @@
     "locations": []
   },
   "VE57002_0": {
-    "locations": [
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 217.87410848479848
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 438.8197253825287
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 227.71947186952295
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 21.009211233433813
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 149.65643472872136
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 312.43714730412296
-      },
-      {
-        "country": "GU",
-        "regionId": 1,
-        "affectedArea": 96.14405224152037
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 634.0977130143116
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 178.92632998540117
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 5.124090399875619
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 66.67334434062317
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 65.13694739846278
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 201.36053719207453
-      },
-      {
-        "country": "GU",
-        "regionId": 7,
-        "affectedArea": 56.354655712169055
-      }
-    ]
+    "locations": []
   },
   "VE57003_0": {
     "locations": []
