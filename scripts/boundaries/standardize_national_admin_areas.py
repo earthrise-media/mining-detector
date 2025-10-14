@@ -29,9 +29,11 @@ SIMPLIFY_TOLERANCE = 0.001
 
 def combine_geojsons(files_metadata):
     # load frames
-    frames = [
-        gpd.read_file(f"{SOURCE_DATA_FOLDER}/{file['file']}") for file in files_metadata
-    ]
+    frames = []
+    for file_meta in files_metadata:
+        gdf = gpd.read_file(f"{SOURCE_DATA_FOLDER}/{file_meta['file']}")
+        gdf["mining_calc_country_code"] = file_meta["mining_calc_country_code"]
+        frames.append(gdf)
 
     # combine frames
     combined_gdf = gpd.pd.concat(frames, ignore_index=True)
@@ -78,14 +80,14 @@ def combine_geojsons(files_metadata):
 
 if __name__ == "__main__":
     files_metadata = [
-        {"file": "gadm41_BOL_0.geojson"},
-        {"file": "gadm41_BRA_0.geojson"},
-        {"file": "gadm41_COL_0.geojson"},
-        {"file": "gadm41_ECU_0.geojson"},
-        {"file": "gadm41_GUF_0.geojson"},
-        {"file": "gadm41_GUY_0.geojson"},
-        {"file": "gadm41_PER_0.geojson"},
-        {"file": "gadm41_SUR_0.geojson"},
-        {"file": "gadm41_VEN_0.geojson"},
+        {"file": "gadm41_BOL_0.geojson", "mining_calc_country_code": "BO"},
+        {"file": "gadm41_BRA_0.geojson", "mining_calc_country_code": "BR"},
+        {"file": "gadm41_COL_0.geojson", "mining_calc_country_code": "CO"},
+        {"file": "gadm41_ECU_0.geojson", "mining_calc_country_code": "EC"},
+        {"file": "gadm41_GUF_0.geojson", "mining_calc_country_code": "GF"},
+        {"file": "gadm41_GUY_0.geojson", "mining_calc_country_code": "GU"},
+        {"file": "gadm41_PER_0.geojson", "mining_calc_country_code": "PE"},
+        {"file": "gadm41_SUR_0.geojson", "mining_calc_country_code": "SU"},
+        {"file": "gadm41_VEN_0.geojson", "mining_calc_country_code": "VE"},
     ]
     combine_geojsons(files_metadata)

@@ -389,6 +389,10 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
             if row["intersected_area_ha"] <= 0:
                 continue
 
+            # ignore Venezuala and French Guyana, not included in mining calculator
+            if country_clean == "VE" or country_clean == "GF":
+                continue
+
             locations.append(
                 {
                     "country": country_clean,
@@ -405,16 +409,16 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
         .to_dict()
     )
 
-    for key in result:
-        locations = [
-            x
-            for x in result[key]["locations"]
-            # calculator doesn't include Venezuela and French Guyana
-            if x["country"] != "VE" and x["country"] != "GF"
-        ]
-        if len(locations):
-            total_impact = get_mining_calculator_data(locations)
-            result[key]["totalImpact"] = total_impact
+    # for key in result:
+    #     locations = [
+    #         x
+    #         for x in result[key]["locations"]
+    #         # calculator doesn't include Venezuela and French Guyana
+    #         if x["country"] != "VE" and x["country"] != "GF"
+    #     ]
+    #     if len(locations):
+    #         total_impact = get_mining_calculator_data(locations)
+    #         result[key]["totalImpact"] = total_impact
 
     output_json = output_file.replace(".geojson", ".json")
     print(f"Saving to: {output_json}")
@@ -504,9 +508,10 @@ if __name__ == "__main__":
                 [
                     {
                         "id": id,
-                        "economic_impact_usd": (
-                            v["totalImpact"] if "totalImpact" in v else None
-                        ),
+                        # "economic_impact_usd": (
+                        #     v["totalImpact"] if "totalImpact" in v else None
+                        # ),
+                        "locations": v["locations"],
                         # we need to get the affected area from the original summary df,
                         # since the mining calculator doesn't return results for every possible area
                         "mining_affected_area_ha": summary_mining_affected_area_ha[id],
@@ -515,22 +520,22 @@ if __name__ == "__main__":
                 ]
             )
             # round results
-            result_df["economic_impact_usd"] = result_df["economic_impact_usd"].round(2)
+            # result_df["economic_impact_usd"] = result_df["economic_impact_usd"].round(2)
             result_df["mining_affected_area_ha"] = result_df[
                 "mining_affected_area_ha"
             ].round(2)
             # merge back to original gdf and save
             gdf_merged = gdf.merge(result_df, on="id", how="left")
-            # Remove mining calculations from countries to ignore, since they don't have
-            # any mining calculator data in the API. Any mining calculations in them are artifacts of
-            # areas from other countries that might have overlapped.
-            gdf_merged["economic_impact_usd"] = np.where(
-                gdf_merged["country"].isin(
-                    ["Venezuela", "FrenchGuiana", "French Guiana"]
-                ),
-                np.nan,
-                gdf_merged["economic_impact_usd"],
-            )
+            # # Remove mining calculations from countries to ignore, since they don't have
+            # # any mining calculator data in the API. Any mining calculations in them are artifacts of
+            # # areas from other countries that might have overlapped.
+            # gdf_merged["economic_impact_usd"] = np.where(
+            #     gdf_merged["country"].isin(
+            #         ["Venezuela", "FrenchGuiana", "French Guiana"]
+            #     ),
+            #     np.nan,
+            #     gdf_merged["economic_impact_usd"],
+            # )
 
             # save unfiltered
             save_to_geojson(
