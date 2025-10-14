@@ -277,11 +277,16 @@ class InferenceEngine:
                 outputs = outputs[list(outputs.keys())[0]]
         return outputs.cpu().numpy()
 
+    @tf.function(reduce_retracing=True)
+    def model_infer(self, x):
+        return self.model(x, training=False).numpy()
+    
     def predict_on_tile(self, tile: TileType
                         ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """
         Predict on a single tile using model and optional embed_model.
-        If cache_dir is provided, tile data will be saved to / loaded from disk.
+        If cache_dir is provided, tile data and/or embeddings will be 
+        saved to / loaded from disk.
         """
         try:
             cache_dir = self.config.cache_dir
@@ -308,7 +313,6 @@ class InferenceEngine:
     
         pixels = np.clip(pixels / 10000.0, 0, 1)
 
-        # Determine chip size
         if self.config.geo_chip_size is None:
             input_shape = self.model.layers[0].input_shape
             if isinstance(input_shape, list):  # ensemble of models
@@ -326,22 +330,61 @@ class InferenceEngine:
                 f"stride_ratio={self.config.stride_ratio}). "
                 f"Inference may miss some pixels."
             )
-
-        # Split into chips
+        
         chips, chip_geoms = chips_from_tile(pixels, tile, chip_size, stride)
-        chips = np.array(chips)
+        chips = np.array(chips, dtype=np.float32)
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
-        try:
-            if self.embed_model is None:
-                preds = self.model.predict(chips, verbose=0)
-            else:
-                embeddings = self.embed(chips)
-                preds = self.model.predict(embeddings, verbose=0)
-        except Exception as e:
-            self.logger.error(
-                f"Error in model.predict for tile {tile.key}: {e}")
-            return gpd.GeoDataFrame(), tile
+        if self.embed_model is not None:
+            embeddings = None
+            emb_path = None
+            if cache_dir is not None:
+                emb_name = tif_path.stem + "_embeddings.parquet"
+                emb_path = Path(cache_dir) / emb_name
+
+                if emb_path.exists():
+                    try:
+                        embeddings_gdf = gpd.read_parquet(emb_path)
+                        embeddings = embeddings_gdf.drop(
+                            columns="geometry").to_numpy(dtype=np.float32)
+                        # ensure order matches chips
+                        chip_geoms = embeddings_gdf[["geometry"]]
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to load cached embeddings: {e}")
+
+            if embeddings is None:
+                try:
+                    embeddings = self.embed(chips)
+                    embeddings = np.asarray(embeddings, dtype=np.float32)
+                    embeddings_gdf = gpd.GeoDataFrame(
+                        embeddings,
+                        columns=[f"f{i}" for i in range(embeddings.shape[1])],
+                        geometry=chip_geoms["geometry"],
+                        crs="EPSG:4326"
+                    )
+                    if emb_path is not None:
+                        embeddings_gdf.to_parquet(emb_path, index=False)
+
+                except Exception as e:
+                    self.logger.error(
+                        f"Error in embedding for tile {tile.key}: {e}")
+                    return gpd.GeoDataFrame(), tile
+
+            try:
+                preds = self.model_infer(embeddings)
+            except Exception as e:
+                self.logger.error(
+                    f"Error in model.predict for tile {tile.key}: {e}")
+                return gpd.GeoDataFrame(), tile
+
+        else:
+            try:
+                preds = self.model_infer(chips)
+            except Exception as e:
+                self.logger.error(
+                    f"Error in model.predict for tile {tile.key}: {e}")
+                return gpd.GeoDataFrame(), tile
 
         if preds.ndim == 2:
             if preds.shape[1] == 1:
