@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "test_region_south",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -57.13, -14.504 ], [ -49.1, -8.698 ], [ -49.1, -7.693 ], [ -57.13, -13.656 ], [ -57.13, -14.504 ] ] ] } }
+]
+}
