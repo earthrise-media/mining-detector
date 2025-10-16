@@ -465,12 +465,17 @@ class InferenceEngine:
                         self.logger.error(f"Tile raised exception: {e}")
 
                 if batch_predictions:
-                    batch_gdf = pd.concat(
-                        batch_predictions, ignore_index=True)
-                    predictions = pd.concat(
-                        [predictions, batch_gdf], ignore_index=True)
-                    print(f"Found {len(batch_gdf)} new positives.", flush=True)
-                    self.logger.info(f"Found {len(batch_gdf)} new positives.")
+                    try: 
+                        batch_gdf = pd.concat(
+                            batch_predictions, ignore_index=True)
+                        predictions = pd.concat(
+                            [predictions, batch_gdf], ignore_index=True)
+                        print(f"Found {len(batch_gdf)} new positives.",
+                              flush=True)
+                        self.logger.info(
+                            f"Found {len(batch_gdf)} new positives.")
+                    except Exception as e:
+                        self.logger.error(f"Concat raised exception: {e}")
                      
                     if outpath is not None:
                         Path(outpath).parent.mkdir(parents=True, exist_ok=True)
