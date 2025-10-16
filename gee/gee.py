@@ -464,7 +464,7 @@ class InferenceEngine:
                 range(0, len(retry_tiles), max_concurent_tiles)):
                 batch_tiles = retry_tiles[i : i + max_concurent_tiles]
 
-                with concurrent.futures.ProcessPoolExecutor(
+                with concurrent.futures.ThreadPoolExecutor(
                     max_workers=max_workers) as executor:
                     futures = [
                         executor.submit(self.predict_on_tile, tile)
