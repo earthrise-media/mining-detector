@@ -291,7 +291,11 @@ class InferenceEngine:
                 embeddings.append(out.cpu())
 
         return torch.cat(embeddings, dim=0).numpy()
-    
+
+    @tf.function(experimental_relax_shapes=True)
+    def model_infer(self, x):
+        return self.model(x, training=False) 
+
     def predict_on_tile(self, tile: TileType
                         ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """
@@ -383,7 +387,9 @@ class InferenceEngine:
                     return gpd.GeoDataFrame(), tile
 
             try:
-                preds = self.model.predict(embeddings, verbose=0)
+                batch = tf.convert_to_tensor(embeddings, dtype=tf.float32)
+                preds = self.model_infer(batch)
+                preds = preds.numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -391,7 +397,9 @@ class InferenceEngine:
 
         else:
             try:
-                preds = self.model.predict(chips, verbose=0)
+                batch = tf.convert_to_tensor(chips, dtype=tf.float32)
+                preds = self.model_infer(batch)
+                preds = preds.numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
