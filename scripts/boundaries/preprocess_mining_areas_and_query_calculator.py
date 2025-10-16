@@ -540,6 +540,27 @@ if __name__ == "__main__":
                     for id, v in result.items()
                 ]
             )
+
+            def group_and_sum_locations(locations):
+                # group by country and regionId, sum affectedArea to reduce repetitions\
+                grouped = {}
+                for loc in locations:
+                    key = (loc["country"], loc["regionId"])
+                    if key in grouped:
+                        grouped[key]["affectedArea"] += loc["affectedArea"]
+                    else:
+                        grouped[key] = loc.copy()
+
+                # round affectedArea to 2 decimal places
+                for loc in grouped.values():
+                    loc["affectedArea"] = round(loc["affectedArea"], 2)
+
+                return list(grouped.values())
+
+            result_df["locations"] = result_df["locations"].apply(
+                group_and_sum_locations
+            )
+
             # round results
             # result_df["economic_impact_usd"] = result_df["economic_impact_usd"].round(2)
             result_df["mining_affected_area_ha"] = result_df[
