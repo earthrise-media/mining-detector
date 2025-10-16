@@ -437,7 +437,8 @@ class InferenceEngine:
         preds_gdf['confidence'] = mean_preds[idx]
         if preds.shape[1] > 2:
              preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
-
+        preds_gdf = preds_gdf.set_crs('epsg:4326', allow_override=True)
+        
         return preds_gdf, None
 
     def make_predictions(self, tiles: List[TileType],
@@ -450,7 +451,13 @@ class InferenceEngine:
         Returns:
             - predictions: GeoDataFrame of predictions
         """
-        predictions = gpd.GeoDataFrame()
+        predictions = gpd.GeoDataFrame(
+            {
+                "geometry": gpd.GeoSeries(dtype="geometry"),
+                "confidence": gpd.pd.Series(dtype="float"),
+            },
+            crs="epsg:4326"
+        )
         retry_tiles = tiles.copy()
         tries_remaining = self.config.tries
         max_concurent_tiles = self.config.max_concurrent_tiles
@@ -485,6 +492,10 @@ class InferenceEngine:
                 if batch_predictions:
                     batch_gdf = self._ensure_gdf(
                         gpd.pd.concat(batch_predictions, ignore_index=True))
+                    batch_gdf = batch_gdf.set_crs('epsg:4326',
+                                                  allow_override=True)
+                    predictions = predictions.set_crs('epsg:4326',
+                                                      allow_override=True)
                     predictions = self._ensure_gdf(
                         gpd.pd.concat([predictions, batch_gdf],
                                       ignore_index=True))
