@@ -487,7 +487,7 @@ class InferenceEngine:
                         gpd.pd.concat(batch_predictions, ignore_index=True))
                     predictions = self._ensure_gdf(
                         gpd.pd.concat([predictions, batch_gdf],
-                                      ignore_index=True)
+                                      ignore_index=True))
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     self.logger.info(f"Found {len(batch_gdf)} new positives.")
                      
