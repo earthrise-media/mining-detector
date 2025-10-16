@@ -13,6 +13,7 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import pandas as pd
+import pyproj
 import rasterio
 import tensorflow as tf
 import torch
@@ -299,6 +300,8 @@ class InferenceEngine:
         If cache_dir is provided, tile data and/or embeddings will be 
         saved to / loaded from disk.
         """
+        WGS84 = pyproj.CRS.from_epsg(4326)
+        
         try:
             cache_dir = self.config.cache_dir
             if cache_dir is not None:
@@ -344,7 +347,7 @@ class InferenceEngine:
         
         chips, chip_geoms = chips_from_tile(pixels, tile, chip_size, stride)
         chips = np.array(chips, dtype=np.float32)
-        chip_geoms.to_crs("EPSG:4326", inplace=True)
+        chip_geoms.to_crs(WGS84, inplace=True)
 
         if self.embed_model is not None:
             embeddings = None
@@ -372,7 +375,7 @@ class InferenceEngine:
                         embeddings,
                         columns=[f"f{i}" for i in range(embeddings.shape[1])],
                         geometry=chip_geoms["geometry"],
-                        crs="EPSG:4326"
+                        crs=WGS84
                     )
                     if emb_path is not None:
                         embeddings_gdf.to_parquet(emb_path, index=False)
@@ -415,7 +418,7 @@ class InferenceEngine:
         idx = np.where(mean_preds > self.config.pred_threshold)[0]
 
         preds_gdf = gpd.GeoDataFrame(
-            geometry=chip_geoms.loc[idx, "geometry"], crs="EPSG:4326")
+            geometry=chip_geoms.loc[idx, "geometry"], crs=WGS84)
         preds_gdf['confidence'] = mean_preds[idx]
         if preds.shape[1] > 2:
              preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
