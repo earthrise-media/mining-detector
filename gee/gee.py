@@ -12,7 +12,6 @@ import ee
 import geopandas as gpd
 from google.api_core import retry
 import numpy as np
-import pandas as pd
 import rasterio
 import tensorflow as tf
 import torch
@@ -260,6 +259,23 @@ class InferenceEngine:
             self.embed_model = self.embed_model.to(self.device)
             self.embed_model.eval()
 
+    @tf.function(reduce_retracing=True)
+    def _model_infer(self, x):
+        return self.model(x, training=False)
+
+    def _ensure_gdf(self, df):
+        """Ensure input is a GeoDataFrame with geometry column and CRS.
+        
+        Returns: GeoDataFrame
+        Raises: ValueError: If df is not a GeoDataFrame and not empty.
+        """
+        if isinstance(df, gpd.GeoDataFrame):
+            return df
+        elif df.empty:
+            return gpd.GeoDataFrame(df, geometry="geometry", crs='epsg:4326')
+        else:
+            raise ValueError(f"Expected a gdf, got {type(df)} length {len(df})")
+    
     def embed(self, chips: np.ndarray):
         """
         Embed chips via a foundation model.
@@ -291,10 +307,6 @@ class InferenceEngine:
                 embeddings.append(out.cpu())
 
         return torch.cat(embeddings, dim=0).numpy()
-
-    @tf.function(experimental_relax_shapes=True)
-    def model_infer(self, x):
-        return self.model(x, training=False) 
 
     def predict_on_tile(self, tile: TileType
                         ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
@@ -388,7 +400,7 @@ class InferenceEngine:
 
             try:
                 batch = tf.convert_to_tensor(embeddings, dtype=tf.float32)
-                preds = self.model_infer(batch).numpy()
+                preds = self._model_infer(batch).numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -397,7 +409,7 @@ class InferenceEngine:
         else:
             try:
                 batch = tf.convert_to_tensor(chips, dtype=tf.float32)
-                preds = self.model_infer(batch).numpy()
+                preds = self._model_infer(batch).numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -471,17 +483,13 @@ class InferenceEngine:
                         self.logger.error(f"Tile raised exception: {e}")
 
                 if batch_predictions:
-                    try: 
-                        batch_gdf = pd.concat(
-                            batch_predictions, ignore_index=True)
-                        predictions = pd.concat(
-                            [predictions, batch_gdf], ignore_index=True)
-                        print(f"Found {len(batch_gdf)} new positives.",
-                              flush=True)
-                        self.logger.info(
-                            f"Found {len(batch_gdf)} new positives.")
-                    except Exception as e:
-                        self.logger.error(f"Concat raised exception: {e}")
+                    batch_gdf = self._ensure_gdf(
+                        gpd.pd.concat(batch_predictions, ignore_index=True))
+                    predictions = self._ensure_gdf(
+                        gpd.pd.concat([predictions, batch_gdf],
+                                      ignore_index=True)
+                    print(f"Found {len(batch_gdf)} new positives.", flush=True)
+                    self.logger.info(f"Found {len(batch_gdf)} new positives.")
                      
                     if outpath is not None:
                         Path(outpath).parent.mkdir(parents=True, exist_ok=True)
