@@ -274,7 +274,7 @@ class InferenceEngine:
         elif df.empty:
             return gpd.GeoDataFrame(df, geometry="geometry", crs='epsg:4326')
         else:
-            raise ValueError(f"Expected a gdf, got {type(df)} length {len(df})")
+            raise ValueError(f"Expected a gdf, got {type(df)} length {len(df)}")
     
     def embed(self, chips: np.ndarray):
         """
