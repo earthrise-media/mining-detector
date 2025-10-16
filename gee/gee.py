@@ -388,8 +388,7 @@ class InferenceEngine:
 
             try:
                 batch = tf.convert_to_tensor(embeddings, dtype=tf.float32)
-                preds = self.model_infer(batch)
-                preds = preds.numpy()
+                preds = self.model_infer(batch).numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -398,8 +397,7 @@ class InferenceEngine:
         else:
             try:
                 batch = tf.convert_to_tensor(chips, dtype=tf.float32)
-                preds = self.model_infer(batch)
-                preds = preds.numpy()
+                preds = self.model_infer(batch).numpy()
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -454,7 +452,7 @@ class InferenceEngine:
                 range(0, len(retry_tiles), max_concurent_tiles)):
                 batch_tiles = retry_tiles[i : i + max_concurent_tiles]
 
-                with concurrent.futures.ThreadPoolExecutor(
+                with concurrent.futures.ProcessPoolExecutor(
                     max_workers=max_workers) as executor:
                     futures = [
                         executor.submit(self.predict_on_tile, tile)
