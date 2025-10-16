@@ -391,7 +391,7 @@ class InferenceEngine:
 
         else:
             try:
-                preds = self.model.predict(embeddings, verbose=0)
+                preds = self.model.predict(chips, verbose=0)
             except Exception as e:
                 self.logger.error(
                     f"Error in model.predict for tile {tile.key}: {e}")
@@ -465,16 +465,16 @@ class InferenceEngine:
                         self.logger.error(f"Tile raised exception: {e}")
 
                 if batch_predictions:
-                     batch_gdf = pd.concat(
-                         batch_predictions, ignore_index=True)
-                     predictions = pd.concat(
-                         [predictions, batch_gdf], ignore_index=True)
-                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
-                     self.logger.info(f"Found {len(batch_gdf)} new positives.")
+                    batch_gdf = pd.concat(
+                        batch_predictions, ignore_index=True)
+                    predictions = pd.concat(
+                        [predictions, batch_gdf], ignore_index=True)
+                    print(f"Found {len(batch_gdf)} new positives.", flush=True)
+                    self.logger.info(f"Found {len(batch_gdf)} new positives.")
                      
-                     if outpath is not None:
-                         Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                         predictions.to_file(outpath, index=False)
+                    if outpath is not None:
+                        Path(outpath).parent.mkdir(parents=True, exist_ok=True)
+                        predictions.to_file(outpath, index=False)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
