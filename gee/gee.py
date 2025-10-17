@@ -41,7 +41,7 @@ class DataConfig:
     bands: Optional[List[str]] = None
     clear_threshold: float = 0.6
     max_workers: int = 8
-    cache_dir: Optional[str] = None # If given, will write/read image rasters
+    image_cache_dir: Optional[str] = None # If given, will write/read images
 
     _BAND_IDS: ClassVar[Dict[str, List[str]]] = {
         "S1": ["VV", "VH"],
@@ -76,7 +76,7 @@ class InferenceConfig:
     embed_model_chip_size: int = 224
     embedding_batch_size: int = 32
     geo_chip_size: Optional[int] = None # Required if using an embed_model
-    cache_dir: Optional[str] = None 
+    embeddings_cache_dir: Optional[str] = None 
     
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -141,13 +141,13 @@ class GEE_Data_Extractor:
         Outputs:
         - pixels: a numpy array with shape (H, W, bands)
         """
-        cache_dir = getattr(self.config, "cache_dir", None)
+        image_cache_dir = getattr(self.config, "image_cache_dir", None)
         collection = self.config.collection
         start, end = self.start_date, self.end_date
         tif_name = f"{collection}_{tile.key}_{start}_{end}.tif"
 
-        if cache_dir:
-            tif_path = Path(cache_dir) / tif_name
+        if image_cache_dir:
+            tif_path = Path(image_cache_dir) / tif_name
             if tif_path.exists():
                 try:
                     return self.load_tile(tif_path)
@@ -181,9 +181,9 @@ class GEE_Data_Extractor:
         pixels = ensure_tile_shape(pixels, out_size)
         pixels = pixels.astype(np.float32, copy=False)
 
-        if cache_dir:
+        if image_cache_dir:
             try:
-                self.save_tile(pixels, tile, cache_dir)
+                self.save_tile(pixels, tile, image_cache_dir)
             except Exception as e:
                 self.logger.warning(f"Failed to cache tile {tile.key}: {e}")
 
@@ -297,16 +297,38 @@ class InferenceEngine:
         else:
             raise ValueError(f"Expected a gdf, got {type(df)} length {len(df)}")
     
-    def embed(self, chips: np.ndarray):
-        """
-        Embed chips via a foundation model.
-    
-        Args:
-            chips: np.ndarray, shape (N, H, W, C)
-            batch_size: int, number of chips per batch
-        Returns:
-            embeddings: np.ndarray, shape (N, embedding_dim)
-        """
+    def embed(
+        self,
+        chips: np.ndarray,
+        chip_geoms: gpd.GeoDataFrame,
+        tile: Optional[TileType] = None) -> np.ndarray:
+        """Embed chips via a foundation model, with optional caching."""
+        
+        emb_cache_dir = getattr(
+            self.config, "embeddings_cache_dir", None)
+        emb_path = None
+
+        if emb_cache_dir is not None and tile is not None:
+            emb_cache_dir = Path(emb_cache_dir)
+            emb_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        collection = self.data_extractor.config.collection
+        start = self.data_extractor.start_date
+        end = self.data_extractor.end_date
+        emb_name = f"{collection}_{tile.key}_{start}_{end}_embeddings.parquet"
+        emb_path = emb_cache_dir / emb_name
+
+        if emb_path.exists():
+            try:
+                gdf = gpd.read_parquet(emb_path)
+                embeddings = gdf.drop(
+                    columns="geometry",
+                    errors='ignore').to_numpy(dtype=np.float32)
+                return embeddings
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to load cached embeddings for {tile.key}: {e}")
+
         model_chip_size = self.config.embed_model_chip_size
         geo_chip_size = self.config.geo_chip_size
 
@@ -316,7 +338,7 @@ class InferenceEngine:
                 tensor, size=(model_chip_size, model_chip_size),
                 mode='bicubic', align_corners=False)
 
-        embeddings = []
+        embeddings_list = []
         batch_size = self.config.embedding_batch_size
         with torch.no_grad():
             for i in tqdm(range(0, len(tensor), batch_size)):
@@ -325,9 +347,24 @@ class InferenceEngine:
                 out = self.embed_model(batch)
                 if isinstance(out, dict):
                     out = out[list(out.keys())[0]]
-                embeddings.append(out.cpu())
+                embeddings_list.append(out.cpu())
 
-        return torch.cat(embeddings, dim=0).numpy()
+        embeddings = torch.cat(embeddings_list, dim=0).numpy()
+                            
+        if emb_path is not None:
+            try:
+                gdf = gpd.GeoDataFrame(
+                    embeddings,
+                    columns=[f"f{i}" for i in range(embeddings.shape[1])],
+                    geometry=chip_geoms["geometry"],
+                    crs="EPSG:4326" 
+                )
+                gdf.to_parquet(emb_path, index=False)
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to save embeddings cache for {tile.key}: {e}")
+
+        return embeddings
 
     def predict_on_tile(self, tile: TileType
                         ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
@@ -367,42 +404,8 @@ class InferenceEngine:
         chip_geoms.to_crs("EPSG:4326", inplace=True)
 
         if self.embed_model is not None:
-            embeddings = None
-            emb_path = None
-            if cache_dir is not None:
-                emb_name = tif_path.stem + "_embeddings.parquet"
-                emb_path = Path(cache_dir) / emb_name
-
-                if emb_path.exists():
-                    try:
-                        embeddings_gdf = gpd.read_parquet(emb_path)
-                        embeddings = embeddings_gdf.drop(
-                            columns="geometry").to_numpy(dtype=np.float32)
-                        # ensure order matches chips
-                        chip_geoms = embeddings_gdf[["geometry"]]
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Failed to load cached embeddings: {e}")
-
-            if embeddings is None:
-                try:
-                    embeddings = self.embed(chips)
-                    embeddings = np.asarray(embeddings, dtype=np.float32)
-                    embeddings_gdf = gpd.GeoDataFrame(
-                        embeddings,
-                        columns=[f"f{i}" for i in range(embeddings.shape[1])],
-                        geometry=chip_geoms["geometry"],
-                        crs="EPSG:4326"
-                    )
-                    if emb_path is not None:
-                        embeddings_gdf.to_parquet(emb_path, index=False)
-
-                except Exception as e:
-                    self.logger.error(
-                        f"Error in embedding for tile {tile.key}: {e}")
-                    return gpd.GeoDataFrame(), tile
-
             try:
+                embeddings = self.embed(chips, chip_geoms, tile) 
                 batch = tf.convert_to_tensor(embeddings, dtype=tf.float32)
                 preds = self._model_infer(batch).numpy()
             except Exception as e:
