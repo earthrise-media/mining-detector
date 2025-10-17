@@ -41,6 +41,7 @@ class DataConfig:
     bands: Optional[List[str]] = None
     clear_threshold: float = 0.6
     max_workers: int = 8
+    cache_dir: Optional[str] = None # If given, will write/read image rasters
 
     _BAND_IDS: ClassVar[Dict[str, List[str]]] = {
         "S1": ["VV", "VH"],
@@ -75,7 +76,7 @@ class InferenceConfig:
     embed_model_chip_size: int = 224
     embedding_batch_size: int = 32
     geo_chip_size: Optional[int] = None # Required if using an embed_model
-    cache_dir: Optional[str] = None # If given, will write/read image rasters
+    cache_dir: Optional[str] = None 
     
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -132,14 +133,28 @@ class GEE_Data_Extractor:
         return composite
 
     @retry.Retry(timeout=240)
-    def get_tile_data(self, tile: TileType) -> Tuple[np.ndarray, TileType]:
-        """Download Sentinel-2 (or other collection) data for a tile.
+    def get_tile_data(self, tile: TileType) -> np.ndarray:
+        """Download or load cached image data for a tile.
 
         Inputs:
         - tile: a TileType object
         Outputs:
         - pixels: a numpy array with shape (H, W, bands)
         """
+        cache_dir = getattr(self.config, "cache_dir", None)
+        collection = self.config.collection
+        start, end = self.start_date, self.end_date
+        tif_name = f"{collection}_{tile.key}_{start}_{end}.tif"
+
+        if cache_dir:
+            tif_path = Path(cache_dir) / tif_name
+            if tif_path.exists():
+                try:
+                    return self.load_tile(tif_path)
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to load cached tile {tile.key}: {e}")
+
         tile_geom = ee.Geometry.Rectangle(tile.geometry.bounds)
         out_size = tile.tilesize + 2 * tile.pad
         composite_tile = self.composite.clipToBoundsAndScale(
@@ -160,13 +175,19 @@ class GEE_Data_Extractor:
             if pixels.dtype.fields is not None:
                 pixels = np.stack([pixels[band] for band in self.config.bands],
                                  axis=-1)
-            else:
-                pass
         else:
             pixels = np.array(pixels)
 
         pixels = ensure_tile_shape(pixels, out_size)
-        return pixels.astype(np.float32, copy=False)
+        pixels = pixels.astype(np.float32, copy=False)
+
+        if cache_dir:
+            try:
+                self.save_tile(pixels, tile, cache_dir)
+            except Exception as e:
+                self.logger.warning(f"Failed to cache tile {tile.key}: {e}")
+
+        return pixels
 
     def get_tile_data_concurrent(
         self, tiles: List[TileType]) -> List[np.ndarray]:
@@ -316,26 +337,9 @@ class InferenceEngine:
         saved to / loaded from disk.
         """
         try:
-            cache_dir = self.config.cache_dir
-            if cache_dir is not None:
-                tif_name = (
-                    f"{self.data_extractor.config.collection}_"
-                    f"{tile.key}_"
-                    f"{self.data_extractor.start_date}_"
-                    f"{self.data_extractor.end_date}.tif"
-                )
-                tif_path = Path(cache_dir) / tif_name
-
-                if tif_path.exists():
-                    pixels = self.data_extractor.load_tile(tif_path)
-                else:
-                    pixels = self.data_extractor.get_tile_data(tile)
-                    self.data_extractor.save_tile(pixels, tile, cache_dir)
-            else:
-                pixels = self.data_extractor.get_tile_data(tile)
-
+            pixels = self.data_extractor.get_tile_data(tile)
         except Exception as e:
-            self.logger.error(f"Error in fetching tile {tile.key}: {e}")
+            self.logger.error(f"Failed to get tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
     
         pixels = np.clip(pixels / 10000.0, 0, 1)

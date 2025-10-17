@@ -108,6 +108,10 @@ if __name__ == '__main__':
     parser.add_argument("--max_workers", type=int,
                         default=data_defaults.max_workers,
                         help="Maximum concurrent GEE requests")
+    parser.add_argument("--cache_dir", type=str,
+                        default=data_defaults.cache_dir,
+                        help="Optional directory to save/reload image rasters")
+
 
     # InferenceConfig args
     parser.add_argument("--pred_threshold", type=float,
@@ -131,10 +135,6 @@ if __name__ == '__main__':
     parser.add_argument("--geo_chip_size", type=int,
                         default=inference_defaults.geo_chip_size,
                         help="Input size for embedding model")
-    parser.add_argument("--cache_dir", type=str,
-                        default=inference_defaults.cache_dir,
-                        help="Optional directory to save/reload image rasters")
-
     # General args
     parser.add_argument("--model_path", type=Path,
                         default="../models/48px_v3.2-3.7ensemble_2024-02-13.h5",
