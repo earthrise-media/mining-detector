@@ -77,7 +77,7 @@ def main(data_config: gee.DataConfig,
         embed_model=embed_model,
         logger=logger
     )
-    preds = engine.make_predictions(tiles, outpath=outpath)
+    preds = engine.bulk_predict(tiles, outpath=outpath)
 
     analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
