@@ -326,7 +326,7 @@ class InferenceEngine:
         embeddings_list = []
         batch_size = self.config.embedding_batch_size
         with torch.no_grad():
-            for i in tqdm(range(0, len(tensor), batch_size)):
+            for i in range(0, len(tensor), batch_size):
                 batch = tensor[i:i+batch_size].to(
                     self.device, dtype=torch.float32)
                 out = self.embed_model(batch)
