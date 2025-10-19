@@ -202,7 +202,7 @@ class GEE_Data_Extractor:
         """
         data = []
 
-        with concurrent.futures.ThreadPoolExecutor(
+        with ThreadPoolExecutor(
             max_workers=self.config.max_workers) as executor:
             data = list(executor.map(self.get_tile_data, tiles))
 
