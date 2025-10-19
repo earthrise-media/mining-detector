@@ -282,6 +282,21 @@ class InferenceEngine:
             self.embed_model = self.embed_model.to(self.device)
             self.embed_model.eval()
 
+    def _make_embedding_cache_path(self, tile: TileType) -> Optional[Path]:
+        """Return Path to an embedding cache file; None if disabled."""
+        emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
+        if emb_cache_dir is None:
+            return None
+
+        emb_cache_dir = Path(emb_cache_dir)
+        emb_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        collection = self.data_extractor.config.collection
+        start = self.data_extractor.start_date
+        end = self.data_extractor.end_date
+        emb_name = f"{collection}_{tile.key}_{start}_{end}_embeddings.parquet"
+        return emb_cache_dir / emb_name
+    
     def embed(
         self,
         chips: np.ndarray,
@@ -289,19 +304,10 @@ class InferenceEngine:
         tile: Optional[TileType] = None) -> np.ndarray:
         """Embed chips via a foundation model, with optional caching."""
         
-        emb_cache_dir = getattr(
-            self.config, "embeddings_cache_dir", None)
-        emb_path = None
-
-        if emb_cache_dir is not None and tile is not None:
-            emb_cache_dir = Path(emb_cache_dir)
-            emb_cache_dir.mkdir(parents=True, exist_ok=True)
-            collection = self.data_extractor.config.collection
-            start = self.data_extractor.start_date
-            end = self.data_extractor.end_date
-            emb_name = (f"{collection}_{tile.key}_{start}_{end}"
-                        f"_embeddings.parquet")
-            emb_path = emb_cache_dir / emb_name
+        emb_path = (
+            self._make_embedding_cache_path(tile) if
+            tile is not None else None
+        )
 
         if emb_path is not None and emb_path.exists():
             try:
@@ -425,27 +431,20 @@ class InferenceEngine:
         Errors are raised to the caller.
         """
         # Try loading cached embeddings first (best-case fast path).
-        emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
-        if emb_cache_dir is not None:
+        emb_path = self._make_embedding_cache_path(tile)
+        if emb_path and emb_path.exists():
             try:
-                collection = self.data_extractor.config.collection
-                start = self.data_extractor.start_date
-                end = self.data_extractor.end_date
-                emb_name = (f"{collection}_{tile.key}_{start}_{end}"
-                            "_embeddings.parquet")
-                emb_path = Path(emb_cache_dir) / emb_name
-                if emb_path.exists():
-                    embeddings_gdf = gpd.read_parquet(emb_path)
-                    chip_geoms = embeddings_gdf[["geometry"]].copy()
-                    embeddings = embeddings_gdf.drop(
-                        columns="geometry",
-                        errors="ignore").to_numpy(dtype=np.float32)
-                    return {
-                        "mode": "embeddings",
-                        "embeddings": embeddings,
-                        "chip_geoms": chip_geoms,
-                        "tile": tile
-                    }
+                embeddings_gdf = gpd.read_parquet(emb_path)
+                chip_geoms = embeddings_gdf[["geometry"]].copy()
+                embeddings = embeddings_gdf.drop(
+                    columns="geometry",
+                    errors="ignore").to_numpy(dtype=np.float32)
+                return {
+                    "mode": "embeddings",
+                    "embeddings": embeddings,
+                    "chip_geoms": chip_geoms,
+                    "tile": tile
+                }
             except Exception as e:
                 self.logger.warning(
                     f"Failed to load embedding for {tile.key}: {e}. "
@@ -638,3 +637,25 @@ class InferenceEngine:
             tries_remaining -= 1
 
         return predictions
+
+    def predict_on_tile(self, tile: TileType) -> gpd.GeoDataFrame:
+        """
+        Convenience wrapper for debugging: run full inference on a single tile.
+        Reuses the same logic as bulk_predict but without producer/consumer.
+        """
+        emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
+        if emb_cache_dir is not None:
+            emb_path = self._make_embedding_cache_path(tile)
+            if emb_path.exists():
+                gdf = gpd.read_parquet(emb_path)
+                chip_geoms = gdf[["geometry"]].copy()
+                embeddings = gdf.drop(
+                    columns="geometry",
+                    errors="ignore").to_numpy(dtype=np.float32)
+                preds_gdf, _ = self.predict_on_tile_embeddings(
+                    embeddings, chip_geoms, tile)
+                return preds_gdf
+
+        pixels = self.data_extractor.get_tile_data(tile)
+        preds_gdf, _ = self.predict_on_tile_pixels(pixels, tile)
+        return preds_gdf
