@@ -15,6 +15,7 @@ import geopandas as gpd
 from google.api_core import retry
 import numpy as np
 import rasterio
+from rasterstats import zonal_stats
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
@@ -78,7 +79,8 @@ class InferenceConfig:
     embed_model_chip_size: int = 224
     embedding_batch_size: int = 32
     geo_chip_size: Optional[int] = None # Required if using an embed_model
-    embeddings_cache_dir: Optional[str] = None 
+    embeddings_cache_dir: Optional[str] = None
+    ndvi_threshold: Optional[float] = None  
     
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -207,22 +209,28 @@ class GEE_Data_Extractor:
             data = list(executor.map(self.get_tile_data, tiles))
 
         return data
+
+    def _get_affine_transform(
+        self,
+        transform: Union[Affine,
+                   Tuple[float, float, float, float, float, float]]) -> Affine:
+        """
+        Convert DLTile-style transform or Affine object to rasterio Affine.
+        """
+        if isinstance(transform, Affine):
+            return transform
+        elif isinstance(transform, tuple) and len(transform) == 6:
+            x_min, x_res, x_rot, y_max, y_rot, y_res = transform
+            return Affine(x_res, x_rot, x_min, y_rot, y_res, y_max)
+        else:
+            raise TypeError(f"Unexpected transform type: {type(transform)}")
         
     def save_tile(self, pixels: np.ndarray, tile: TileType, outdir: Path,
                   dtype="uint16") -> Path:
         pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
         bands, height, width = pixels.shape
 
-        transform = tile.geotrans
-        if isinstance(transform, Affine):
-            pass
-        elif isinstance(transform, tuple):
-            # DLTile-style tuple that needs reordering
-            x_min, x_res, x_rot, y_max, y_rot, y_res = transform
-            transform = Affine(x_res, x_rot, x_min, y_rot, y_res, y_max)
-        else:
-            raise TypeError(f"Unexpected transform type: {type(transform)}")
-            
+        transform = self._get_affine_transform(tile.geotrans)
         profile = {
             "driver": "GTiff",
             "height": height,
@@ -271,6 +279,9 @@ class InferenceEngine:
                 "geo_chip_size must be specified when using an embed_model."
             )
 
+        # Add a lock to serialize model access (in-process)
+        self._tf_model_lock = threading.Lock()
+        
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
         elif torch.backends.mps.is_available():
@@ -369,9 +380,10 @@ class InferenceEngine:
         stride = chip_size // self.config.stride_ratio
         return chip_size, stride
 
-    @tf.function(reduce_retracing=True)
     def _model_infer(self, x):
-        return self.model(x, training=False)
+        """Thread-safe wrapper around model.predict for inference."""
+        with self._tf_model_lock:
+            return self.model.predict(x, verbose=0)
 
     def _preds_to_gdf(self, preds: np.ndarray,
                       chip_geoms: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -454,6 +466,46 @@ class InferenceEngine:
         pixels = self.data_extractor.get_tile_data(tile) 
         return {"mode": "pixels", "pixels": pixels, "tile": tile}
 
+    def _compute_ndvi(self, pixels: np.ndarray) -> np.ndarray:
+        """Compute NDVI."""
+        collection = self.data_extractor.config.collection
+        band_ids = self.data_extractor.config._BAND_IDS[collection]
+    
+        try:
+            red_idx = band_ids.index("B4")
+            nir_idx = band_ids.index("B8A")
+        except ValueError as e:
+            raise ValueError(
+                f"Cannot find required bands in collection {collection}") from e
+
+        red = pixels[:, :, red_idx]
+        nir = pixels[:, :, nir_idx]
+        ndvi = (nir - red) / (nir + red + 1e-6)
+        return ndvi
+
+    def _compute_masked_area(
+        self,
+        preds_gdf: gpd.GeoDataFrame,
+        ndvi: np.ndarray,
+        tile: TileType) -> gpd.GeoDataFrame:
+        """Count pixels below NDVI threshold. Adds column "Area (ha)"."""
+        if self.config.ndvi_threshold is None:
+            return preds_gdf
+        
+        transform = self.data_extractor._get_affine_transform(tile.geotrans)
+        mask = (ndvi < self.config.ndvi_threshold).astype(np.uint8)
+        stats = zonal_stats(
+            preds_gdf.to_crs(tile.crs).geometry,
+            mask,
+            affine=transform,
+            categorical=True,
+            all_touched=False,
+        )
+
+        preds_gdf["Area (ha)"] = np.array(
+            [s.get(1, 0) for s in stats], dtype=np.float32) / 100.0        
+        return preds_gdf
+
     def predict_on_tile_pixels(
         self, pixels: np.ndarray,
         tile: TileType) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
@@ -480,19 +532,22 @@ class InferenceEngine:
         try: 
             if self.embed_model is not None:
                 embeddings = self.embed(chips, chip_geoms, tile)
-                return self.predict_on_tile_embeddings(
+                preds_gdf, failed_tile = self.predict_on_tile_embeddings(
                     embeddings, chip_geoms, tile)
+                if failed_tile is not None:
+                    return preds_gdf, failed_tile
             else:
-                batch = tf.convert_to_tensor(chips, dtype=tf.float32)
-                preds = self._model_infer(batch).numpy()
+                preds = self._model_infer(batch)
                 preds_gdf = self._preds_to_gdf(preds, chip_geoms)
-                return preds_gdf, None
+            if self.config.ndvi_threshold is not None and not preds_gdf.empty:
+                ndvi = self._compute_ndvi(pixels)
+                preds_gdf = self._compute_masked_area(preds_gdf, ndvi, tile)
+            return preds_gdf, None
 
         except Exception as e:
             self.logger.error(f"Error predicting for tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
 
-    
     def predict_on_tile_embeddings(
         self, embeddings: np.ndarray,
         chip_geoms: gpd.GeoDataFrame,
@@ -500,8 +555,7 @@ class InferenceEngine:
                                                Optional[TileType]]:
         """Run the TF classifier on already-available embeddings."""
         try:
-            batch = tf.convert_to_tensor(embeddings, dtype=tf.float32)
-            preds = self._model_infer(batch).numpy()
+            preds = self._model_infer(embeddings)
             preds_gdf = self._preds_to_gdf(preds, chip_geoms)
             return preds_gdf, None
         except Exception as e:
