@@ -1,9 +1,10 @@
 affine
 descarteslabs==2.1.2
-earthengine-api==0.1.383
+earthengine-api
 geopandas
 tensorflow==2.14.0
-torch==2.6.0
+torch
+torchvision
 rasterio
 rasterstats
 tqdm
