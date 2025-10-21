@@ -39,7 +39,7 @@ if platform.system() == 'Darwin':
 
 @dataclass
 class DataConfig:
-    tilesize: int = 528
+    tilesize: int = 576
     pad: int = 0
     collection: str = "S2L1C"
     bands: Optional[List[str]] = None
