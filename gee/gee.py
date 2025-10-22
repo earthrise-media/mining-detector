@@ -497,10 +497,15 @@ class InferenceEngine:
             return polys_gdf
 
         polys_gdf = polys_gdf[~polys_gdf.geometry.is_empty].copy()
+        
+        # Compute polygon area in hectares (ensure tile CRS in meters)
+        polys_proj = polys_gdf.to_crs(tile.crs)
+        polys_gdf["Polygon area (ha)"] = polys_proj.geometry.area / 10_000.0
+    
         transform = self.data_extractor._get_affine_transform(tile.geotrans)
         mask = (ndvi < self.config.ndvi_threshold).astype(np.uint8)
         stats = zonal_stats(
-            polys_gdf.to_crs(tile.crs).geometry,
+            polys_proj.geometry,
             mask,
             affine=transform,
             categorical=True,
