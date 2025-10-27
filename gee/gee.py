@@ -537,10 +537,9 @@ class InferenceEngine:
                 drop=True)
             polys_gdf.geometry = polys_gdf.buffer(-buffer_width, join_style=2)
 
-        polys_gdf["confidence"] = polys_gdf.apply(
-            lambda x: df.iloc[df.sindex.query(x.geometry)]["confidence"].mean(),
-            axis=1
-        )
+        joined = gpd.sjoin(df, polys_gdf, predicate="intersects", how="inner")
+        mean_conf = joined.groupby("index_right")["confidence"].mean()
+        polys_gdf["confidence"] = polys_gdf.index.map(mean_conf)
         return polys_gdf
 
     def predict_on_tile_pixels(
