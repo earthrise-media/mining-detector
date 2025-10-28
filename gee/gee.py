@@ -835,6 +835,7 @@ class Masker:
         """Compute NDVI-based masked area for polygons."""
         polys_gdf = polys_gdf.to_crs("EPSG:4326")
         region = polys_gdf.unary_union
+        region = region.simplify(0.00005, preserve_topology=True)
         tiles = create_tiles(region, self.data_extractor.config.tilesize,
                              self.data_extractor.config.pad)
         print(f'{len(tiles)} tiles created.')

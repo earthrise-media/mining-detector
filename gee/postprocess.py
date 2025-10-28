@@ -20,9 +20,10 @@ def valid_date(s: str) -> str:
         return s
     raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
 
-def dissolve(gdf: gpd.GeoDataFrame, buffer_deg: float = 0.00001,
-             conf_field: str = "confidence") -> gpd.GeoDataFrame:
-    """Buffered dissolve of polygons; aggregates confidence as mean."""
+def dissolve_patches(
+    gdf: gpd.GeoDataFrame, buffer_deg: float = 0.00001,
+    conf_field: str = "confidence") -> gpd.GeoDataFrame:
+    """Buffered dissolve of detection patches; aggregates confidence as mean."""
     gdf = gdf.copy()
     
     with warnings.catch_warnings():
@@ -57,7 +58,8 @@ def main(args):
     if args.threshold is not None:
         gdf = gdf[gdf["confidence"] >= args.threshold].copy()
 
-    gdf = dissolve(gdf)
+    if args.dissolve:
+        gdf = dissolve_patches(gdf)
 
     if args.ndvi_threshold is not None:
         extractor = gee.GEE_Data_Extractor(
@@ -104,6 +106,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--threshold", type=float, default=None,
         help="Overall confidence threshold applied before dissolving.",
+    )
+    parser.add_argument(
+        "--dissolve", action="store_true",
+        help="Run buffered dissolve (dissolve_patches). Default is False.",
     )
     parser.add_argument(
         "--ndvi_threshold", type=float, default=None,
