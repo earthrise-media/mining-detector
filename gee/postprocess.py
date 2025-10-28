@@ -37,7 +37,7 @@ def dissolve(gdf: gpd.GeoDataFrame, buffer_deg: float = 0.00001,
     dissolved[conf_field] = mean_conf.reindex(dissolved.index)
 
     dissolved.set_crs(gdf.crs, inplace=True)
-    print(f'Dissolved {len(gdf}} to {len(dissolved)} polygons.')
+    print(f'Dissolved {len(gdf)} to {len(dissolved)} polygons.')
     return dissolved
 
 def filter_small_polygons(
