@@ -15,6 +15,7 @@ import ee
 import geopandas as gpd
 from google.api_core import retry
 import numpy as np
+import pandas as pd
 import rasterio
 from rasterstats import zonal_stats
 import tensorflow as tf
@@ -22,7 +23,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from tile_utils import CenteredTile, ensure_tile_shape, chips_from_tile
+from tile_utils import CenteredTile, chips_from_tile, create_tiles, ensure_tile_shape
 
 TileType = Union[DLTile, CenteredTile]
 
@@ -56,6 +57,11 @@ class DataConfig:
         "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7",
                   "B8A", "B8", "B9", "B11", "B12"],
         "EmbeddingsV1": [f"A{x:02d}" for x in range(64)],
+    }
+
+    _NDVI_BANDS: ClassVar[Dict[str, str]] = {
+        "red": "B4",
+        "nir": "B8A"
     }
 
     def __post_init__(self):
@@ -96,7 +102,7 @@ class GEE_Data_Extractor:
     def _build_composite(self, start_date: str, end_date: str):
         collection = self.config.collection
         clear_threshold = self.config.clear_threshold
-        
+      
         if collection in ['S2L1C', 'S2L1C-12band']:
             s2 = ee.ImageCollection("COPERNICUS/S2_HARMONIZED")
             csPlus = ee.ImageCollection(
@@ -213,7 +219,7 @@ class GEE_Data_Extractor:
             data = list(executor.map(self.get_tile_data, tiles))
 
         return data
-
+    
     def _get_affine_transform(
         self,
         transform: Union[Affine,
@@ -277,6 +283,9 @@ class InferenceEngine:
         self.config = config
         self.embed_model = embed_model
         self.logger = logger or logging.getLogger()
+
+        if config.ndvi_threshold:
+            self.masker = Masker(data_extractor, config.ndvi_threshold)
 
         if self.embed_model is not None and self.config.geo_chip_size is None:
             raise ValueError(
@@ -470,52 +479,6 @@ class InferenceEngine:
         pixels = self.data_extractor.get_tile_data(tile) 
         return {"mode": "pixels", "pixels": pixels, "tile": tile}
 
-    def _compute_ndvi(self, pixels: np.ndarray) -> np.ndarray:
-        """Compute NDVI."""
-        collection = self.data_extractor.config.collection
-        band_ids = self.data_extractor.config._BAND_IDS[collection]
-    
-        try:
-            red_idx = band_ids.index("B4")
-            nir_idx = band_ids.index("B8A")
-        except ValueError as e:
-            raise ValueError(
-                f"Cannot find required bands in collection {collection}") from e
-
-        red = pixels[:, :, red_idx]
-        nir = pixels[:, :, nir_idx]
-        ndvi = (nir - red) / (nir + red + 1e-6)
-        return ndvi
-
-    def _compute_masked_area(
-        self,
-        polys_gdf: gpd.GeoDataFrame,
-        ndvi: np.ndarray,
-        tile: TileType) -> gpd.GeoDataFrame:
-        """Count pixels below NDVI threshold. Adds column "Area (ha)"."""
-        if self.config.ndvi_threshold is None:
-            return polys_gdf
-
-        polys_gdf = polys_gdf[~polys_gdf.geometry.is_empty].copy()
-        
-        # Compute polygon area in hectares (ensure tile CRS in meters)
-        polys_proj = polys_gdf.to_crs(tile.crs)
-        polys_gdf["Polygon area (ha)"] = polys_proj.geometry.area / 10_000.0
-    
-        transform = self.data_extractor._get_affine_transform(tile.geotrans)
-        mask = (ndvi < self.config.ndvi_threshold).astype(np.uint8)
-        stats = zonal_stats(
-            polys_proj.geometry,
-            mask,
-            affine=transform,
-            categorical=True,
-            all_touched=False,
-        )
-
-        polys_gdf["Area (ha)"] = np.array(
-            [s.get(1, 0) for s in stats], dtype=np.float32) / 100.0        
-        return polys_gdf
-
     def _dissolve(self, preds_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         """Dissolve overlapping predicted chips into polygons."""
         if preds_gdf.empty:
@@ -581,8 +544,10 @@ class InferenceEngine:
                 polys_gdf = self._dissolve(preds_gdf)
 
             if self.config.ndvi_threshold is not None and not polys_gdf.empty:
-                ndvi = self._compute_ndvi(pixels)
-                polys_gdf = self._compute_masked_area(polys_gdf, ndvi, tile)
+                ndvi = self.masker.compute_ndvi(pixels)
+                mask = (ndvi < self.config.ndvi_threshold).astype(np.uint8)
+                polys_gdf = self.masker.compute_masked_area(
+                    polys_gdf, mask, tile)
 
             return preds_gdf, polys_gdf, None
 
@@ -749,7 +714,7 @@ class InferenceEngine:
                         'epsg:4326', allow_override=True)
                     polys = self._ensure_gdf(
                         gpd.pd.concat([polys, batch_polys_gdf],
-                                      ignore_index=True) )
+                                      ignore_index=True))
 
                     if outpath is not None:
                         dissolved_path = Path(outpath).with_name(
@@ -786,3 +751,119 @@ class InferenceEngine:
         pixels = self.data_extractor.get_tile_data(tile)
         preds_gdf, polys_gdf, _ = self.predict_on_tile_pixels(pixels, tile)
         return preds_gdf, polys_gdf
+
+class Masker:
+    """Computes pixel-based masks and masked areas for polygons."""
+    def __init__(
+        self, data_extractor: GEE_Data_Extractor, ndvi_threshold: float):
+        self.data_extractor = data_extractor
+        self.ndvi_threshold = ndvi_threshold
+
+    def compute_ndvi(self, pixels: np.ndarray) -> np.ndarray:
+        """Compute NDVI from pixel array."""
+        red_idx = self.data_extractor.config.bands.index(
+            self.data_extractor.config._NDVI_BANDS['red'])
+        nir_idx = self.data_extractor.config.bands.index(
+            self.data_extractor.config._NDVI_BANDS['nir'])
+        red = pixels[:, :, red_idx]
+        nir = pixels[:, :, nir_idx]
+        return (nir - red) / (nir + red + 1e-6)
+
+    def compute_masked_area(
+        self,
+        polys_gdf: gpd.GeoDataFrame,
+        mask: np.ndarray,
+        tile: TileType) -> gpd.GeoDataFrame:
+        """Compute masked area for polygons given a binary mask."""
+        polys_gdf = polys_gdf[~polys_gdf.geometry.is_empty].copy()
+        polys_proj = polys_gdf.to_crs(tile.crs)
+        polys_gdf["Polygon area (ha)"] = polys_proj.geometry.area / 10_000.0
+
+        transform = self.data_extractor._get_affine_transform(tile.geotrans)
+        stats = zonal_stats(
+            polys_proj.geometry,
+            mask.astype(np.uint8),
+            affine=transform,
+            categorical=True,
+            all_touched=False
+        )
+
+        polys_gdf["Area (ha)"] = np.array([s.get(1, 0) for s in stats],
+                                          dtype=np.float32) / 100.0
+        return polys_gdf
+
+    def dissolve(
+        self,
+        polys_gdf: gpd.GeoDataFrame,
+        area_fields: List[str] = ["Polygon area (ha)", "Area (ha)"],
+        conf_field: str = "confidence",
+        buffer_deg: float = 0.00001) -> gpd.GeoDataFrame:
+        """Dissolve polygons using buffer+sjoin and aggregate attributes."""
+        gdf = polys_gdf.copy()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            dissolved_geom = gdf.buffer(buffer_deg, join_style=2).unary_union
+            dissolved = gpd.GeoDataFrame(geometry=[dissolved_geom],
+                                         crs=polys_gdf.crs)
+            dissolved = dissolved.explode(index_parts=False).reset_index(
+                drop=True)
+            dissolved.geometry = dissolved.buffer(-buffer_deg, join_style=2)
+
+        joined = gpd.sjoin(gdf, dissolved, how="inner", predicate="intersects")
+        grouped = joined.groupby("index_right")
+
+        records = []
+        for idx, group in grouped:
+            rec = {}
+            rec["geometry"] = dissolved.loc[idx, "geometry"]
+            for af in area_fields:
+                rec[af] = group[af].sum()
+            # Weighted confidence average
+            weights = group[area_fields[0]]
+            if weights.sum() > 0:
+                rec[conf_field] = ((group[conf_field] * weights).sum() /
+                    weights.sum())
+            else:
+                rec[conf_field] = group[conf_field].mean()
+            records.append(rec)
+
+        return gpd.GeoDataFrame(records, crs=polys_gdf.crs)
+
+    def ndvi_mask_polygons(
+        self, polys_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        """Compute NDVI-based masked area for polygons."""
+        polys_gdf = polys_gdf.to_crs("EPSG:4326")
+        region = polys_gdf.unary_union
+        tiles = create_tiles(region, self.data_extractor.config.tilesize,
+                             self.data_extractor.config.pad)
+        print(f'{len(tiles)} tiles created.')
+        
+        results = []
+
+        def process_tile(tile: TileType):
+            tile_polys = gpd.clip(polys_gdf, tile.geometry)
+            if tile_polys.empty:
+                return gpd.GeoDataFrame(
+                    columns=polys_gdf.columns, crs=polys_gdf.crs)
+            pixels = self.data_extractor.get_tile_data(tile)
+            ndvi = self.compute_ndvi(pixels)
+            mask = (ndvi < self.ndvi_threshold).astype(np.uint8)
+            return self.compute_masked_area(tile_polys, mask, tile)
+
+        with ThreadPoolExecutor(
+            max_workers=self.data_extractor.config.max_workers) as ex:
+            for masked in ex.map(process_tile, tiles):
+                if masked is not None:
+                    results.append(masked)
+
+        if results:
+            masked_polys = gpd.GeoDataFrame(
+                pd.concat(results).reset_index(drop=True),
+                crs=polys_gdf.crs
+            )
+            masked_polys = self.dissolve(masked_polys)
+            return masked_polys
+        else:
+            return gpd.GeoDataFrame(
+                columns=polys_gdf.columns, crs=polys_gdf.crs)
