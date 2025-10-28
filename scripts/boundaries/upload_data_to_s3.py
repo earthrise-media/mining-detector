@@ -1,0 +1,87 @@
+# Uploads the processed data to S3.
+# Environment variables (should be set in .env file):
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_REGION
+# - AWS_BUCKET
+
+# You can run this script with uv if you prefer,
+# see https://docs.astral.sh/uv/guides/scripts/.
+# To run: `uv run scripts/boundaries/upload_data_to_s3.py`.
+
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "boto3",
+#     "dotenv",
+# ]
+# ///
+
+import os
+import sys
+from pathlib import Path
+import boto3
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# File paths to upload
+FILE_PATHS = [
+    "data/boundaries/national_admin/out/national_admin_impacts.geojson",
+    "data/boundaries/national_admin/out/national_admin_yearly.json",
+    "data/boundaries/subnational_admin/out/admin_areas_display_impacts_unfiltered.geojson",
+    "data/boundaries/subnational_admin/out/admin_areas_display_yearly.json",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_yearly.json",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
+    "data/outputs/48px_v3.2-3.7ensemble/difference/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
+
+    # # old ones 
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
+    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
+]
+
+CONTENT_TYPES = {".json": "application/json", ".geojson": "application/geo+json"}
+
+def main():
+    required_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_BUCKET"]
+    if missing := [v for v in required_vars if not os.getenv(v)]:
+        sys.exit(f"Missing environment variables: {', '.join(missing)}")
+
+    s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
+    bucket = os.getenv("AWS_BUCKET")
+    
+    failed = []
+    for path in FILE_PATHS:
+        if not Path(path).exists():
+            print(f"✗ Missing: {path}")
+            failed.append(path)
+            continue
+        
+        content_type = CONTENT_TYPES.get(Path(path).suffix.lower(), "application/octet-stream")
+        s3.upload_file(path, bucket, path, ExtraArgs={"ContentType": content_type})
+        print(f"✓ Uploaded {path}")
+
+    if cf_id := os.getenv("CLOUDFRONT_DISTRIBUTION_ID"):
+        cf = boto3.client("cloudfront", region_name=os.getenv("AWS_REGION"))
+        cf.create_invalidation(
+            DistributionId=cf_id,
+            InvalidationBatch={
+                "Paths": {"Quantity": 1, "Items": ["/data/*"]},
+                "CallerReference": str(int(os.times().elapsed * 1000)),
+            }
+        )
+        print("\n✓ Invalidated CloudFront cache")
+
+    print(f"\n{len(FILE_PATHS) - len(failed)}/{len(FILE_PATHS)} files uploaded")
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

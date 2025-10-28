@@ -49,6 +49,7 @@ MINING_GEOJSONS = [
     "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
 ]
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
+ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v1_areas.geojson"
 PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/out"
 )
@@ -323,6 +324,7 @@ def intersect_with_areas_of_interest_and_summarize(
             "admin_name_field",
             "admin_id_field",
             "admin_year",
+            "admin_illegality_max",
         ]
     )[["intersected_area_ha"]].sum()
     # save to csv
@@ -444,13 +446,65 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
     return result
 
 
+def overlay_max_category(
+    illegality_gdf: gpd.GeoDataFrame,
+    mining_gdf: gpd.GeoDataFrame,
+    category_col: str,
+) -> gpd.GeoDataFrame:
+    """
+    Overlays illegality_gdf with mining_gdf and assigns to each polygon in mining_gdf the maximum value
+    of `category_col` from overlapping polygons in illegality_gdf.
+
+    Parameters
+    ----------
+    illegality_gdf : GeoDataFrame
+        Source GeoDataFrame containing the 'Category_1' column.
+    mining_gdf : GeoDataFrame
+        Target GeoDataFrame to which max values will be added.
+    category_col : str, optional
+        Column name in illegality_gdf containing numeric category values/
+
+    Returns
+    -------
+    GeoDataFrame
+        mining_gdf with an additional column '{category_col}_max' containing the max values.
+    """
+
+    # Ensure both GeoDataFrames share the same CRS
+    if illegality_gdf.crs != mining_gdf.crs:
+        illegality_gdf = illegality_gdf.to_crs(mining_gdf.crs)
+
+    # Spatial join instead of overlay to preserve original indices
+    joined = gpd.sjoin(
+        mining_gdf,
+        illegality_gdf[[category_col, "geometry"]],
+        how="left",
+        predicate="intersects",
+    )
+
+    # Group by original gdfB index and find max of category_col from gdfA
+    max_vals = joined.groupby(joined.index)[category_col].max()
+
+    # Copy mining_gdf and assign new column
+    mining_gdf_out = mining_gdf.copy()
+    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out.index.map(max_vals)
+
+    return mining_gdf_out
+
+
 if __name__ == "__main__":
     admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GEOJSON)
+    illegality_areas_gdf = gpd.read_file(ILLEGALITY_AREAS_GEOJSON)
 
     for file in MINING_GEOJSONS:
         mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
         print(f"Reading: {mining_file}")
         mining_gdf = gpd.read_file(mining_file)
+
+        # overlay illegality data
+        mining_gdf = overlay_max_category(
+            illegality_areas_gdf, mining_gdf, "illegality"
+        )
 
         # intersect mining with admin boundaries and calculate areas (once per mining file)
         intersected_with_admin = intersect_and_calculate_areas(
@@ -509,6 +563,22 @@ if __name__ == "__main__":
             summary_mining_affected_area_ha = summary.groupby("id")[
                 "intersected_area_ha"
             ].sum()
+            summary_illegality = (
+                summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
+                .sum()
+                .round(2)
+                .reset_index()
+                .rename(columns={"intersected_area_ha": "mining_affected_area"})
+            )
+            illegality_by_id = (
+                summary_illegality.groupby("id")
+                .apply(
+                    lambda g: g[
+                        ["admin_illegality_max", "mining_affected_area"]
+                    ].to_dict("records")
+                )
+                .to_dict()
+            )
 
             summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
                 summary
@@ -536,6 +606,17 @@ if __name__ == "__main__":
                         # we need to get the affected area from the original summary df,
                         # since the mining calculator doesn't return results for every possible area
                         "mining_affected_area_ha": summary_mining_affected_area_ha[id],
+                        "illegality_areas": [
+                            {
+                                **x,
+                                "mining_affected_area_pct": round(
+                                    x["mining_affected_area"]
+                                    / summary_mining_affected_area_ha[id],
+                                    3,
+                                ),
+                            }
+                            for x in illegality_by_id.get(id, [])
+                        ],
                     }
                     for id, v in result.items()
                 ]
