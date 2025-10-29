@@ -875,12 +875,12 @@ class Masker:
                         print(f"Tile failed with error: {e}", flush=True)
 
             if batch_results:
-                batch_gdf = pd.concat(results, ignore_index=True)
+                batch_gdf = pd.concat(batch_results, ignore_index=True)
                 results.append(batch_gdf)
 
         if results:
             masked_polys = gpd.GeoDataFrame(
-                pd.concat(results).reset_index(drop=True), crs=polys_gdf.crs)
+                pd.concat(results, ignore_index=True), crs=polys_gdf.crs)
             masked_polys = self.dissolve(masked_polys)
             return masked_polys
         else:
