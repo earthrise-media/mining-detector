@@ -62,12 +62,6 @@ NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
 SUBNATIONAL_ADMIN_FOLDER = "data/boundaries/subnational_admin/out"
 SUBNATIONAL_ADMIN_GEOJSON = f"{SUBNATIONAL_ADMIN_FOLDER}/admin_areas_display.geojson"
 
-with open("scripts/boundaries/mining_calculator_ignore.json") as f:
-    # these are regions which are missing in the mining calculator and should be ignored,
-    # otherwise the calculator throws an error when making a request
-    REGIONS_TO_IGNORE = json.load(f)
-
-
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
     zone_min = 32718
@@ -389,27 +383,19 @@ def enrich_summary_with_mining_calculator_and_save(summary, output_file):
 
     def create_locations_dict(group):
         locations = []
-        exclusion_set = {
-            (item["countryCode"], item["regionId"]) for item in REGIONS_TO_IGNORE
-        }
-
         for _, row in group.iterrows():
             country_clean = cleanup_country_code(row["admin_country_code"])
             region_id_clean = cleanup_region_id(
                 row["admin_id_field"], row["admin_country_code"]
             )
 
-            # skip if this combination exists in the exclusion list
-            if (country_clean, region_id_clean) in exclusion_set:
-                continue
-
             # ignore if location has no affected area, areas <= 0 break the calculator
             if row["intersected_area_ha"] <= 0:
                 continue
 
-            # ignore Venezuala and French Guyana, not included in mining calculator
-            if country_clean == "VE" or country_clean == "GF":
-                continue
+            # # ignore Venezuala and French Guyana, not included in mining calculator
+            # if country_clean == "VE" or country_clean == "GF":
+            #     continue
 
             locations.append(
                 {
@@ -458,37 +444,56 @@ def overlay_max_category(
     Parameters
     ----------
     illegality_gdf : GeoDataFrame
-        Source GeoDataFrame containing the 'Category_1' column.
+        Source GeoDataFrame containing the illegality data column.
     mining_gdf : GeoDataFrame
         Target GeoDataFrame to which max values will be added.
-    category_col : str, optional
-        Column name in illegality_gdf containing numeric category values/
+    category_col : str
+        Column name in illegality_gdf containing numeric category values.
 
     Returns
     -------
     GeoDataFrame
         mining_gdf with an additional column '{category_col}_max' containing the max values.
     """
-
+    
     # Ensure both GeoDataFrames share the same CRS
     if illegality_gdf.crs != mining_gdf.crs:
         illegality_gdf = illegality_gdf.to_crs(mining_gdf.crs)
-
-    # Spatial join instead of overlay to preserve original indices
-    joined = gpd.sjoin(
-        mining_gdf,
-        illegality_gdf[[category_col, "geometry"]],
-        how="left",
-        predicate="intersects",
-    )
-
-    # Group by original gdfB index and find max of category_col from gdfA
-    max_vals = joined.groupby(joined.index)[category_col].max()
-
+    
+    # Create spatial index for illegality_gdf if it doesn't exist
+    illegality_sindex = illegality_gdf.sindex
+    
+    # Pre-extract geometries and values for faster access
+    illegality_geoms = illegality_gdf.geometry.values
+    illegality_vals = illegality_gdf[category_col].values
+    
+    # Initialize result array with NaN
+    max_vals = np.full(len(mining_gdf), np.nan)
+    
+    # Process each mining polygon
+    for idx, mining_geom in enumerate(mining_gdf.geometry):
+        # Use spatial index to find potential matches (bounding box intersection)
+        possible_matches_idx = list(illegality_sindex.intersection(mining_geom.bounds))
+        
+        if not possible_matches_idx:
+            continue
+        
+        # Check actual intersections and find max value
+        max_val = np.nan
+        for ill_idx in possible_matches_idx:
+            if mining_geom.intersects(illegality_geoms[ill_idx]):
+                val = illegality_vals[ill_idx]
+                if np.isnan(max_val) or val > max_val:
+                    max_val = val
+        
+        max_vals[idx] = max_val
+    
     # Copy mining_gdf and assign new column
     mining_gdf_out = mining_gdf.copy()
-    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out.index.map(max_vals)
-
+    mining_gdf_out[f"{category_col}_max"] = max_vals
+    # We need to fill with -1 because the dataframe gets grouped by this column later,
+    # and if it is null it will dissappear
+    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[f"{category_col}_max"].fillna(-1)
     return mining_gdf_out
 
 
