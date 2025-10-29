@@ -788,14 +788,14 @@ class Masker:
             all_touched=False
         )
 
-        polys_gdf["Area (ha)"] = np.array([s.get(1, 0) for s in stats],
-                                          dtype=np.float32) / 100.0
+        polys_gdf["Mined area (ha)"] = np.array([s.get(1, 0) for s in stats],
+                                                dtype=np.float32) / 100.0
         return polys_gdf
 
     def dissolve(
         self,
         polys_gdf: gpd.GeoDataFrame,
-        area_fields: List[str] = ["Polygon area (ha)", "Area (ha)"],
+        area_fields: List[str] = ["Polygon area (ha)", "Mined area (ha)"],
         conf_field: str = "confidence",
         buffer_deg: float = 0.00001) -> gpd.GeoDataFrame:
         """Dissolve polygons using buffer+sjoin and aggregate attributes."""
