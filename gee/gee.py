@@ -819,28 +819,31 @@ class Masker:
             rec["geometry"] = dissolved.loc[idx, "geometry"]
             for af in area_fields:
                 rec[af] = group[af].sum()
+                
             # Weighted confidence average
-            weights = group[area_fields[0]]
-            if weights.sum() > 0:
-                rec[conf_field] = ((group[conf_field] * weights).sum() /
-                    weights.sum())
-            else:
-                rec[conf_field] = group[conf_field].mean()
+            if conf_field in gdf.columns:
+                weights = group[area_fields[0]]
+                if weights.sum() > 0:
+                    rec[conf_field] = ((group[conf_field] * weights).sum() /
+                        weights.sum())
+                else:
+                    rec[conf_field] = group[conf_field].mean()
+                    
             records.append(rec)
 
         return gpd.GeoDataFrame(records, crs=polys_gdf.crs)
 
     def ndvi_mask_polygons(
-        self, polys_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        self, polys_gdf: gpd.GeoDataFrame,
+        smoothing_deg=0.00005, max_concurrent_tiles=500) -> gpd.GeoDataFrame:
         """Compute NDVI-based masked area for polygons."""
         polys_gdf = polys_gdf.to_crs("EPSG:4326")
         region = polys_gdf.unary_union
-        region = region.simplify(0.00005, preserve_topology=True)
+        # Smooth to speed tile creation 
+        region = region.simplify(smoothing_deg, preserve_topology=True)
         tiles = create_tiles(region, self.data_extractor.config.tilesize,
                              self.data_extractor.config.pad)
         print(f'{len(tiles)} tiles created.')
-        
-        results = []
 
         def process_tile(tile: TileType):
             tile_polys = gpd.clip(polys_gdf, tile.geometry)
@@ -852,17 +855,32 @@ class Masker:
             mask = (ndvi < self.ndvi_threshold).astype(np.uint8)
             return self.compute_masked_area(tile_polys, mask, tile)
 
-        with ThreadPoolExecutor(
-            max_workers=self.data_extractor.config.max_workers) as ex:
-            for masked in ex.map(process_tile, tiles):
-                if masked is not None:
-                    results.append(masked)
+        results = []
+        for i in tqdm(range(0, len(tiles), max_concurrent_tiles),
+                      desc="Processing tiles"):
+            batch_tiles = tiles[i : i + max_concurrent_tiles]
+            batch_results = []
+
+            with ThreadPoolExecutor(
+                max_workers=self.data_extractor.config.max_workers) as ex:
+                futures = {
+                    ex.submit(process_tile, tile): tile for tile in batch_tiles
+                }
+                for future in as_completed(futures):
+                    try:
+                        masked = future.result()
+                        if masked is not None and not masked.empty:
+                            batch_results.append(masked)
+                    except Exception as e:
+                        print(f"Tile failed with error: {e}", flush=True)
+
+            if batch_results:
+                batch_gdf = pd.concat(results, ignore_index=True)
+                results.append(batch_gdf)
 
         if results:
             masked_polys = gpd.GeoDataFrame(
-                pd.concat(results).reset_index(drop=True),
-                crs=polys_gdf.crs
-            )
+                pd.concat(results).reset_index(drop=True), crs=polys_gdf.crs)
             masked_polys = self.dissolve(masked_polys)
             return masked_polys
         else:
