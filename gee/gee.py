@@ -865,9 +865,8 @@ class Masker:
         self, polys_gdf: gpd.GeoDataFrame,
         max_concurrent_tiles=500) -> gpd.GeoDataFrame:
         """Compute NDVI-based masked area for polygons."""
+        
         polys_gdf = polys_gdf.to_crs("EPSG:4326")
-        region = polys_gdf.unary_union
-
         region_gdf = self._simplify_for_tiling(polys_gdf)
         tiles = create_tiles(
             region_gdf.unary_union,
@@ -876,7 +875,7 @@ class Masker:
         )
         print(f'{len(tiles)} tiles created.')
 
-        # --- precompute intersections single-threaded ---
+        # --- precompute intersections single-threaded - not thread safe ---
         tiles_w_polys = []
         for tile in tqdm(tiles, desc="Clipping polygons"):
             tile_polys = gpd.clip(polys_gdf, tile.geometry)
@@ -909,12 +908,7 @@ class Masker:
                             batch_results.append(masked)
                     except Exception as e:
                         print(f"Tile failed with error: {e}", flush=True)
-            """
-            for tile in tqdm(batch_tiles):
-                masked = process_tile(tile)
-                if masked is not None and not masked.empty:
-                    batch_results.append(masked)
-            """
+
             if batch_results:
                 batch_gdf = pd.concat(batch_results, ignore_index=True)
                 results.append(batch_gdf)
