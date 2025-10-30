@@ -491,9 +491,9 @@ def overlay_max_category(
     # Copy mining_gdf and assign new column
     mining_gdf_out = mining_gdf.copy()
     mining_gdf_out[f"{category_col}_max"] = max_vals
-    # We need to fill with -1 because the dataframe gets grouped by this column later,
+    # We need to fill with 0 because the dataframe gets grouped by this column later,
     # and if it is null it will dissappear
-    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[f"{category_col}_max"].fillna(-1)
+    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[f"{category_col}_max"].fillna(0)
     return mining_gdf_out
 
 
