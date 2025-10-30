@@ -833,16 +833,47 @@ class Masker:
 
         return gpd.GeoDataFrame(records, crs=polys_gdf.crs)
 
+    def _simplify_for_tiling(
+        self, gdf: gpd.GeoDataFrame, tol: float = 0.01) -> gpd.GeoDataFrame:
+        """Simplify polygons for tile creation."""
+        gdf = gdf.copy()
+        gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=True)
+
+        def _drop_holes(geom):
+            if geom.is_empty or geom is None:
+                return None
+            if geom.geom_type == "Polygon":
+                return type(geom)(geom.exterior)
+            elif geom.geom_type == "MultiPolygon":
+                return type(geom)([type(p)(p.exterior) for p in geom.geoms
+                                       if not p.is_empty])
+            else:
+                return geom
+
+            gdf["geometry"] = gdf.geometry.map(_drop_holes)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            gdf["geometry"] = gdf.buffer(0)
+
+        gdf = gdf[gdf.is_valid & ~gdf.is_empty].reset_index(drop=True)
+
+        return gdf
+
+    
     def ndvi_mask_polygons(
         self, polys_gdf: gpd.GeoDataFrame,
-        smoothing_deg=0.00005, max_concurrent_tiles=500) -> gpd.GeoDataFrame:
+        max_concurrent_tiles=500) -> gpd.GeoDataFrame:
         """Compute NDVI-based masked area for polygons."""
         polys_gdf = polys_gdf.to_crs("EPSG:4326")
         region = polys_gdf.unary_union
-        # Smooth to speed tile creation 
-        region = region.simplify(smoothing_deg, preserve_topology=True)
-        tiles = create_tiles(region, self.data_extractor.config.tilesize,
-                             self.data_extractor.config.pad)
+
+        region_gdf = self._simplify_for_tiling(polys_gdf)
+        tiles = create_tiles(
+            region_gdf.unary_union,
+            self.data_extractor.config.tilesize,
+            self.data_extractor.config.pad
+        )
         print(f'{len(tiles)} tiles created.')
 
         def process_tile(tile: TileType):
@@ -861,6 +892,7 @@ class Masker:
             batch_tiles = tiles[i : i + max_concurrent_tiles]
             batch_results = []
 
+            """
             with ThreadPoolExecutor(
                 max_workers=self.data_extractor.config.max_workers) as ex:
                 futures = {
@@ -873,6 +905,11 @@ class Masker:
                             batch_results.append(masked)
                     except Exception as e:
                         print(f"Tile failed with error: {e}", flush=True)
+            """
+            for tile in tqdm(batch_tiles):
+                masked = process_tile(tile)
+                if masked is not None and not masked.empty:
+                    batch_results.append(masked)
 
             if batch_results:
                 batch_gdf = pd.concat(batch_results, ignore_index=True)
