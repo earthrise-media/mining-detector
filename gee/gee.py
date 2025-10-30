@@ -876,27 +876,31 @@ class Masker:
         )
         print(f'{len(tiles)} tiles created.')
 
-        def process_tile(tile: TileType):
+        # --- precompute intersections single-threaded ---
+        tiles_w_polys = []
+        for tile in tqdm(tiles, desc="Clipping polygons"):
             tile_polys = gpd.clip(polys_gdf, tile.geometry)
-            if tile_polys.empty:
-                return gpd.GeoDataFrame(
-                    columns=polys_gdf.columns, crs=polys_gdf.crs)
+            if not tile_polys.empty:
+                tiles_w_polys.append((tile, tile_polys))
+
+        # --- NDVI masking multi-threaded --- 
+        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
             pixels = self.data_extractor.get_tile_data(tile)
             ndvi = self.compute_ndvi(pixels)
             mask = (ndvi < self.ndvi_threshold).astype(np.uint8)
             return self.compute_masked_area(tile_polys, mask, tile)
 
         results = []
-        for i in tqdm(range(0, len(tiles), max_concurrent_tiles),
+        for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
                       desc="Processing tiles"):
-            batch_tiles = tiles[i : i + max_concurrent_tiles]
+            batch = tiles_w_polys[i : i + max_concurrent_tiles]
             batch_results = []
 
-            """
             with ThreadPoolExecutor(
                 max_workers=self.data_extractor.config.max_workers) as ex:
                 futures = {
-                    ex.submit(process_tile, tile): tile for tile in batch_tiles
+                    ex.submit(process_tile, tile, tp): tile for tile, tp
+                        in batch
                 }
                 for future in as_completed(futures):
                     try:
@@ -910,7 +914,7 @@ class Masker:
                 masked = process_tile(tile)
                 if masked is not None and not masked.empty:
                     batch_results.append(masked)
-
+            """
             if batch_results:
                 batch_gdf = pd.concat(batch_results, ignore_index=True)
                 results.append(batch_gdf)
