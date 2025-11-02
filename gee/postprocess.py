@@ -95,12 +95,6 @@ if __name__ == "__main__":
         "--outpath", required=True,
         help="Output GeoJSON file path.",
     )
-    parser.add_argument(
-        "--start_date", type=valid_date, required=True,
-        help="Start date in YYYY-MM-DD format")
-    parser.add_argument(
-        "--end_date", type=valid_date, required=True,
-        help="End date in YYYY-MM-DD format")
 
     # Postprocessing options
     parser.add_argument(
@@ -115,6 +109,12 @@ if __name__ == "__main__":
         "--ndvi_threshold", type=float, default=None,
         help="NDVI threshold for masking (omit to skip NDVI masking).",
     )
+    parser.add_argument(
+        "--start_date", type=valid_date,
+        help="Start date in YYYY-MM-DD format")
+    parser.add_argument(
+        "--end_date", type=valid_date,
+        help="End date in YYYY-MM-DD format")
     parser.add_argument("--low_area_size",
         type=float, default=30.0,
         help="Area (ha) below which to apply stricter confidence filtering.",
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     # DataConfig args
     data_defaults = gee.DataConfig()
-    
+
     parser.add_argument("--tilesize", type=int,
                         default=data_defaults.tilesize,
                         help="Tile width in pixels for requests to GEE")
@@ -148,6 +148,12 @@ if __name__ == "__main__":
                         help="Optional directory to save/reload image rasters")
 
     args = parser.parse_args()
+
+    if args.ndvi_threshold is not None:
+        if args.start_date is None or args.end_date is None:
+            parser.error("--start_date and --end_date are required "
+                         "when --ndvi_threshold is provided.")
+            
     config_dict = {
         f.name: getattr(args, f.name, None) for f in fields(gee.DataConfig)
     }
