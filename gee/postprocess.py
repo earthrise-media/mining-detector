@@ -70,8 +70,9 @@ def main(args):
         masker = gee.Masker(extractor, ndvi_threshold=args.ndvi_threshold)
         gdf = masker.ndvi_mask_polygons(gdf)
 
-    if (args.low_area_conf_threshold is not None and
-            'Polygon area (ha)' in gdf.columns): 
+    if args.low_area_conf_threshold is not None:
+        if not 'Polygon area (ha)' in gdf.columns:
+            gdf['Polygon area (ha)'] = gdf.to_crs('epsg:3857').area / 1e4
         gdf = filter_small_polygons(
             gdf, low_area_size=args.low_area_size,
             low_area_conf_threshold=args.low_area_conf_threshold)
