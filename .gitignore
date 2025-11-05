@@ -20,3 +20,4 @@ gee/tmp.geojson
 *.gpkg-wal
 .env
 .tmp
+data/outputs/test-data

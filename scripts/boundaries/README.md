@@ -7,8 +7,10 @@ MINING_CALCULATOR_API_KEY="your_key_here"
 ## Pipeline
 
 ```bash
+uv run scripts/concat_differences.py
 uv run scripts/boundaries/standardize_subnational_admin_areas.py
 uv run scripts/boundaries/standardize_national_admin_areas.py
 uv run scripts/boundaries/standardize_it_and_pa_areas.py
 uv run scripts/boundaries/preprocess_mining_areas_and_query_calculator.py
+uv run scripts/upload_data_to_s3.py
 ```

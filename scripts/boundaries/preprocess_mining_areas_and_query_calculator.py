@@ -37,7 +37,8 @@ load_dotenv()
 
 mining_calculator_api_key = os.getenv("MINING_CALCULATOR_API_KEY")
 
-MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/difference"
+# MINING_GEOJSONS_FOLDER = "data/outputs/48px_v3.2-3.7ensemble/difference"
+MINING_GEOJSONS_FOLDER = "data/outputs/test-data"
 MINING_GEOJSONS = [
     # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
     # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
@@ -46,7 +47,8 @@ MINING_GEOJSONS = [
     # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
     # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
     # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
-    "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
+    # "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
+    "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
 ]
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v1_areas.geojson"
@@ -95,6 +97,7 @@ def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
 
 
 def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
+    # FIXME: need to use Polygon area (ha) and Mined area (ha) from geojson
     if mining_gdf.crs != gdf_to_intersect.crs:
         print(
             f"CRS mismatch: mining_gdf ({mining_gdf.crs}) vs gdf_to_intersect ({gdf_to_intersect.crs})"
