@@ -80,9 +80,6 @@ class DataConfig:
 @dataclass
 class InferenceConfig:
     pred_threshold: float = 0.5
-    dissolve_threshold: float = 0.6
-    ndvi_threshold: Optional[float] = None
-    dissolve_buffer_deg: float = 0.00001
     stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
@@ -284,9 +281,6 @@ class InferenceEngine:
         self.embed_model = embed_model
         self.logger = logger or logging.getLogger()
 
-        if config.ndvi_threshold:
-            self.masker = Masker(data_extractor, config.ndvi_threshold)
-
         if self.embed_model is not None and self.config.geo_chip_size is None:
             raise ValueError(
                 "geo_chip_size must be specified when using an embed_model."
@@ -479,37 +473,10 @@ class InferenceEngine:
         pixels = self.data_extractor.get_tile_data(tile) 
         return {"mode": "pixels", "pixels": pixels, "tile": tile}
 
-    def _dissolve(self, preds_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        """Dissolve overlapping predicted chips into polygons."""
-        if preds_gdf.empty:
-            return preds_gdf
-
-        thresh = self.config.dissolve_threshold
-        df = preds_gdf[preds_gdf["confidence"] > thresh].copy()
-        if df.empty:
-            return gpd.GeoDataFrame(
-                columns=["geometry", "confidence"], crs=preds_gdf.crs)
-
-        buffer_width = self.config.dissolve_buffer_deg
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            dissolved = df.buffer(buffer_width, join_style=2).unary_union
-            polys_gdf = gpd.GeoDataFrame(geometry=[dissolved],
-                                         crs=preds_gdf.crs)
-            polys_gdf = polys_gdf.explode(index_parts=False).reset_index(
-                drop=True)
-            polys_gdf.geometry = polys_gdf.buffer(-buffer_width, join_style=2)
-
-        joined = gpd.sjoin(df, polys_gdf, predicate="intersects", how="inner")
-        mean_conf = joined.groupby("index_right")["confidence"].mean()
-        polys_gdf["confidence"] = polys_gdf.index.map(mean_conf)
-        return polys_gdf
-
     def predict_on_tile_pixels(
         self,
         pixels: np.ndarray,
-        tile: TileType) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame,
-                                 Optional[TileType]]:
+        tile: TileType) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """
         Run the per-tile pipeline starting from pixels (I/O already done).
         This is intended to run inside the consumer (serialized for GPU use).
@@ -535,48 +502,38 @@ class InferenceEngine:
                 embeddings = self.embed(chips, chip_geoms, tile)
                 preds = self.predict_on_tile_embeddings(
                     embeddings, chip_geoms, tile)
-                preds_gdf, polys_gdf, failed_tile = preds
+                preds_gdf, failed_tile = preds
                 if failed_tile is not None:
-                    return gpd.GeoDataFrame(), gpd.GeoDataFrame(), failed_tile
+                    return gpd.GeoDataFrame(), failed_tile
             else:
                 preds = self._model_infer(chips)
                 preds_gdf = self._preds_to_gdf(preds, chip_geoms)
-                polys_gdf = self._dissolve(preds_gdf)
 
-            if self.config.ndvi_threshold is not None and not polys_gdf.empty:
-                ndvi = self.masker.compute_ndvi(pixels)
-                mask = (ndvi < self.config.ndvi_threshold).astype(np.uint8)
-                polys_gdf = self.masker.compute_masked_area(
-                    polys_gdf, mask, tile)
-
-            return preds_gdf, polys_gdf, None
+            return preds_gdf, None
 
         except Exception as e:
             self.logger.error(f"Error predicting for tile {tile.key}: {e}")
-            return gpd.GeoDataFrame(), gpd.GeoDataFrame(), tile
+            return gpd.GeoDataFrame(), tile
 
     def predict_on_tile_embeddings(
         self,
         embeddings: np.ndarray,
         chip_geoms: gpd.GeoDataFrame,
-        tile: Optional[TileType]) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame,
-                                           Optional[TileType]]:
+        tile: TileType) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """Run the TF classifier on already-available embeddings."""
         try:
             preds = self._model_infer(embeddings)
             preds_gdf = self._preds_to_gdf(preds, chip_geoms)
-            polys_gdf = self._dissolve(preds_gdf)
-            return preds_gdf, polys_gdf, None
+            return preds_gdf, None
         except Exception as e:
             tile_key = getattr(tile, "key", "unknown")
             self.logger.error(f"Error predicting on embeddings for tile "
                               f"{tile_key}: {e}")
-            return gpd.GeoDataFrame(), gpd.GeoDataFrame(), tile
+            return gpd.GeoDataFrame(), tile
 
     def _consumer(
         self, q: "queue.Queue[Dict[str, Any]]", sentinel: object,
         nonlocal_predictions: List[gpd.GeoDataFrame],
-        nonlocal_polys: List[gpd.GeoDataFrame],
         fails: List[TileType], consumer_done: threading.Event,
         lock: threading.Lock):
         """Consume items from the queue, serially running inference."""
@@ -599,9 +556,8 @@ class InferenceEngine:
                     preds = self.predict_on_tile_pixels(pixels, tile_local)
                 else:
                     self.logger.error(f"Unknown queue mode: {mode}")
-                    preds = (gpd.GeoDataFrame(), gpd.GeoDataFrame(),
-                             item.get("tile"))
-                preds_gdf, polys_gdf, failed_tile = preds
+                    preds = (gpd.GeoDataFrame(), item.get("tile"))
+                preds_gdf, failed_tile = preds
                 
                 with lock:
                     if failed_tile is not None:
@@ -609,8 +565,6 @@ class InferenceEngine:
                     else:
                         if not preds_gdf.empty:
                             nonlocal_predictions.append(preds_gdf)
-                        if not polys_gdf.empty:
-                            nonlocal_polys.append(polys_gdf)
                         
                 q.task_done()
 
@@ -621,8 +575,7 @@ class InferenceEngine:
         
     def bulk_predict(
         self, tiles: List[TileType],
-        outpath: Optional[str] = None) -> tuple[gpd.GeoDataFrame,
-                                                gpd.GeoDataFrame]:
+        outpath: Optional[str] = None) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
          - producers attempt to load embeddings cache; failing, fetch pixels
@@ -631,12 +584,6 @@ class InferenceEngine:
 
         """
         predictions = gpd.GeoDataFrame({
-            "geometry": gpd.GeoSeries(dtype="geometry"),
-            "confidence": gpd.pd.Series(dtype="float"),
-            },
-            crs="epsg:4326"
-        )
-        polys = gpd.GeoDataFrame({
             "geometry": gpd.GeoSeries(dtype="geometry"),
             "confidence": gpd.pd.Series(dtype="float"),
             },
@@ -659,13 +606,12 @@ class InferenceEngine:
                 consumer_done = threading.Event()
 
                 collected_preds: List[gpd.GeoDataFrame] = []
-                collected_polys: List[gpd.GeoDataFrame] = []
                 lock = threading.Lock()
                 
                 consumer_thread = threading.Thread(
                     target=self._consumer,
-                    args=(q, sentinel, collected_preds, collected_polys,
-                          fails, consumer_done, lock),
+                    args=(q, sentinel, collected_preds, fails,
+                          consumer_done, lock),
                     daemon=True
                 )
                 consumer_thread.start()
@@ -704,33 +650,14 @@ class InferenceEngine:
                     if outpath is not None:
                         Path(outpath).parent.mkdir(parents=True, exist_ok=True)
                         predictions.to_file(outpath, index=False)
-                        
-                if collected_polys:
-                    batch_polys_gdf = self._ensure_gdf(
-                        gpd.pd.concat(collected_polys, ignore_index=True))
-                    batch_polys_gdf = batch_polys_gdf.set_crs(
-                        'epsg:4326', allow_override=True)
-                    polys = polys.set_crs(
-                        'epsg:4326', allow_override=True)
-                    polys = self._ensure_gdf(
-                        gpd.pd.concat([polys, batch_polys_gdf],
-                                      ignore_index=True))
-
-                    if outpath is not None:
-                        dissolved_path = Path(outpath).with_name(
-                            f"{Path(outpath).stem}-"
-                            f"dissolved{self.config.dissolve_threshold}.geojson"
-                        )
-                        polys.to_file(dissolved_path, index=False)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
             tries_remaining -= 1
 
-        return predictions, polys
+        return predictions
 
-    def predict_on_tile(
-        self, tile: TileType) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    def predict_on_tile(self, tile: TileType) -> gpd.GeoDataFrame:
         """
         Convenience wrapper for debugging: run full inference on a single tile.
         Reuses the same logic as bulk_predict but without producer/consumer.
@@ -744,13 +671,13 @@ class InferenceEngine:
                 embeddings = gdf.drop(
                     columns="geometry",
                     errors="ignore").to_numpy(dtype=np.float32)
-                preds_gdf, polys_gdf, _ = self.predict_on_tile_embeddings(
+                preds_gdf, _ = self.predict_on_tile_embeddings(
                     embeddings, chip_geoms, tile)
-                return preds_gdf, polys_gdf
+                return preds_gdf
 
         pixels = self.data_extractor.get_tile_data(tile)
-        preds_gdf, polys_gdf, _ = self.predict_on_tile_pixels(pixels, tile)
-        return preds_gdf, polys_gdf
+        preds_gdf, _ = self.predict_on_tile_pixels(pixels, tile)
+        return preds_gdf
 
 class Masker:
     """Computes pixel-based masks and masked areas for polygons."""

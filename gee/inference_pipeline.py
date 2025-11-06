@@ -77,7 +77,7 @@ def main(data_config: gee.DataConfig,
         embed_model=embed_model,
         logger=logger
     )
-    preds, polys = engine.bulk_predict(tiles, outpath=outpath)
+    preds = engine.bulk_predict(tiles, outpath=outpath)
 
     analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
@@ -117,16 +117,6 @@ if __name__ == '__main__':
     parser.add_argument("--pred_threshold", type=float,
                         default=inference_defaults.pred_threshold,
                         help="Prediction threshold for positive chips")
-    parser.add_argument("--dissolve_threshold", type=float,
-                        default=inference_defaults.dissolve_threshold,
-                        help="Higher threshold before dissolving polygons")
-    parser.add_argument("--ndvi_threshold", type=float,
-                        default=inference_defaults.ndvi_threshold,
-                        help="NDVI threshold for vegetation area mask")
-    parser.add_argument("--dissolve_buffer_deg", type=float,
-                        default=inference_defaults.dissolve_buffer_deg,
-                        help=("Buffer to smooth dissolve, in degrees."
-                              "For completeness - unlikely to be set by user."))
     parser.add_argument("--stride_ratio", type=int,
                         default=inference_defaults.stride_ratio,
                         help="Stride is computed as chip_size//stride_ratio")
