@@ -22,8 +22,7 @@ output_folder = base_folder.replace("cumulative", "difference")
 files = {
     202503: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
     202502: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
-    # 2024 is missing
-    # 2024: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
+    202400: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
     202300: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2023diff.geojson",
     202200: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2022diff.geojson",
     202100: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2021diff.geojson",

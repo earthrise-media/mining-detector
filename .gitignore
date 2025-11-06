@@ -21,3 +21,4 @@ gee/tmp.geojson
 .env
 .tmp
 data/outputs/test-data
+scripts/boundaries/copy_to_site_local.sh
