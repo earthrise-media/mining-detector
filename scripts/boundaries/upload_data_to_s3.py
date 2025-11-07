@@ -37,6 +37,7 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
     # "data/outputs/48px_v3.2-3.7ensemble/difference/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
+    "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences_simplified.geojson",
 
     # # old ones 
     # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
@@ -65,10 +66,20 @@ def main():
             failed.append(path)
             continue
         
-        content_type = CONTENT_TYPES.get(Path(path).suffix.lower(), "application/octet-stream")
-        s3.upload_file(path, bucket, path, ExtraArgs={"ContentType": content_type})
-        print(f"✓ Uploaded {path}")
+        # Rename .geojson files to .json, because Cloudfront doesn't natively compress geojsons
+        file_path = Path(path)
+        if file_path.suffix.lower() == '.geojson':
+            new_path = file_path.with_suffix('.json')
+            print(f"Renaming {path} to {new_path}")
+        else:
+            new_path = file_path
 
+        content_type = CONTENT_TYPES.get(new_path.suffix.lower(), "application/octet-stream")
+        
+        # Upload the file with the new path (if renamed)
+        s3.upload_file(str(file_path), bucket, str(new_path), ExtraArgs={"ContentType": content_type})
+        print(f"✓ Uploaded {new_path}")
+    
     if cf_id := os.getenv("CLOUDFRONT_DISTRIBUTION_ID"):
         cf = boto3.client("cloudfront", region_name=os.getenv("AWS_REGION"))
         cf.create_invalidation(
