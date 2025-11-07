@@ -15,6 +15,7 @@
 import geopandas as gpd
 from pathlib import Path
 
+# FIXME: use right folder after Ed's PR gets merged
 # base_folder = "data/outputs/48px_v3.2-3.7ensemble/cumulative"
 base_folder = "data/outputs/test-data"
 output_folder = base_folder.replace("cumulative", "difference")

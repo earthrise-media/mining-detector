@@ -64,6 +64,7 @@ NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
 SUBNATIONAL_ADMIN_FOLDER = "data/boundaries/subnational_admin/out"
 SUBNATIONAL_ADMIN_GEOJSON = f"{SUBNATIONAL_ADMIN_FOLDER}/admin_areas_display.geojson"
 
+
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
     zone_min = 32718
@@ -96,8 +97,7 @@ def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     return gdf_copy
 
 
-def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
-    # FIXME: need to use Polygon area (ha) and Mined area (ha) from geojson
+def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect, mining_area_col_name):
     if mining_gdf.crs != gdf_to_intersect.crs:
         print(
             f"CRS mismatch: mining_gdf ({mining_gdf.crs}) vs gdf_to_intersect ({gdf_to_intersect.crs})"
@@ -123,6 +123,10 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect):
     # calculate area statistics
     intersected["area_ratio"] = (
         intersected["intersected_area_ha"] / intersected["original_area_ha"]
+    )
+
+    intersected[mining_area_col_name] = (
+        intersected[mining_area_col_name] * intersected["area_ratio"]
     )
 
     return intersected
@@ -294,7 +298,7 @@ def intersect_with_areas_of_interest_and_summarize(
     """
     # intersect with area of interest, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
-        mining_admin_intersect_gdf, areas_of_interest_gdf
+        mining_admin_intersect_gdf, areas_of_interest_gdf, "admin_Mined area (ha)"
     )
     if ignore_if_outside_country:
         intersected_with_areas_of_interest = intersected_with_areas_of_interest[
@@ -306,12 +310,11 @@ def intersect_with_areas_of_interest_and_summarize(
             )
         ]
 
-    ensure_output_path_exists(output_file)
-    # # save to geojson
-    # save_to_geojson(
-    #     intersected_with_areas_of_interest,
-    #     output_file,
-    # )
+    # rename mined area col to use it instead of old intersected_area_ha col
+    intersected_with_areas_of_interest["intersected_area_ha"] = (
+        intersected_with_areas_of_interest["admin_Mined area (ha)"]
+    )
+
     # get summary statistics
     summary = intersected_with_areas_of_interest.groupby(
         [
@@ -325,6 +328,7 @@ def intersect_with_areas_of_interest_and_summarize(
         ]
     )[["intersected_area_ha"]].sum()
     # save to csv
+    ensure_output_path_exists(output_file)
     summary.to_csv(output_file.replace(".geojson", ".csv"))
 
     return summary
@@ -458,29 +462,29 @@ def overlay_max_category(
     GeoDataFrame
         mining_gdf with an additional column '{category_col}_max' containing the max values.
     """
-    
+
     # Ensure both GeoDataFrames share the same CRS
     if illegality_gdf.crs != mining_gdf.crs:
         illegality_gdf = illegality_gdf.to_crs(mining_gdf.crs)
-    
+
     # Create spatial index for illegality_gdf if it doesn't exist
     illegality_sindex = illegality_gdf.sindex
-    
+
     # Pre-extract geometries and values for faster access
     illegality_geoms = illegality_gdf.geometry.values
     illegality_vals = illegality_gdf[category_col].values
-    
+
     # Initialize result array with NaN
     max_vals = np.full(len(mining_gdf), np.nan)
-    
+
     # Process each mining polygon
     for idx, mining_geom in enumerate(mining_gdf.geometry):
         # Use spatial index to find potential matches (bounding box intersection)
         possible_matches_idx = list(illegality_sindex.intersection(mining_geom.bounds))
-        
+
         if not possible_matches_idx:
             continue
-        
+
         # Check actual intersections and find max value
         max_val = np.nan
         for ill_idx in possible_matches_idx:
@@ -488,15 +492,17 @@ def overlay_max_category(
                 val = illegality_vals[ill_idx]
                 if np.isnan(max_val) or val > max_val:
                     max_val = val
-        
+
         max_vals[idx] = max_val
-    
+
     # Copy mining_gdf and assign new column
     mining_gdf_out = mining_gdf.copy()
     mining_gdf_out[f"{category_col}_max"] = max_vals
     # We need to fill with 0 because the dataframe gets grouped by this column later,
     # and if it is null it will dissappear
-    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[f"{category_col}_max"].fillna(0)
+    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[
+        f"{category_col}_max"
+    ].fillna(0)
     return mining_gdf_out
 
 
@@ -516,7 +522,7 @@ if __name__ == "__main__":
 
         # intersect mining with admin boundaries and calculate areas (once per mining file)
         intersected_with_admin = intersect_and_calculate_areas(
-            mining_gdf, admin_areas_gdf
+            mining_gdf, admin_areas_gdf, "Mined area (ha)"
         )
         # prefix columns with admin_
         intersected_with_admin.columns = [
@@ -568,9 +574,6 @@ if __name__ == "__main__":
                 output_file=output_file,
                 ignore_if_outside_country=dataset["ignore_if_outside_country"],
             )
-            summary_mining_affected_area_ha = summary.groupby("id")[
-                "intersected_area_ha"
-            ].sum()
             summary_illegality = (
                 summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
                 .sum()
@@ -603,6 +606,9 @@ if __name__ == "__main__":
             )
 
             # transform json result into dataframe
+            summary_mining_affected_area_ha = summary.groupby("id")[
+                "intersected_area_ha"
+            ].sum()
             result_df = pd.DataFrame(
                 [
                     {
@@ -631,7 +637,7 @@ if __name__ == "__main__":
             )
 
             def group_and_sum_locations(locations):
-                # group by country and regionId, sum affectedArea to reduce repetitions\
+                # group by country and regionId, sum affectedArea to reduce repetitions
                 grouped = {}
                 for loc in locations:
                     key = (loc["country"], loc["regionId"])
