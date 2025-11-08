@@ -34,10 +34,30 @@ files = {
 }
 
 
+def simplify_gdf_and_save(gdf, output_file):
+    # create a copy with simplified geometries and columns, for display in the website
+    gdf_simplified = gdf.copy()
+    gdf_simplified["geometry"] = gdf_simplified["geometry"].simplify(
+        tolerance=0.0001, preserve_topology=True
+    )
+    gdf_simplified["geometry"] = gdf_simplified["geometry"].apply(
+        lambda geom: set_precision(geom, grid_size=1e-6)
+    )
+
+    # gdf_simplified['Polygon area (ha)'] = gdf_simplified['Polygon area (ha)'].round(2)
+    # gdf_simplified['Mined area (ha)'] = gdf_simplified['Mined area (ha)'].round(2)
+    gdf_simplified = gdf_simplified.drop(
+        columns=["Polygon area (ha)", "Mined area (ha)"]
+    )
+
+    output_simplified_file = output_file.replace(".geojson", "_simplified.geojson")
+    gdf_simplified.to_file(output_simplified_file, driver="GeoJSON")
+    print(f"Created: {output_simplified_file}")
+
+
 def concat_differences():
-    """Calculate geometric differences between consecutive years, using the
-    cumulative GeoJSON files. Combines and saves all years into a single GeoJSON,
-    tagged with a 'year' property."""
+    """Combines and saves all years into a single GeoJSON,
+    tagged with a 'year' property, also saves one file per year too."""
     years = sorted(files.keys())
     all_differences = []
 
@@ -46,6 +66,12 @@ def concat_differences():
         current_year = years[i]
         current_gdf = gpd.read_file(f"{base_folder}/{files[current_year]}")
         current_gdf["year"] = current_year
+
+        # simplify and save
+        simplify_gdf_and_save(
+            current_gdf, f"{base_folder}/mining_{current_year}.geojson"
+        )
+
         all_differences.append(current_gdf)
 
     # combine frames
@@ -58,24 +84,8 @@ def concat_differences():
     combined_gdf.to_file(output_combined_file, driver="GeoJSON")
     print(f"Created: {output_combined_file}")
 
-    # create a copy with simplified geometries and columns, for display in the website
-    combined_gdf_simplified = combined_gdf.copy()
-    combined_gdf_simplified["geometry"] = combined_gdf_simplified["geometry"].simplify(
-        tolerance=0.0001, preserve_topology=True
-    )
-    combined_gdf_simplified["geometry"] = combined_gdf_simplified["geometry"].apply(
-        lambda geom: set_precision(geom, grid_size=1e-6)
-    )
-
-    # combined_gdf_simplified['Polygon area (ha)'] = combined_gdf_simplified['Polygon area (ha)'].round(2)
-    # combined_gdf_simplified['Mined area (ha)'] = combined_gdf_simplified['Mined area (ha)'].round(2)
-    combined_gdf_simplified = combined_gdf_simplified.drop(
-        columns=["Polygon area (ha)", "Mined area (ha)"]
-    )
-
-    output_simplified_file = output_combined_file.replace(".geojson", "_simplified.geojson")
-    combined_gdf_simplified.to_file(output_simplified_file, driver="GeoJSON")
-    print(f"Created: {output_simplified_file}")
+    # simplify and save
+    simplify_gdf_and_save(combined_gdf, output_combined_file)
 
 
 if __name__ == "__main__":

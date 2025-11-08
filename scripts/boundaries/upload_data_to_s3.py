@@ -1,4 +1,5 @@
-# Uploads the processed data to S3.
+# Uploads the processed data to S3, while renaming .geojson to .json
+# to enable compression in Cloudfront.
 # Environment variables (should be set in .env file):
 # - AWS_ACCESS_KEY_ID
 # - AWS_SECRET_ACCESS_KEY
@@ -38,6 +39,16 @@ FILE_PATHS = [
     # "data/outputs/48px_v3.2-3.7ensemble/difference/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences_simplified.geojson",
+    
+    "data/outputs/test-data/mining_201800_simplified.geojson",
+    "data/outputs/test-data/mining_201900_simplified.geojson",
+    "data/outputs/test-data/mining_202000_simplified.geojson",
+    "data/outputs/test-data/mining_202100_simplified.geojson",
+    "data/outputs/test-data/mining_202200_simplified.geojson",
+    "data/outputs/test-data/mining_202300_simplified.geojson",
+    "data/outputs/test-data/mining_202400_simplified.geojson",
+    "data/outputs/test-data/mining_202502_simplified.geojson",
+    "data/outputs/test-data/mining_202503_simplified.geojson",
 
     # # old ones 
     # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
