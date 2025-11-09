@@ -44,7 +44,9 @@ def detect_shapefile_encoding(shapefile_path):
         return result["encoding"]
 
 
-def combine_and_save_frames(all_frames, output_folder, filename, simplify):
+def combine_and_save_frames(
+    all_frames, output_folder, filename, simplify, dissolve_by_attributes
+):
     # combine frames
     combined_gdf = gpd.pd.concat(all_frames, ignore_index=True)
     output_combined_file = f"{output_folder}/{filename}"
@@ -60,13 +62,43 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
         )
 
+    # Dissolve based on country, name, and status
+    if dissolve_by_attributes:
+        # we'll ignore those that don't have country and name fields
+        combined_gdf_missing = combined_gdf[
+            (combined_gdf["name_field"].isna()) | (combined_gdf["country_code"].isna())
+        ]
+
+        to_dissolve = combined_gdf[
+            (combined_gdf["name_field"].notna())
+            & (combined_gdf["country_code"].notna())
+        ]
+        # replace NaNs with a unique placeholder
+        to_dissolve["_status_field"] = to_dissolve["status_field"].fillna("__nan__")
+
+        # dissolve using the temporary columns
+        dissolved_gdf = to_dissolve.dissolve(
+            by=["country_code", "name_field", "_status_field"], as_index=False
+        )
+        dissolved_gdf = dissolved_gdf.drop(columns=["_status_field"])
+
+        # concat again into single gdf
+        combined_gdf = gpd.pd.concat(
+            [combined_gdf_missing, dissolved_gdf], ignore_index=True
+        )
+
     # create an ID
-    combined_gdf["id_field_str"] = combined_gdf["id_field"].astype(str)
+    combined_gdf["id_field_str"] = np.where(
+        # fill na with index to avoid duplicates
+        combined_gdf["id_field"].notna(),
+        combined_gdf["id_field"],
+        combined_gdf.index,
+    ).astype(str)
     combined_gdf["status_field_filled"] = combined_gdf["status_field"].fillna("unknown")
-    # generate ngroup within each country_code + id_field combination for different status_field
+    # generate disambiguation combination for different country_code, id, and status_field_filled
     combined_gdf["disambig_num"] = combined_gdf.groupby(
-        ["country_code", "id_field_str"]
-    )["status_field_filled"].transform(lambda x: x.astype("category").cat.codes)
+        ["country_code", "id_field_str", "status_field_filled"]
+    ).cumcount()
     combined_gdf["id"] = (
         combined_gdf["country_code"]
         + combined_gdf["id_field_str"]
@@ -79,7 +111,27 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
 
     print(combined_gdf["id"].nunique())
     print(len(combined_gdf))
-    # assert len(combined_gdf) == combined_gdf["id"].nunique()
+
+    # # save duplicates to file
+    # dupes = combined_gdf[combined_gdf["id"].duplicated(keep=False)]
+    # dupes = dupes.sort_values("id")
+    # dupes.to_file(
+    #     output_combined_file.replace(".geojson", "_dupes.geojson"),
+    #     driver="GeoJSON",
+    #     encoding="utf-8",
+    # )
+
+    # identify all duplicated IDs
+    dupes_mask = combined_gdf["id"].duplicated(keep=False)
+    # for each duplicated row, append the index to make the ID unique
+    combined_gdf.loc[dupes_mask, "id"] = (
+        combined_gdf.loc[dupes_mask, "id"]
+        + "_"
+        + combined_gdf.loc[dupes_mask].index.astype(str)
+    )
+    print(combined_gdf["id"].nunique())
+    print(len(combined_gdf))
+    assert len(combined_gdf) == combined_gdf["id"].nunique()
 
     # save combined file
     combined_gdf.to_file(output_combined_file, driver="GeoJSON", encoding="utf-8")
@@ -151,9 +203,14 @@ def standardize_and_combine_shapefiles(files_metadata):
         OUTPUT_DATA_FOLDER,
         "indigenous_territories.geojson",
         simplify=True,
+        dissolve_by_attributes=True,
     )
     combine_and_save_frames(
-        protected_areas, OUTPUT_DATA_FOLDER, "protected_areas.geojson", simplify=True
+        protected_areas,
+        OUTPUT_DATA_FOLDER,
+        "protected_areas.geojson",
+        simplify=True,
+        dissolve_by_attributes=True,
     )
 
 

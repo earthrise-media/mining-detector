@@ -29,12 +29,15 @@ load_dotenv()
 # File paths to upload
 FILE_PATHS = [
     "data/boundaries/national_admin/out/national_admin_impacts.geojson",
+    "data/boundaries/national_admin/out/national_admin_impacts_unfiltered.geojson",
     "data/boundaries/national_admin/out/national_admin_yearly.json",
     "data/boundaries/subnational_admin/out/admin_areas_display_impacts_unfiltered.geojson",
     "data/boundaries/subnational_admin/out/admin_areas_display_yearly.json",
     "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_yearly.json",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
     # "data/outputs/48px_v3.2-3.7ensemble/difference/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
