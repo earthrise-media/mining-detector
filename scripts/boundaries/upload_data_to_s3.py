@@ -39,7 +39,7 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
-    # "data/outputs/48px_v3.2-3.7ensemble/difference/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024_all_differences.geojson",
+
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
     "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences_simplified.geojson",
     

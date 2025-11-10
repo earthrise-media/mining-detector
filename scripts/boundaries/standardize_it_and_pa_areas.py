@@ -20,14 +20,14 @@ import chardet
 import geopandas as gpd
 import numpy as np
 import json
+from shapely import set_precision
 from pathlib import Path
-import hashlib
 
 SOURCE_DATA_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/source_data"
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
-SIMPLIFY_TOLERANCE = 0.001
+SIMPLIFY_TOLERANCE = 0.00025
 AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 
 with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
@@ -60,6 +60,9 @@ def combine_and_save_frames(
     if simplify:
         combined_gdf["geometry"] = combined_gdf["geometry"].simplify(
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
+        )
+        combined_gdf["geometry"] = combined_gdf["geometry"].apply(
+            lambda geom: set_precision(geom, grid_size=1e-6)
         )
 
     # Dissolve based on country, name, and status

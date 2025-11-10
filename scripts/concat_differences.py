@@ -45,9 +45,8 @@ def simplify_gdf_and_save(gdf, output_file):
     )
 
     # gdf_simplified['Polygon area (ha)'] = gdf_simplified['Polygon area (ha)'].round(2)
-    # gdf_simplified['Mined area (ha)'] = gdf_simplified['Mined area (ha)'].round(2)
     gdf_simplified = gdf_simplified.drop(
-        columns=["Polygon area (ha)", "Mined area (ha)"]
+        columns=["Polygon area (ha)"]
     )
 
     output_simplified_file = output_file.replace(".geojson", "_simplified.geojson")
