@@ -6,13 +6,26 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
 Quick links: 
-* [**!! MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
+* [**NOVEMBER 2025 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#november-2025-data-and-model-updates)
+* [**MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 * [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
 
 ---
+
+## November 2025 updates
+
+-- Note: As of Nov. 12, code and data updates are still on branch ed/2025models, waiting to be merged into main. -- 
+
+* New webiste. The new [Amazon Mining Watch](https://amazonminingwatch.org) platform reports on mining trends through time for states, protected areas, and Indigenous territories, and it calculates socio-enconomic costs for the areas impacted by mining. Current mining hospots are highlighted for further analysis.
+* Quarterly data. Starting in Q2, 2025, with new updates expected about a week following each quarter's end.
+* New models. With the advent of gloablly pre-trained geospatial foundation models (FMs), we are transitioning from custom convolutional neural networks to use an FM followed by an ensemble of small, fully-connected neural networks trained to the mine detection task. For more details, see our [methodology](https://github.com/earthrise-media/mining-detector#methodology).
+* Improved mined area estimation. We exclude from area estimates the intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
+  
+The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs that have been cleaned of most false positive detections by a human reviewer. 
+
 ## March 2024 data and model updates
 
 Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 composite Sentinel-2 satellite imagery. With the redevelopment comes:
