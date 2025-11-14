@@ -6,7 +6,7 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
 Quick links: 
-* [**NOVEMBER 2025 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#november-2025-data-and-model-updates)
+* [**NOVEMBER 2025 UPDATES**](https://github.com/earthrise-media/mining-detector#november-2025-data-and-model-updates)
 * [**MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
@@ -17,14 +17,12 @@ Quick links:
 
 ## November 2025 updates
 
--- Note: As of Nov. 12, code and data updates are still on branch ed/2025models, waiting to be merged into main. -- 
-
-* New webiste. The new [Amazon Mining Watch](https://amazonminingwatch.org) platform reports on mining trends through time for states, protected areas, and Indigenous territories, and it calculates socio-enconomic costs for the areas impacted by mining. Current mining hospots are highlighted for further analysis.
-* Quarterly data. Starting in Q2, 2025, with new updates expected about a week following each quarter's end.
-* New models. With the advent of gloablly pre-trained geospatial foundation models (FMs), we are transitioning from custom convolutional neural networks to use an FM followed by an ensemble of small, fully-connected neural networks trained to the mine detection task. For more details, see our [methodology](https://github.com/earthrise-media/mining-detector#methodology).
-* Improved mined area estimation. We exclude from area estimates the intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
+* New webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
+* [Quarterly data updates](https://github.com/earthrise-media/mining-detector#results), starting from Q2, 2025.
+* New models, built on a global geospatial foundation model. Details are in the [methodology](https://github.com/earthrise-media/mining-detector#methodology).
+* Improved mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), excluding intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
   
-The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs that have been cleaned of most false positive detections by a human reviewer. 
+The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs, which have largely been cleaned of false positive detections by a human reviewer. 
 
 ## March 2024 data and model updates
 
@@ -66,13 +64,15 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Detection Accuracy
 
-Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is not mined. 
+Amazon Mining Watch models have been bootstrapped from relatively small training datasets, and without a truly representative sampling of the Amazon Basin, it is difficult to report real-world model accuracies. 
 
-To provide one indicative measure, we validated a random sample of 500 detections from 2023. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that a patch marked as a mine is actually a mine. Of the 500 samples, 498 have artisanal mining scars. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. The estimated precision of the classifier in this real-world context is 99.6%. 
+For the 2024 models, which yielded the 2018-2023 data on the Amazon Mining Watch website, we ran the following test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 have artisanal mining scars. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier to be 99.6%. In essence, this measure tells you the likelihood that a patch marked as a mine is actually a mine. 
+
+Metrics for the new models, covering 2024-2025 data, will follow shortly.
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines a patch to contain a mine scar, we compute the mined area within the patch by masking and excluding intact vegetation using the Normalized Difference Vegetation Index ([NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index)). This yields good masks in forest backgrounds. Area estimates will have higher uncertainties over bare ground and rangelands.
 
 ## Journalism 
 
@@ -110,13 +110,25 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 ### Overview
 
-The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is an ensemble of neural networks, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in thirteen bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
-During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes over 100 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
+Currently, the neural networks in question are constructed in two parts: (1) a geospatial foundation model (specifically, the open-source DINO ViT-S/16 from the [SSL4EO project](https://github.com/zhu-xlab/SSL4EO-S12)), which is pre-trained on a global sample of Sentinel-2 imagery to produce rich representations of features on Earth's surface; (2) an ensemble of small, fully-connected neural networks that ingest the output features of the foundation model and are trained with labeled data to predict whether each input represents a mine. Prior to 2025, we used an ensemble of lightweight convolutional neural networks trained from scratch on our dataset.
+
+During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire Amazon basin. The network makes over 100 million individual assessments in covering the 8.5 million square kilometers of the Amazon basin. 
 
 The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
 
 ### Results
+
+#### Quarterly assessments of mining in the Amazon basin, starting Q2 2025 (v3 Amazon Mining Watch dataset)
+
+Current assessments run through SSL4EO foundation model and the ensemble [48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5). We record outputs for all patches with a mean score over 0.85, on a scale from 0 to 1. To produce the polygons on the Amazon Mining Watch website, we further restrict to detections with score over 0.925, merge patches to polygons, and impose a higher 0.975 confidence level for polygons under 30 hectares in size. While the models are still under development, we are reviewing and filtering false positives from the detections presented on the website. 
+
+[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble) are available for 2024 and the second and third quarters of 2025. 
+
+The website presents cumulative detections of mining scars, starting from 2018. The current model gives the [2024 and 2025 updates](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble/cumulative) to the cumulative record, while years 2018-2023 are covered by [outputs of the prior v3.2-3.7 ensemble model](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble/cumulative). 
+
+Because of the shift in models from year 2023-2024, users will see a jump in detected mining activity from 2023 to 2024 due in part to the advent of new models and not exclusively to changes on the ground. Trends across this gap should be interpreted with caution. Eventually we hope to update the older data. 
 
 #### Yearly asessment of mining in the Amazon basin, 2018-2024 (v2 Amazon Mining Watch dataset)
 
