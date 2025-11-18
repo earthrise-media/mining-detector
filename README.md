@@ -1,6 +1,6 @@
 # Gold Mine Detector
 
-Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, with links to related journalism. The data are presented at [Amazon Mining Watch](https://amazonminingwatch.org).
+Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, with links to related journalism. The data are presented at [amazonminingwatch.org](https://amazonminingwatch.org). Amazon Mining Watch is a partnership betwen the Pulitzer Center's Rainforest Investigations Network, Amazon Conservation Association, and Earth Genome.
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
@@ -17,10 +17,12 @@ Quick links:
 
 ## November 2025 updates
 
-* New webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
+Ahead of COP in Belém, we significantly redeveloped Amazon Mining Watch, with: 
+
+* A new webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
 * [Quarterly data updates](https://github.com/earthrise-media/mining-detector#results), starting from Q2, 2025.
 * New models, built on a global geospatial foundation model. Details are in the [methodology](https://github.com/earthrise-media/mining-detector#methodology).
-* Improved mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), excluding intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
+* Revised mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), excluding intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
   
 The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs, which have largely been cleaned of false positive detections by a human reviewer. 
 
@@ -79,11 +81,13 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 This work grew out of a series of collaborations with journalists and with advocates at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. We began identifying mines by sight in satellite imagery. Later, some high school classes helped sift through images. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those initial human surveys.
 
-#### Reports using the automated detections
+#### Selected reporting using the automated detections
 * [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), from _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. First in the series [Corredor Furtivo](https://armando.info/series/corredor-furtivo/). Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([in English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of a series, [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system.
 * [Novas imagens de satélite revelam garimpo ainda mais destruidor na TI Yanomami](https://reporterbrasil.org.br/2023/02/novas-imagens-de-satelite-revelam-garimpo-ainda-mais-destruidor-na-ti-yanomami/), on new expansion of illegal mining in Yanomami Indigenous Territory, _Rapórter Brasil_, 2023.
 * [Suspected leader of the so called narcogarimpos extracted gold from environmental area without the permission of Brazilian regulation authority](https://reporterbrasil.org.br/2023/10/suspected-leader-of-the-so-called-narcogarimpos-extracted-gold-from-environmental-area-without-the-permission-of-brazilian-regulation-authority/), part of the [Narcogarimpos](https://narcogarimpos.reporterbrasil.org.br/en/) investigation from _Repórter Brasil_, 2023.
+* [Avanço de garimpo em terras indígenas alerta para novos meios de lavagem de ouro], _Repórter Brasil_, 2024. Also published by _Convoca_ in the [series Dorada Opacidad](https://convoca.pe/doradaopacidad/).
+* [Gold mining in the Amazon has doubled in area since 2018, AI tool shows](https://news.mongabay.com/2024/07/gold-mining-in-the-amazon-has-doubled-in-area-since-2018-ai-tool-shows/), _Mongabay_, 2024.
 
 #### Clandestine airstrips and airstrips dataset
 
