@@ -68,7 +68,7 @@ On the whole, false detections are relatively few given how widespread the minin
 
 The Amazon basin encompasses an enormous, complex geography extending over 8.5 million square kilometers. For each quarterly dataset, the neural networks make [over 100 million assessments](https://github.com/earthrise-media/mining-detector#methodology) for mining. By constrast, in late 2025, the labeled data we withhold to evaluate model performance consists of around 6400 examples. The metrics we derive from the withheld dataset can only be considered roughly indicative of how the networks will perform in extrapolating to the whole of the territory. [At threshold t=0.925](https://github.com/earthrise-media/mining-detector#results), the 2025 model ensemble operates with a precision of 99.6% and a recall of 79.6% for the detection of mine scars, which translates to an overall accuracy of 98.1%. Those metrics apply before post-processing, aggregation of detections to polygons, and human review.
 
-For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch website, we ran the following complimentary test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 show scars from artisanal mining. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier again (and conincidentally) to be 99.6%. In essence, the precision tells you the likelihood that a patch marked as a mine is actually a mine. 
+For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch website, we ran the following complimentary test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 show scars from artisanal mining. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier again (in a numerical coincidence) to be 99.6%. In essence, the precision tells you the likelihood that a patch marked as a mine is actually a mine. 
 
 
 #### Area estimation
@@ -86,7 +86,8 @@ This work grew out of a series of collaborations with journalists and with advoc
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of a series, [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system.
 * [Novas imagens de satélite revelam garimpo ainda mais destruidor na TI Yanomami](https://reporterbrasil.org.br/2023/02/novas-imagens-de-satelite-revelam-garimpo-ainda-mais-destruidor-na-ti-yanomami/), on new expansion of illegal mining in Yanomami Indigenous Territory, _Rapórter Brasil_, 2023.
 * [Suspected leader of the so called narcogarimpos extracted gold from environmental area without the permission of Brazilian regulation authority](https://reporterbrasil.org.br/2023/10/suspected-leader-of-the-so-called-narcogarimpos-extracted-gold-from-environmental-area-without-the-permission-of-brazilian-regulation-authority/), part of the [Narcogarimpos](https://narcogarimpos.reporterbrasil.org.br/en/) investigation from _Repórter Brasil_, 2023.
-* [Avanço de garimpo em terras indígenas alerta para novos meios de lavagem de ouro], _Repórter Brasil_, 2024. Also published by _Convoca_ in the [series Dorada Opacidad](https://convoca.pe/doradaopacidad/).
+* [Amazon Mining Watch: mapas satelitales confirman nuevos focos de deforestación por actividad minera en países amazónicos](https://convoca.pe/agenda-propia/amazon-mining-watch-mapas-satelitales-confirman-nuevos-focos-de-deforestacion-por), _Convoca_, 2024.
+* [Avanço de garimpo em terras indígenas alerta para novos meios de lavagem de ouro](https://reporterbrasil.org.br/2024/07/garimpo-terras-indigenas-alerta-novos-meios-lavagem-ouro/), _Repórter Brasil_, 2024. Also published by _Convoca_ in the [series Dorada Opacidad](https://convoca.pe/doradaopacidad/).
 * [Gold mining in the Amazon has doubled in area since 2018, AI tool shows](https://news.mongabay.com/2024/07/gold-mining-in-the-amazon-has-doubled-in-area-since-2018-ai-tool-shows/), _Mongabay_, 2024.
 
 #### Clandestine airstrips and airstrips dataset
@@ -170,8 +171,6 @@ This repo contains all code needed to generate data, train models, and deploy a 
 #### Code
 
 Code for data generation and model inference is in the [`gee`](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The [readme](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md) there provides instructions. 
-
-After training data generation, training runs from [`notebooks/train_model.ipynb`](https://github.com/earthrise-media/mining-detector/blob/main/notebooks/train_model.ipynb). 
 
 #### Data inputs
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
