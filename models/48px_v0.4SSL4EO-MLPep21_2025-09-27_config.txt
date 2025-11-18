@@ -1,0 +1,24 @@
+Training dataset: collected_locations2025-09-26T15:38.geojson
+Batch Size: 4
+
+Classification Report at 0.47
+              precision    recall  f1-score   support
+
+     No Mine       0.99      0.99      0.99      5663
+        Mine       0.94      0.94      0.94       546
+
+    accuracy                           0.99      6209
+   macro avg       0.97      0.97      0.97      6209
+weighted avg       0.99      0.99      0.99      6209
+Training dataset: collected_locations2025-09-26T15:38.geojson
+Batch Size: 4
+
+Classification Report at 0.99
+              precision    recall  f1-score   support
+
+     No Mine       0.97      1.00      0.99      5663
+        Mine       0.99      0.72      0.83       546
+
+    accuracy                           0.97      6209
+   macro avg       0.98      0.86      0.91      6209
+weighted avg       0.98      0.97      0.97      6209

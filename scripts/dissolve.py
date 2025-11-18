@@ -28,7 +28,7 @@ if __name__ == '__main__':
         "--threshold", type=float, default=None,
         help="Prediction threshold between [0, 1]; if given, the dataframe must have a 'pred' column'")
     parser.add_argument(
-        "--column", type=str, default='mean',
+        "--column", type=str, default='prob',
         help="Name of prediction value to threshold")
     parser.add_argument(
         "--buffer_width", type=float,
