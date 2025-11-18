@@ -64,11 +64,10 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Detection Accuracy
 
-Amazon Mining Watch models have been bootstrapped from relatively small training datasets, and without a truly representative sampling of the Amazon Basin, it is difficult to report real-world model accuracies. 
+The Amazon basin encompasses an enormous, complex geography extending over 8.5 million square kilometers. For each quarterly dataset, the neural networks make [over 100 million assessments](https://github.com/earthrise-media/mining-detector#methodology) for mining. By constrast, in late 2025, the labeled data we withhold to evaluate model performance consists of around 6400 examples. The metrics we derive from the withheld dataset can only be considered roughly indicative of how the networks will perform in extrapolating to the whole of the territory. [At threshold t=0.925](https://github.com/earthrise-media/mining-detector#results), the 2025 model ensemble operates with a precision of 99.6% and a recall of 79.6% for the detection of mine scars, which translates to an overall accuracy of 98.1%. The apparent precision of data on the website will be higher after postprocessing and human review.
 
-For the 2024 models, which yielded the 2018-2023 data on the Amazon Mining Watch website, we ran the following test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 have artisanal mining scars. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier to be 99.6%. In essence, this measure tells you the likelihood that a patch marked as a mine is actually a mine. 
+For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch website, we ran the following complimentary test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 show scars from artisanal mining. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier again (and conincidentally) to be 99.6%. In essence, the precision tells you the likelihood that a patch marked as a mine is actually a mine. 
 
-Metrics for the new models, covering 2024-2025 data, will follow shortly.
 
 #### Area estimation
 
