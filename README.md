@@ -131,7 +131,7 @@ Because of the shift in models from year 2023-2024, users will see a jump in det
 
 #### Yearly asessment of mining in the Amazon basin, 2018-2024 (v2 Amazon Mining Watch dataset)
 
-This most recent assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
+This assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
 
 [Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in three formats. The first format records the mean score and the six individual predictions from models 3.2-3.7 for each saved patch. The second, streamlined, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
 
