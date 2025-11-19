@@ -39,28 +39,16 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
-
-    "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson",
-    "data/outputs/test-data/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences_simplified.geojson",
     
-    "data/outputs/test-data/mining_201800_simplified.geojson",
-    "data/outputs/test-data/mining_201900_simplified.geojson",
-    "data/outputs/test-data/mining_202000_simplified.geojson",
-    "data/outputs/test-data/mining_202100_simplified.geojson",
-    "data/outputs/test-data/mining_202200_simplified.geojson",
-    "data/outputs/test-data/mining_202300_simplified.geojson",
-    "data/outputs/test-data/mining_202400_simplified.geojson",
-    "data/outputs/test-data/mining_202502_simplified.geojson",
-    "data/outputs/test-data/mining_202503_simplified.geojson",
-
-    # # old ones 
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2019cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2020cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2021cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2022cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2023cumulative.geojson",
-    # "data/outputs/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2024cumulative.geojson",
+    "data/outputs/website/mining_201800_simplified.geojson",
+    "data/outputs/website/mining_201900_simplified.geojson",
+    "data/outputs/website/mining_202000_simplified.geojson",
+    "data/outputs/website/mining_202100_simplified.geojson",
+    "data/outputs/website/mining_202200_simplified.geojson",
+    "data/outputs/website/mining_202300_simplified.geojson",
+    "data/outputs/website/mining_202400_simplified.geojson",
+    "data/outputs/website/mining_202502_simplified.geojson",
+    "data/outputs/website/mining_202503_simplified.geojson",
 ]
 
 CONTENT_TYPES = {".json": "application/json", ".geojson": "application/geo+json"}

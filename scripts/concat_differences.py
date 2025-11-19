@@ -16,21 +16,19 @@ import geopandas as gpd
 from shapely import set_precision
 from pathlib import Path
 
-# FIXME: use right folder after Ed's PR gets merged
-# base_folder = "data/outputs/48px_v3.2-3.7ensemble/cumulative"
-base_folder = "data/outputs/test-data"
-output_folder = base_folder.replace("cumulative", "difference")
+base_folder = "data/outputs"
+output_folder = "data/outputs/website"
 
 files = {
-    202503: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
-    202502: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
-    202400: "amazon_basin_48px_v0.X_SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
-    202300: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2023diff.geojson",
-    202200: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2022diff.geojson",
-    202100: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2021diff.geojson",
-    202000: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2020diff.geojson",
-    201900: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2019diff.geojson",
-    201800: "amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
+    202503: "48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
+    202502: "48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
+    202400: "48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
+    202300: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2023diff.geojson",
+    202200: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2022diff.geojson",
+    202100: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2021diff.geojson",
+    202000: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2020diff.geojson",
+    201900: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2019diff.geojson",
+    201800: "48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
 }
 
 
@@ -44,12 +42,16 @@ def simplify_gdf_and_save(gdf, output_file):
         lambda geom: set_precision(geom, grid_size=1e-6)
     )
 
-    # gdf_simplified['Polygon area (ha)'] = gdf_simplified['Polygon area (ha)'].round(2)
     gdf_simplified = gdf_simplified.drop(
         columns=["Polygon area (ha)"]
     )
 
     output_simplified_file = output_file.replace(".geojson", "_simplified.geojson")
+    
+    # ensure output folder exists
+    output_path = Path(output_simplified_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
     gdf_simplified.to_file(output_simplified_file, driver="GeoJSON")
     print(f"Created: {output_simplified_file}")
 
@@ -68,17 +70,15 @@ def concat_differences():
 
         # simplify and save
         simplify_gdf_and_save(
-            current_gdf, f"{base_folder}/mining_{current_year}.geojson"
+            current_gdf, f"{output_folder}/mining_{current_year}.geojson"
         )
 
         all_differences.append(current_gdf)
 
     # combine frames
     combined_gdf = gpd.pd.concat(all_differences, ignore_index=True)
-    output_combined_file = f"{output_folder}/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2025Q3_all_differences.geojson"
-    # ensure output directory exists
-    output_path = Path(output_combined_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_combined_file = f"{output_folder}/amazon_basin_2018-2025Q3_all_differences.geojson"
+
     # save combined file
     combined_gdf.to_file(output_combined_file, driver="GeoJSON")
     print(f"Created: {output_combined_file}")

@@ -1,16 +1,21 @@
-To make requests for the Mining Calculator API, you'll need to copy the .env file in the root of this repository and add in your API key:
+# Boundaries scripts
 
-```bash
-MINING_CALCULATOR_API_KEY="your_key_here"
-```
+These scripts prepare boundaries for use in the AMW website:
+
+1. Concatenates all the mining detection geojsons into a single file, and also saves copies of the individual files while simplifying the geometry
+2. Standardizes all subnational and national admin areas, as well as Indigienous Territories and protected areas from different shapefile sources
+3. Preprocesses mining areas, atrributing admin jurisdiction data to them (for use in the Mining Calculator API); pre-calculates timeseries for admin areas; overlays with mining illegality layer
+4. Uploads data to S3 for use in the website
 
 ## Pipeline
 
+To get a full refresh of the data, run the following scripts sequentially:
+
 ```bash
-uv run scripts/concat_differences.py
-uv run scripts/boundaries/standardize_subnational_admin_areas.py
-uv run scripts/boundaries/standardize_national_admin_areas.py
-uv run scripts/boundaries/standardize_it_and_pa_areas.py
-uv run scripts/boundaries/preprocess_mining_areas_and_query_calculator.py
-uv run scripts/upload_data_to_s3.py
+python scripts/concat_differences.py
+python scripts/boundaries/standardize_subnational_admin_areas.py
+python scripts/boundaries/standardize_national_admin_areas.py
+python scripts/boundaries/standardize_it_and_pa_areas.py
+python scripts/boundaries/preprocess_mining_areas.py
+python scripts/upload_data_to_s3.py
 ```
