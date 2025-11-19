@@ -1,18 +1,31 @@
 # Gold Mine Detector
 
-Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, with links to related journalism. The data are presented at [Amazon Mining Watch](https://amazonminingwatch.org).
+Code for the automated detection of artisanal gold mines in Sentinel-2 satellite imagery, with links to related journalism. The data are presented at [amazonminingwatch.org](https://amazonminingwatch.org). Amazon Mining Watch is a partnership betwen the Pulitzer Center's Rainforest Investigations Network, Amazon Conservation Association, and Earth Genome.
 
 <!--![mining-header](https://user-images.githubusercontent.com/13071901/146877405-3ec46c73-cc80-4b1a-8ad1-aeb189bb0b38.jpg)-->
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
 Quick links: 
-* [**!! MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
+* [**NOVEMBER 2025 UPDATES**](https://github.com/earthrise-media/mining-detector#november-2025-data-and-model-updates)
+* [**MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
 * [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
 
 ---
+
+## November 2025 updates
+
+Ahead of COP in Belém, we significantly redeveloped Amazon Mining Watch, with: 
+
+* A new webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
+* [Quarterly data updates](https://github.com/earthrise-media/mining-detector#results), starting from Q2, 2025.
+* New models, built on a global geospatial foundation model. Details are in the [methodology](https://github.com/earthrise-media/mining-detector#methodology).
+* Revised mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), excluding intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
+  
+The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs, which have largely been cleaned of false positive detections by a human reviewer. 
+
 ## March 2024 data and model updates
 
 Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 composite Sentinel-2 satellite imagery. With the redevelopment comes:
@@ -53,13 +66,14 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Detection Accuracy
 
-Creating quantitative accuracy metrics for a system like this is not always easy or constructive. For example, if the system asserted that there are no mines at all in the Amazon basin, it would be better than 99% accurate, because such a large proportion of the landscape is not mined. 
+The Amazon basin encompasses an enormous, complex geography extending over 8.5 million square kilometers. For each quarterly dataset, the neural networks make [over 100 million assessments](https://github.com/earthrise-media/mining-detector#methodology) for mining. By constrast, in late 2025, the labeled data we withhold to evaluate model performance consists of around 6400 examples. The metrics we derive from the withheld dataset can only be considered roughly indicative of how the networks will perform in extrapolating to the whole of the territory. [At threshold t=0.925](https://github.com/earthrise-media/mining-detector#results), the 2025 model ensemble operates with a precision of 99.6% and a recall of 79.6% for the detection of mine scars, which translates to an overall accuracy of 98.1%. Those metrics apply before post-processing, aggregation of detections to polygons, and human review.
 
-To provide one indicative measure, we validated a random sample of 500 detections from 2023. This allows us to estimate what is known as the precision or positive predictive value for the classifier. In essence, it tells you the likelihood that a patch marked as a mine is actually a mine. Of the 500 samples, 498 have artisanal mining scars. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. The estimated precision of the classifier in this real-world context is 99.6%. 
+For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch website, we ran the following complimentary test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 show scars from artisanal mining. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier again (in a numerical coincidence) to be 99.6%. In essence, the precision tells you the likelihood that a patch marked as a mine is actually a mine. 
+
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines that mining exists within the patch, then the full patch is declared a mine. This leads to a systematic overestimation of mined area if it is naively computed from the polygon boundaries. Building a segmentation model to delineate mine boundaries could be a useful extension of this work.
+The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines a patch to contain a mine scar, we compute the mined area within the patch by masking and excluding intact vegetation using the Normalized Difference Vegetation Index ([NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index)). This yields good masks in forest backgrounds. Area estimates will have higher uncertainties over bare ground and rangelands.
 
 ## Journalism 
 
@@ -67,11 +81,14 @@ The goal of this work is mine detection rather than area estimation, and our cla
 
 This work grew out of a series of collaborations with journalists and with advocates at Survival International seeking to expose illegal gold mining activity and document its impacts on the environment and on local indigenous communities. We began identifying mines by sight in satellite imagery. Later, some high school classes helped sift through images. Finally it made sense to try to automate the identification of mine sites. The training datasets for the machine-learned models followed from those initial human surveys.
 
-#### Reports using the automated detections
+#### Selected reporting using the automated detections
 * [Las pistas illegales que bullen en la selva Venezolana](https://elpais.com/internacional/2022-01-30/las-pistas-clandestinas-que-bullen-en-la-selva-venezolana.html), from _El País_ and [ArmandoInfo](https://armando.info/la-mineria-ilegal-monto-sus-bases-aereas-en-la-selva/), 2022. First in the series [Corredor Furtivo](https://armando.info/series/corredor-furtivo/). Produced in conjunction with the Pulitzer Center's Rainforest Investigation Network ([in English, translated](https://pulitzercenter.org/stories/illegal-mining-set-air-bases-jungle-spanish)).
 * [The pollution of illegal gold mining in the Tapajós River](https://infoamazonia.org/en/storymap/the-pollution-of-illegal-gold-mining-in-the-tapajos-river/), _InfoAmazonia_, 2021. The story is part of a series, [Murky Waters](https://infoamazonia.org/en/project/murky-waters/), on pollution in the Amazon River system.
 * [Novas imagens de satélite revelam garimpo ainda mais destruidor na TI Yanomami](https://reporterbrasil.org.br/2023/02/novas-imagens-de-satelite-revelam-garimpo-ainda-mais-destruidor-na-ti-yanomami/), on new expansion of illegal mining in Yanomami Indigenous Territory, _Rapórter Brasil_, 2023.
 * [Suspected leader of the so called narcogarimpos extracted gold from environmental area without the permission of Brazilian regulation authority](https://reporterbrasil.org.br/2023/10/suspected-leader-of-the-so-called-narcogarimpos-extracted-gold-from-environmental-area-without-the-permission-of-brazilian-regulation-authority/), part of the [Narcogarimpos](https://narcogarimpos.reporterbrasil.org.br/en/) investigation from _Repórter Brasil_, 2023.
+* [Amazon Mining Watch: mapas satelitales confirman nuevos focos de deforestación por actividad minera en países amazónicos](https://convoca.pe/agenda-propia/amazon-mining-watch-mapas-satelitales-confirman-nuevos-focos-de-deforestacion-por), _Convoca_, 2024.
+* [Avanço de garimpo em terras indígenas alerta para novos meios de lavagem de ouro](https://reporterbrasil.org.br/2024/07/garimpo-terras-indigenas-alerta-novos-meios-lavagem-ouro/), _Repórter Brasil_, 2024. Also published by _Convoca_ in the [series Dorada Opacidad](https://convoca.pe/doradaopacidad/).
+* [Gold mining in the Amazon has doubled in area since 2018, AI tool shows](https://news.mongabay.com/2024/07/gold-mining-in-the-amazon-has-doubled-in-area-since-2018-ai-tool-shows/), _Mongabay_, 2024.
 
 #### Clandestine airstrips and airstrips dataset
 
@@ -97,17 +114,29 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 ### Overview
 
-The mine detector is a lightweight convolutional neural network, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of mines and other key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in twelve bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is an ensemble of neural networks, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in thirteen bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
 
-During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire region of interest. The network makes over 100 million individual assessments in covering the 6.7 million square kilometers of the Amazon basin. 
+Currently, the neural networks in question are constructed in two parts: (1) a geospatial foundation model (specifically, the open-source DINO ViT-S/16 from the [SSL4EO project](https://github.com/zhu-xlab/SSL4EO-S12)), which is pre-trained on a global sample of Sentinel-2 imagery to produce rich representations of features on Earth's surface; (2) an ensemble of small, fully-connected neural networks that ingest the output features of the foundation model and are trained with labeled data to predict whether each input represents a mine. Prior to 2025, we used an ensemble of lightweight convolutional neural networks trained from scratch on our dataset.
+
+During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire Amazon basin. The network makes over 100 million individual assessments in covering the 8.5 million square kilometers of the Amazon basin. 
 
 The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
 
 ### Results
 
+#### Quarterly assessments of mining in the Amazon basin, starting Q2 2025 (v3 Amazon Mining Watch dataset)
+
+Current assessments run through SSL4EO foundation model and the ensemble [48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5). We record outputs for all patches with a mean score over 0.85, on a scale from 0 to 1. To produce the polygons on the Amazon Mining Watch website, we further restrict to detections with score over 0.925, merge patches to polygons, and impose a higher 0.975 confidence level for polygons under 30 hectares in size. While the models are still under development, we are reviewing and filtering false positives from the detections presented on the website. 
+
+[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble) are available for 2024 and the second and third quarters of 2025. 
+
+The website presents cumulative detections of mining scars, starting from 2018. The current model gives the [2024 and 2025 updates](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble/cumulative) to the cumulative record, while years 2018-2023 are covered by [outputs of the prior v3.2-3.7 ensemble model](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble/cumulative). 
+
+Because of the shift in models from year 2023-2024, users will see a jump in detected mining activity from 2023 to 2024 due in part to the advent of new models and not exclusively to changes on the ground. Trends across this gap should be interpreted with caution. Eventually we hope to update the older data. 
+
 #### Yearly asessment of mining in the Amazon basin, 2018-2024 (v2 Amazon Mining Watch dataset)
 
-This most recent assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
+This assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
 
 [Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in three formats. The first format records the mean score and the six individual predictions from models 3.2-3.7 for each saved patch. The second, streamlined, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
 
@@ -142,8 +171,6 @@ This repo contains all code needed to generate data, train models, and deploy a 
 #### Code
 
 Code for data generation and model inference is in the [`gee`](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The [readme](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md) there provides instructions. 
-
-After training data generation, training runs from [`notebooks/train_model.ipynb`](https://github.com/earthrise-media/mining-detector/blob/main/notebooks/train_model.ipynb). 
 
 #### Data inputs
 - `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
