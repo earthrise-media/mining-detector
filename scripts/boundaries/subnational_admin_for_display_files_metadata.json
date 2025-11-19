@@ -1,0 +1,65 @@
+[
+  {
+    "file": "Bolivia/1_Limite_departamental/bol_admbnd_adm1_mdrt_2013_v01.shp",
+    "country": "Bolivia",
+    "country_code": "BO",
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_ES"
+  },
+  {
+    "file": "Brasil/1_Limite_estadados/states_legal_amazon.shp",
+    "country": "Brasil",
+    "country_code": "BR",
+    "id_field": "geocodigo",
+    "name_field": "nome"
+  },
+  {
+    "file": "Colombia/1_Limite_departamental/Departamento.shp",
+    "country": "Colombia",
+    "country_code": "CO",
+    "id_field": "DeCodigo",
+    "name_field": "DeNombre"
+  },
+  {
+    "file": "Ecuador/1_Limite_provincial/ORGANIZACION_TERRITORIAL_PROVINCIAL.shp",
+    "country": "Ecuador",
+    "country_code": "EC",
+    "id_field": "DPA_PROVIN",
+    "name_field": "DPA_DESPRO"
+  },
+  {
+    "file": "Guyana_Francesa/1_Limite_arrondissement/guf_admbnda_adm1_ign.shp",
+    "country": "Guyana_Francesa",
+    "country_code": "GF",
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_FR"
+  },
+  {
+    "file": "Guyana/1_Limite_regional/guy_admbnd_adm1_2021.shp",
+    "country": "Guyana",
+    "country_code": "GY",
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_EN"
+  },
+  {
+    "file": "Peru/1_Limite_departamentales/DEPARTAMENTOS.shp",
+    "country": "Peru",
+    "country_code": "PE",
+    "id_field": "IDDPTO",
+    "name_field": "DEPARTAMEN"
+  },
+  {
+    "file": "Suriname/1_Limite_distrital/sur_admbnda_adm1_2017.shp",
+    "country": "Suriname",
+    "country_code": "SR",
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_NL"
+  },
+  {
+    "file": "Venezuela/1_Limite_Estados/ven_admbnda_adm1_ine_20210223.shp",
+    "country": "Venezuela",
+    "country_code": "VE",
+    "id_field": "ADM1_PCODE",
+    "name_field": "ADM1_ES"
+  }
+]
