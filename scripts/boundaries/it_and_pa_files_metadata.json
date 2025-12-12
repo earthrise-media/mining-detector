@@ -281,16 +281,16 @@
     "area_units": "hectares"
   },
   {
-    "file": "Suriname/PAs_Guyane/National_Protected_Areas_Guyane.shp",
+    "file": "Suriname/PAs_Suriname_v2_Dec2025/PAs_National-Suriname_v2.shp",
     "type": "protected-area",
     "country": "Suriname",
     "country_code": "SR",
-    "id_field": "codigo_nac",
-    "name_field": "nombre",
-    "type_field": "categoria",
-    "status_field": "status",
-    "source_field": "fuente",
-    "area_field": "area_sig_h",
+    "id_field": "id",
+    "name_field": "name",
+    "type_field": "category",
+    "status_field": "Status",
+    "source_field": "Source",
+    "area_field": "Area_ha",
     "area_units": "hectares"
   },
   {
