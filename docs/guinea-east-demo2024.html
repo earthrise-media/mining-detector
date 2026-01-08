@@ -45,6 +45,38 @@
             background-color: #3887be;
             color: #ffffff;
         }
+
+        /* Lat/Lon popup styling */
+        .latlon-popup {
+            font-family: 'Open Sans', sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #ffffff;       /* solid white background */
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            color: #404040;
+        }
+
+        .latlon-popup .coords {
+            font-weight: 600;
+            color: #3887be;
+        }
+
+        .latlon-popup .hint {
+            font-size: 11px;
+            color: #777;
+        }
+
+        /* Hide Google Maps default InfoWindow close button */
+        .gm-style-iw > button {
+            display: none !important;
+        }
+        .gm-style-iw {
+            padding: 0 !important;
+        }
     </style>
 </head>
 
@@ -143,24 +175,35 @@
            Click → lat/lon popup + clipboard
         -------------------------------------------------- */
 
+        // Single InfoWindow instance
         const infoWindow = new google.maps.InfoWindow();
 
-        map.addListener("click", e => {
-            const lat = e.latLng.lat().toFixed(3);
-            const lng = e.latLng.lng().toFixed(3);
+        // Helper function to show lat/lon popup
+        function showLatLonPopup(latLng) {
+            const lat = latLng.lat().toFixed(3);
+            const lng = latLng.lng().toFixed(3);
             const text = `${lat}, ${lng}`;
 
+            // Copy to clipboard
             navigator.clipboard.writeText(text);
 
-            infoWindow.setContent(
-                `<div style="font-family:Open Sans;text-align:center">
-                    <div style="font-weight:600;color:#3887be">${text}</div>
-                    <div style="font-size:11px;color:#777">Copied to clipboard</div>
-                </div>`
-            );
-            infoWindow.setPosition(e.latLng);
+            // Set content and open popup
+            const html = `
+                <div class="latlon-popup">
+                    <div class="coords">${text}</div>
+                    <div class="hint">Copied to clipboard</div>
+                </div>
+            `;
+            infoWindow.setContent(html);
+            infoWindow.setPosition(latLng);
             infoWindow.open(map);
-        });
+        }
+
+        // Map click (outside polygons)
+        map.addListener("click", e => showLatLonPopup(e.latLng));
+
+        // Data layer click (AOI or mining polygons)
+        map.data.addListener("click", e => showLatLonPopup(e.latLng));
 
         /* --------------------------------------------------
            Custom menu (imagery toggle)
