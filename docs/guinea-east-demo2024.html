@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Eastern Guinea mining demo 2024</title>
+    <title> Guinea mining demo 2024</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -77,6 +77,54 @@
         .gm-style-iw {
             padding: 0 !important;
         }
+
+        .map-title-banner {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 10px 18px;
+            margin: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            font-family: 'Open Sans', sans-serif;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .map-title-banner .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #404040;
+            letter-spacing: 0.3px;
+        }
+
+        .map-title-banner .subtitle {
+            margin-top: 2px;
+            font-size: 14px;
+            font-weight: 400;
+            color: #666;
+        }
+
+        @media (max-width: 640px) {
+            .map-title-banner .title {
+                font-size: 15px;
+            }
+            .map-title-banner .subtitle {
+                font-size: 11px;
+            }
+        }
+
+        .map-logo {
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 6px;
+            padding: 6px;
+            margin: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .map-logo img {
+            display: block;
+            height: 32px;          /* adjust as needed */
+            width: auto;
+        }
     </style>
 </head>
 
@@ -100,6 +148,21 @@
             streetViewControl: false,
             fullscreenControl: false
         });
+
+        function addTitleBanner(map) {
+            const banner = document.createElement('div');
+            banner.className = 'map-title-banner';
+
+            banner.innerHTML = `
+                <div class="title">Guinea artisanal mining 2024</div>
+                <div class="subtitle">  Earth Index demo </div>
+            `;
+
+            map.controls[google.maps.ControlPosition.TOP_CENTER].push(banner);
+        }
+
+        addTitleBanner(map);
+
 
         /* --------------------------------------------------
            URL hash sync (#zoom/lat/lon)
@@ -250,6 +313,25 @@
 	    btnHybrid.className = "";
 	    sentinelAttribution.style.display = 'block';
 	};
+
+        /* --------------------------------------------------
+           Logo
+        -------------------------------------------------- */
+
+        function addLogoControl(map) {
+            const container = document.createElement('div');
+            container.className = 'map-logo';
+
+            const img = document.createElement('img');
+            img.src = './logo.png';        // or full URL
+            img.alt = 'Company logo';
+
+            container.appendChild(img);
+
+            map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(container);
+        }
+
+        addLogoControl(map);
 
     </script>
 </body>
