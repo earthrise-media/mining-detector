@@ -17,13 +17,14 @@ from google.api_core import retry
 import numpy as np
 import pandas as pd
 import rasterio
+from rasterio.transform import from_bounds
 from rasterstats import zonal_stats
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from tile_utils import CenteredTile, chips_from_tile, create_tiles, ensure_tile_shape
+from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 
 TileType = Union[DLTile, CenteredTile]
 
@@ -56,7 +57,7 @@ class DataConfig:
                           "B8A", "B8", "B9", "B11", "B12"],
         "S2L2A": ["B1", "B2", "B3", "B4", "B5", "B6", "B7",
                   "B8A", "B8", "B9", "B11", "B12"],
-        "EmbeddingsV1": [f"A{x:02d}" for x in range(64)],
+        "AlphaEarth": [f"A{x:02d}" for x in range(64)],
     }
 
     _NDVI_BANDS: ClassVar[Dict[str, str]] = {
@@ -135,7 +136,7 @@ class GEE_Data_Extractor:
                     "transmitterReceiverPolarisation", "VH"))
                 .mosaic())
 
-        elif collection == 'EmbeddingsV1':
+        elif collection == 'AlphaEarth':
             emb = ee.ImageCollection("GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL")
             composite = emb.filterDate(start_date, end_date).mosaic()
 
@@ -171,7 +172,7 @@ class GEE_Data_Extractor:
         composite_tile = self.composite.clipToBoundsAndScale(
             geometry=tile_geom,
             width=out_size,
-            height=out_size,
+            height=out_size
         )
 
         pixels = ee.data.computePixels(
@@ -216,35 +217,30 @@ class GEE_Data_Extractor:
             data = list(executor.map(self.get_tile_data, tiles))
 
         return data
-    
-    def _get_affine_transform(
-        self,
-        transform: Union[Affine,
-                   Tuple[float, float, float, float, float, float]]) -> Affine:
-        """
-        Convert DLTile-style transform or Affine object to rasterio Affine.
-        """
-        if isinstance(transform, Affine):
-            return transform
-        elif isinstance(transform, tuple) and len(transform) == 6:
-            x_min, x_res, x_rot, y_max, y_rot, y_res = transform
-            return Affine(x_res, x_rot, x_min, y_rot, y_res, y_max)
-        else:
-            raise TypeError(f"Unexpected transform type: {type(transform)}")
         
-    def save_tile(self, pixels: np.ndarray, tile: TileType, outdir: Path,
-                  dtype="uint16") -> Path:
+    def save_tile(self, pixels: np.ndarray, tile: TileType,
+                  outdir: Path) -> Path:
+        """Write pixels to disk. 
+
+        Uses CRS EPSG:4326 in line with Earth Engine standard and
+            ee.geometry.Rectangle(tile.geometry.bounds).
+        """
+        if self.config.collection[:2] == "S2":
+            dtype = "uint16"
+        else:
+            dtype = "float32"
         pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
         bands, height, width = pixels.shape
-
-        transform = self._get_affine_transform(tile.geotrans)
+        transform = from_bounds(*tile.geometry.bounds, width, height)
+        crs = "EPSG:4326"
+        
         profile = {
             "driver": "GTiff",
             "height": height,
             "width": width,
             "count": bands,
             "dtype": dtype,
-            "crs": tile.crs,
+            "crs": crs,
             "transform": transform,
             "compress": "deflate",
         }
@@ -481,7 +477,7 @@ class InferenceEngine:
         Run the per-tile pipeline starting from pixels (I/O already done).
         This is intended to run inside the consumer (serialized for GPU use).
         """
-        pixels = np.clip(pixels / 10000.0, 0, 1)
+        pixels = np.clip(pixels / 10000.0, 0, 1).astype(np.float32, copy=False)
 
         chip_size, stride = self._resolve_chip_params()
         tile_width = tile.tilesize + 2 * tile.pad
@@ -493,9 +489,8 @@ class InferenceEngine:
                 f"Inference may miss some pixels."
             )
 
-        chips, chip_geoms = chips_from_tile(pixels, tile, chip_size, stride)
-        chips = np.array(chips, dtype=np.float32)
-        chip_geoms.to_crs("EPSG:4326", inplace=True)
+        chips, chip_geoms = cut_chips(
+            tile.geometry.bounds, chip_size, stride, crs='epsg:4326')
 
         try: 
             if self.embed_model is not None:
