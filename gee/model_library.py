@@ -198,8 +198,6 @@ def ResNet50(input_shape=(48,48,13), num_classes=1, weight_decay=1e-4):
     model = models.Model(inputs, outputs)
     return model
 
-
-
 def MLP(
     input_dim: int = 384,
     hidden_layers: tuple = (64, 16),
@@ -210,13 +208,12 @@ def MLP(
     Build a fully connected MLP for binary classification.
 
     Args:
-        input_dim (int): Dimension of the input features (default 384).
-        hidden_layers (tuple): Sizes of hidden layers, e.g. (64, 16).
-        activation (str): Activation for hidden layers (default "relu").
-        output_activation (str): Activation for output layer (default "sigmoid").
+        input_dim (int): Dimension of the input features.
+        hidden_layers (tuple): Sizes of hidden layers.
+        activation (str): Activation for hidden layers.
+        output_activation (str): Activation for output layer.
 
-    Returns:
-        tf.keras.Model: Compiled Keras Sequential model.
+    Returns: A Keras Sequential model.
     """
     model = keras.Sequential()
     model.add(layers.Input(shape=(input_dim,)))
@@ -227,4 +224,18 @@ def MLP(
     # Output layer: single neuron for binary classification
     model.add(layers.Dense(1, activation=output_activation))
 
+    return model
+
+
+def LogisticRegression(
+    input_dim: int = 384,
+    output_activation: str = "sigmoid") -> tf.keras.Model:
+    """
+    Build a logistic‑regression model for binary classification.
+
+    Returns: A Keras Sequential model.
+    """
+    model = keras.Sequential(name="logistic_regression")
+    model.add(layers.Input(shape=(input_dim,)))
+    model.add(layers.Dense(1, activation=output_activation))
     return model
