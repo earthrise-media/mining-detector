@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 import boto3
 from dotenv import load_dotenv
+from constants import MINING_SIMPLIFIED_FILES
 
 load_dotenv()
 
@@ -39,17 +40,7 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
-    
-    "data/outputs/website/mining_201800_simplified.geojson",
-    "data/outputs/website/mining_201900_simplified.geojson",
-    "data/outputs/website/mining_202000_simplified.geojson",
-    "data/outputs/website/mining_202100_simplified.geojson",
-    "data/outputs/website/mining_202200_simplified.geojson",
-    "data/outputs/website/mining_202300_simplified.geojson",
-    "data/outputs/website/mining_202400_simplified.geojson",
-    "data/outputs/website/mining_202502_simplified.geojson",
-    "data/outputs/website/mining_202503_simplified.geojson",
-]
+] + MINING_SIMPLIFIED_FILES
 
 CONTENT_TYPES = {".json": "application/json", ".geojson": "application/geo+json"}
 
