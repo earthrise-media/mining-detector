@@ -2,7 +2,6 @@ OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
 MINING_DIFFERENCES_FILES = {
-    202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
     202503: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
     202502: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
     202400: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
