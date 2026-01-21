@@ -20,7 +20,9 @@ python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
 
 python scripts/boundaries/preprocess_mining_areas.py
+./scripts/boundaries/convert_geojsons_to_pmtiles.sh
 python scripts/upload_data_to_s3.py
+python scripts/upload_tiles_to_s3.py
 ```
 
 ## Updating mining data

@@ -5,6 +5,7 @@
 # - AWS_SECRET_ACCESS_KEY
 # - AWS_REGION
 # - AWS_BUCKET
+# - CLOUDFRONT_DISTRIBUTION_ID
 
 # You can run this script with uv if you prefer,
 # see https://docs.astral.sh/uv/guides/scripts/.
