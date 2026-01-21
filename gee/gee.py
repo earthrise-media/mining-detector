@@ -490,7 +490,7 @@ class InferenceEngine:
             )
 
         chips, chip_geoms = cut_chips(
-            tile.geometry.bounds, chip_size, stride, crs='epsg:4326')
+            pixels, tile.geometry.bounds, chip_size, stride, crs='epsg:4326')
 
         try: 
             if self.embed_model is not None:
