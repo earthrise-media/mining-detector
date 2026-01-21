@@ -1,7 +1,10 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
+DATA_UPDATED_AT = "20260121"
+
 MINING_DIFFERENCES_FILES = {
+    202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
     202503: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
     202502: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
     202400: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
@@ -16,13 +19,10 @@ MINING_DIFFERENCES_FILES = {
 MINING_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_FILES.keys())
 first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
 
-MINING_COMBINED_FILE = f"{WEBSITE_OUTPUTS_FOLDER}/amazon_basin_{first_mining_year_quarter}-{last_mining_year_quarter}_all_differences.geojson"
-
-
-def GENERATE_MINING_SIMPLIFIED_FILENAME(year_quarter):
+def generate_mining_simplified_filename(year_quarter):
     return f"{WEBSITE_OUTPUTS_FOLDER}/mining_{year_quarter}_simplified.geojson"
 
 
 MINING_SIMPLIFIED_FILES = [
-    GENERATE_MINING_SIMPLIFIED_FILENAME(yq) for yq in MINING_YEARS_QUARTERS
+    generate_mining_simplified_filename(yq) for yq in MINING_YEARS_QUARTERS
 ]

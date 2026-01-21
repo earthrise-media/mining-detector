@@ -12,20 +12,19 @@ These scripts prepare boundaries for use in the AMW website:
 To get a full refresh of the data, run the following scripts sequentially:
 
 ```bash
-python scripts/boundaries/concat_differences.py
-
 # these are only required if the admin areas, ITs or PAs have changed
 python scripts/boundaries/standardize_subnational_admin_areas.py
 python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
 
 python scripts/boundaries/preprocess_mining_areas.py
-python scripts/upload_data_to_s3.py
+python scripts/boundaries/upload_data_to_s3.py
 ```
 
 ## Updating mining data
 
 If you are updating mining data:
 
-1. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
-2. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs and PAs have not changed
+1. Update the `DATA_UPDATED_AT` variable in `scripts/boundaries/constants.py`, using the `YYYYMMDD` format. This ensures you will not overwrite previous data when uploading to S3
+2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
+3. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs and PAs have not changed
