@@ -47,7 +47,7 @@ def main(data_config: gee.DataConfig,
          logger: logging.Logger):
 
     model = tf.keras.models.load_model(cli_args.model_path, compile=False)
-    region = gpd.read_file(cli_args.region_path).geometry[0].__geo_interface__
+    region = gpd.read_file(cli_args.region_path).union_all()
     if cli_args.embed_model_path is not None:
         embed_model = torch.load(cli_args.embed_model_path, weights_only=False)
     else:

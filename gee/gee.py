@@ -725,7 +725,7 @@ class Masker:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            dissolved_geom = gdf.buffer(buffer_deg, join_style=2).unary_union
+            dissolved_geom = gdf.buffer(buffer_deg, join_style=2).union_all()
             dissolved = gpd.GeoDataFrame(geometry=[dissolved_geom],
                                          crs=polys_gdf.crs)
             dissolved = dissolved.explode(index_parts=False).reset_index(
@@ -791,7 +791,7 @@ class Masker:
         polys_gdf = polys_gdf.to_crs("EPSG:4326")
         region_gdf = self._simplify_for_tiling(polys_gdf)
         tiles = create_tiles(
-            region_gdf.unary_union,
+            region_gdf.union_all(),
             self.data_extractor.config.tilesize,
             self.data_extractor.config.pad
         )
