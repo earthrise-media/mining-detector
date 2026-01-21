@@ -36,17 +36,12 @@ from shapely import set_precision
 
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v1_areas.geojson"
-PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
-    "data/boundaries/protected_areas_and_indigenous_territories/out"
+INDIGENOUS_TERRITORIES_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories.geojson"
+PROTECTED_AREAS_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas.geojson"
+NATIONAL_ADMIN_GEOJSON = "data/boundaries/national_admin/out/national_admin.geojson"
+SUBNATIONAL_ADMIN_GEOJSON = (
+    "data/boundaries/subnational_admin/out/admin_areas_display.geojson"
 )
-INDIGENOUS_TERRITORIES_GEOJSON = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/indigenous_territories.geojson"
-PROTECTED_AREAS_GEOJSON = (
-    f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/protected_areas.geojson"
-)
-NATIONAL_ADMIN_FOLDER = "data/boundaries/national_admin/out"
-NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
-SUBNATIONAL_ADMIN_FOLDER = "data/boundaries/subnational_admin/out"
-SUBNATIONAL_ADMIN_GEOJSON = f"{SUBNATIONAL_ADMIN_FOLDER}/admin_areas_display.geojson"
 
 
 def simplify_gdf(gdf):
@@ -405,29 +400,21 @@ if __name__ == "__main__":
         {
             "name": "national_admin",
             "file": NATIONAL_ADMIN_GEOJSON,
-            # "output_folder": NATIONAL_ADMIN_FOLDER,
-            # "output_subfolder": "mining_by_national_admin",
             "ignore_if_outside_country": True,
         },
         {
             "name": "subnational_admin",
             "file": SUBNATIONAL_ADMIN_GEOJSON,
-            # "output_folder": SUBNATIONAL_ADMIN_FOLDER,
-            # "output_subfolder": "mining_by_subnational_admin",
             "ignore_if_outside_country": True,
         },
         {
             "name": "indigenous_territories",
             "file": INDIGENOUS_TERRITORIES_GEOJSON,
-            # "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
-            # "output_subfolder": "mining_by_indigenous_territories",
             "ignore_if_outside_country": True,
         },
         {
             "name": "protected_areas",
             "file": PROTECTED_AREAS_GEOJSON,
-            # "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
-            # "output_subfolder": "mining_by_protected_areas",
             "ignore_if_outside_country": True,
         },
     ]
