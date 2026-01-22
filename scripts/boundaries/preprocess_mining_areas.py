@@ -514,6 +514,32 @@ if __name__ == "__main__":
             dataset["file"].replace(".geojson", "_impacts_unfiltered.geojson"),
             id_column="id",
         )
+
+        # merge with yearly and save to csv for reference
+        ref = gdf_merged.merge(
+            summary_mining_affected_area_ha_yearly, on="id", how="left"
+        )
+        ref = ref.drop(
+            columns=[
+                "locations",
+                "mining_affected_area_ha",
+                "geometry",
+                "illegality_areas",
+                "area_field",
+                "area_units",
+            ],
+            errors="ignore",
+        )
+        ref = ref.rename(
+            columns={
+                "intersected_area_ha": "mining_affected_area_ha",
+                "intersected_area_ha_cumulative": "mining_affected_area_ha_cumulative",
+            }
+        )
+        ref.to_csv(
+            dataset["file"].replace(".geojson", "_impacts_yearly.csv"), index=False
+        )
+
         # filter and save only areas with impact
         gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
         save_to_geojson(
