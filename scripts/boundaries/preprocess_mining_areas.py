@@ -28,6 +28,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from constants import (
+    ILLEGALITY_AREAS_GEOJSON,
+    ILLEGALITY_DATA_UPDATED_AT,
     MINING_DIFFERENCES_FILES,
     MINING_YEARS_QUARTERS,
     generate_mining_simplified_filename,
@@ -35,7 +37,6 @@ from constants import (
 from shapely import set_precision
 
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
-ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v1_areas.geojson"
 INDIGENOUS_TERRITORIES_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories.geojson"
 PROTECTED_AREAS_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas.geojson"
 NATIONAL_ADMIN_GEOJSON = "data/boundaries/national_admin/out/national_admin.geojson"
@@ -312,6 +313,7 @@ def overlay_max_category(
     GeoDataFrame
         mining_gdf with an additional column '{category_col}_max' containing the max values.
     """
+    print("Overlaying with illegality data...")
 
     # Ensure both GeoDataFrames share the same CRS
     if illegality_gdf.crs != mining_gdf.crs:
@@ -378,13 +380,31 @@ if __name__ == "__main__":
         gdf_simplified.to_file(output_file, driver="GeoJSON")
         print(f"Created: {output_file}")
 
-        all_mining_gdfs.append(current_gdf)
+        all_mining_gdfs.append((current_year, current_gdf))
 
-    # combine individual frames (one per year quarter) into single gdf
-    mining_gdf = gpd.pd.concat(all_mining_gdfs, ignore_index=True)
+    # for illegality, use a cutoff date, which is when illegality data was produced
+    mining_gdf_for_illegality = gpd.pd.concat(
+        [x[1] for x in all_mining_gdfs if x[0] <= ILLEGALITY_DATA_UPDATED_AT],
+        ignore_index=True,
+    )
+    # take the rest of the mining data and store in variable
+    mining_gdf_rest = gpd.pd.concat(
+        [x[1] for x in all_mining_gdfs if x[0] > ILLEGALITY_DATA_UPDATED_AT],
+        ignore_index=True,
+    )
 
     # overlay illegality data
-    mining_gdf = overlay_max_category(illegality_areas_gdf, mining_gdf, "illegality")
+    mining_gdf_with_illegality = overlay_max_category(
+        illegality_areas_gdf, mining_gdf_for_illegality, "illegality"
+    )
+    # ensure the illegality_max column exists in rest gdf with a -1 value, to be ignored
+    if len(mining_gdf_rest) > 0:
+        mining_gdf_rest["illegality_max"] = -1
+
+    # concat with rest of data
+    mining_gdf = gpd.pd.concat(
+        [mining_gdf_with_illegality, mining_gdf_rest], ignore_index=True
+    )
 
     # intersect mining with admin boundaries and calculate areas (once per mining file)
     intersected_with_admin = intersect_and_calculate_areas(
@@ -435,12 +455,24 @@ if __name__ == "__main__":
             .reset_index()
             .rename(columns={"intersected_area_ha": "mining_affected_area"})
         )
+
+        # filter out -1 (no illegality data) from the illegality breakdown
+        summary_illegality_filtered = summary_illegality[
+            summary_illegality["admin_illegality_max"] != -1
+        ]
+
+        # calculate the denominator for percentages (only area WITH illegality data)
+        illegality_area_totals = summary_illegality_filtered.groupby("id")[
+            "mining_affected_area"
+        ].sum()
+
         illegality_by_id = (
-            summary_illegality.groupby("id")
+            summary_illegality_filtered.groupby("id")
             .apply(
                 lambda g: g[["admin_illegality_max", "mining_affected_area"]].to_dict(
                     "records"
-                )
+                ),
+                include_groups=False,
             )
             .to_dict()
         )
@@ -472,7 +504,9 @@ if __name__ == "__main__":
                             **x,
                             "mining_affected_area_pct": round(
                                 x["mining_affected_area"]
-                                / summary_mining_affected_area_ha[id],
+                                / illegality_area_totals.get(
+                                    id, 1
+                                ),  # use filtered totals, excluding -1 values
                                 3,
                             ),
                         }

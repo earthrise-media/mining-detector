@@ -20,6 +20,7 @@
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import boto3
@@ -95,8 +96,8 @@ def main():
         cf.create_invalidation(
             DistributionId=cf_id,
             InvalidationBatch={
-                "Paths": {"Quantity": 1, "Items": ["/data/*"]},
-                "CallerReference": str(int(os.times().elapsed * 1000)),
+                "Paths": {"Quantity": 1, "Items": [f"/{DATA_UPDATED_AT}/*"]},
+                "CallerReference": str(int(time.time() * 1000)),
             },
         )
         print("\n✓ Invalidated CloudFront cache")

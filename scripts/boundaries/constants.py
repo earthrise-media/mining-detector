@@ -1,7 +1,7 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260121"
+DATA_UPDATED_AT = "20260124"
 
 MINING_DIFFERENCES_FILES = {
     202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
@@ -26,3 +26,6 @@ def generate_mining_simplified_filename(year_quarter):
 MINING_SIMPLIFIED_FILES = [
     generate_mining_simplified_filename(yq) for yq in MINING_YEARS_QUARTERS
 ]
+
+ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v2_areas_simplified.geojson"
+ILLEGALITY_DATA_UPDATED_AT = 202503
