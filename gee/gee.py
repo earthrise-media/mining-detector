@@ -746,11 +746,11 @@ class SAM2_Masker:
 
     def _load_model(self):
         sam2_model = build_sam2(
-            config.sam2_model_cfg,
-            config.sam2_checkpoint,
+            self.config.sam2_model_cfg,
+            self.config.sam2_checkpoint,
             device="cuda")
 
-        state = torch.load(config.finetuned_weights, map_location="cpu")
+        state = torch.load(self.config.finetuned_weights, map_location="cpu")
         sam2_model.load_state_dict(state, strict=False)
         sam2_model.eval()
         
@@ -782,11 +782,11 @@ class SAM2_Masker:
     def predict(self, rgb_img: np.ndarray, tile, preds_gdf):
         """Run SAM2 using polygon-derived box prompts.
 
-        pixels: (H, W, 3) uint8 RGB image
+        rgb_img: (H, W, 3) uint8 RGB image
         tile: DLTile
         preds_gdf: GeoDataFrame in EPSG:4326
         """
-        height, width = pixels.shape[:2]
+        height, width = rgb_img.shape[:2]
         transform = self.raster_io.affine_from_tile(tile, width, height)
 
         box_prompt = self.polygon_gdf_to_pixel_bbox(
