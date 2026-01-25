@@ -43,15 +43,12 @@ def get_outpath(model_path: Path, region_path: Path,
 
 def main(data_config: gee.DataConfig,
          inference_config: gee.InferenceConfig,
+         mask_config: gee.MaskConfig,
          cli_args: argparse.Namespace,
          logger: logging.Logger):
 
     model = tf.keras.models.load_model(cli_args.model_path, compile=False)
     region = gpd.read_file(cli_args.region_path).union_all()
-    if cli_args.embed_model_path is not None:
-        embed_model = torch.load(cli_args.embed_model_path, weights_only=False)
-    else:
-        embed_model = None
 
     tiles = tile_utils.create_tiles(
         region, data_config.tilesize, data_config.pad)
@@ -74,7 +71,7 @@ def main(data_config: gee.DataConfig,
         data_extractor=data_extractor,
         model=model,
         config=inference_config,
-        embed_model=embed_model,
+        mask_config=mask_config,
         logger=logger
     )
     preds = engine.bulk_predict(tiles, outpath=outpath)
@@ -126,6 +123,13 @@ if __name__ == '__main__':
     parser.add_argument("--tries", type=int,
                         default=inference_defaults.tries,
                         help="Number of retries per tile")
+    parser.add_argument("--embed_model_name", type=str,
+                        default=inference_defaults.embed_model_name,
+                        help="Embedding model identifier")
+    parser.add_argument("--embed_model_path", type=str,
+                        default=inference_defaults.embed_model_path,
+                        help=("Path to optional pretrained foundation model; "
+                              "set '' to disable"))
     parser.add_argument("--embed_model_chip_size", type=int,
                         default=inference_defaults.embed_model_chip_size,
                         help="Input size for embedding model")
@@ -138,6 +142,24 @@ if __name__ == '__main__':
     parser.add_argument("--embeddings_cache_dir", type=str,
                         default=inference_defaults.embeddings_cache_dir,
                         help="Optional directory to save/reload embeddings")
+    parser.add_argument("--run_sam2", action="store_true",
+                        default=inference_defaults.run_sam2,
+                        help="Enable SAM2 segmentation after model predictions")
+
+    # MaskConfig args
+    parser.add_argument("--sam2_checkpoint", type=str,
+                        default=MaskConfig().sam2_checkpoint,
+                        help="Path to SAM2 checkpoint")
+    parser.add_argument("--finetuned_weights", type=str,
+                        default=MaskConfig().finetuned_weights,
+                        help="Path to fine-tuned SAM2 model weights")
+    parser.add_argument("--sam2_model_cfg", type=str,
+                        default=MaskConfig().model_cfg,
+                        help="Path to SAM2 YAML config")
+    parser.add_argument("--mask_dir", type=str,
+                        default=MaskConfig().mask_dir,
+                        help="Directory to save SAM2 outputs")
+
     # General args
     parser.add_argument("--model_path", type=Path,
                         default="../models/48px_v3.2-3.7ensemble_2024-02-13.h5",
@@ -145,9 +167,6 @@ if __name__ == '__main__':
     parser.add_argument("--region_path", type=Path,
                         default="../data/boundaries/amazon_basin.geojson",
                         help="Path to ROI geojson")
-    parser.add_argument("--embed_model_path", type=Path,
-                        default=None,
-                        help="Path to optional pretrained foundation model")
     parser.add_argument("--start_date", type=valid_date,
                         default="2023-01-01",
                         help="Start date in YYYY-MM-DD format")
@@ -168,12 +187,18 @@ if __name__ == '__main__':
     config_dict = {
         f.name: getattr(args, f.name, None) for f in fields(gee.InferenceConfig)
     }
+    config_dict["embed_model_path"] = str(args.embed_model_path) if args.embed_model_path else ""
     inference_config = gee.InferenceConfig(**config_dict)
+
+    config_dict = {
+        f.name: getattr(args, f.name, None) for f in fields(gee.MaskConfig)
+    }
+    mask_config = gee.MaskConfig(**config_dict)
 
     logpath = args.logdir / f"gee_{args.region_path.name}.log"
     logger = get_logger(logpath)
     logger.info(f"Inference {datetime.now().isoformat()}: {vars(args)}")
 
-    main(data_config, inference_config, args, logger)
+    main(data_config, inference_config, mask_config, args, logger)
 
 
