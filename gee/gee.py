@@ -337,7 +337,7 @@ class InferenceEngine:
                 raise ValueError("If run_sam2 is True, cuda must be available.")
             if not mask_config:
                 mask_config = MaskConfig()
-            self.masker = Masker(self.data_extractor, mask_config)
+            self.masker = SAM2_Masker(self.data_extractor, mask_config)
         else:
             self.masker = None
             
