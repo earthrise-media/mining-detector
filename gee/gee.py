@@ -19,6 +19,8 @@ import pandas as pd
 import rasterio
 from rasterio.transform import from_bounds
 from rasterstats import zonal_stats
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
@@ -84,12 +86,42 @@ class InferenceConfig:
     stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
-    embed_model_chip_size: int = 224
-    embedding_batch_size: int = 32
-    geo_chip_size: Optional[int] = None # Required if using an embed_model
+    embed_model_name: Optional[str] = "ssl4eo_vit_s16"
+    embed_model_path: Optional[str] = "SSL4EO/pretrained/dino_vit_small_patch16_224.pt"
+    # The next 3 parameters are required if using an embedding model
+    embed_model_chip_size: Optional[int] = 224
+    embedding_batch_size: Optional[int] = 32
+    geo_chip_size: Optional[int] = 48 
     embeddings_cache_dir: Optional[str] = None
+    run_sam2: bool = True
 
-    
+    def __post_init__(self):
+        self._validate_embedding_config()
+
+    def _validate_embedding_config(self):
+        if not self.embed_model_name or not self.embed_model_path:
+            return
+        
+        required = {
+            "embed_model_chip_size": self.embed_model_chip_size,
+            "embedding_batch_size": self.embedding_batch_size,
+            "geo_chip_size": self.geo_chip_size,
+        }
+
+        missing = [k for k,v in required.items() if v is None]
+        if missing:
+            raise ValueError(
+                "Embedding model enabled but missing required parameters: "
+                + ", ".join(missing)
+            )
+
+@dataclass
+class MaskConfig:
+    sam2_checkpoint: str = "sam2/sam2.1_hiera_small.pt"
+    finetuned_weights: str = "sam2/SAM_model_96_px_final.pth"
+    sam2_model_cfg: str = "sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+    mask_dir: str = "sam2/outputs"
+
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
         self.start_date = str(start_date)
@@ -217,21 +249,28 @@ class GEE_Data_Extractor:
             data = list(executor.map(self.get_tile_data, tiles))
 
         return data
-        
+
+    @staticmethod
+    def affine_from_tile(tile, width: int, height: int):
+        """Construct an EPSG:4326 affine transform from tile metadata."""
+        return from_bounds(*tile.geometry.bounds, width, height)
+
     def save_tile(self, pixels: np.ndarray, tile: TileType,
-                  outdir: Path) -> Path:
+                  outdir: Union[Path, str], mask_type=False) -> Path:
         """Write pixels to disk. 
 
         Uses CRS EPSG:4326 in line with Earth Engine standard and
             ee.geometry.Rectangle(tile.geometry.bounds).
         """
-        if self.config.collection[:2] == "S2":
+        if mask_type:
+            dtype = "uint8"
+        elif self.config.collection[:2] == "S2":
             dtype = "uint16"
         else:
             dtype = "float32"
         pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
         bands, height, width = pixels.shape
-        transform = from_bounds(*tile.geometry.bounds, width, height)
+        transform = self.affine_from_tile(tile, width, height)
         crs = "EPSG:4326"
         
         profile = {
@@ -246,6 +285,8 @@ class GEE_Data_Extractor:
         }
         tif_name = (f"{self.config.collection}_{tile.key}_"
                     f"{self.start_date}_{self.end_date}.tif")
+        if mask_type:
+            tif_name = tif_name.split(".tif")[0] + "-msk.tif"
         outpath = Path(outdir) / tif_name
         outpath.parent.mkdir(parents=True, exist_ok=True)
         with rasterio.open(outpath, "w", **profile) as dst:
@@ -268,19 +309,13 @@ class InferenceEngine:
         data_extractor: GEE_Data_Extractor,
         model: tf.keras.Model,
         config: InferenceConfig,
-        embed_model: Optional[torch.nn.Module] = None,
+        mask_config: Optional[MaskConfig] = None,
         logger: Optional[logging.Logger] = None):
         
         self.data_extractor = data_extractor
         self.model = model
         self.config = config
-        self.embed_model = embed_model
         self.logger = logger or logging.getLogger()
-
-        if self.embed_model is not None and self.config.geo_chip_size is None:
-            raise ValueError(
-                "geo_chip_size must be specified when using an embed_model."
-            )
 
         # Add a lock to serialize model access (in-process)
         self._tf_model_lock = threading.Lock()
@@ -292,10 +327,32 @@ class InferenceEngine:
         else:
             self.device = torch.device("cpu")
 
-        if self.embed_model is not None:
-            self.embed_model = self.embed_model.to(self.device)
-            self.embed_model.eval()
+        if config.embed_model_path:
+            self.embed_model = self._load_embed_model()
+        else:
+            self.embed_model = None
 
+        if self.config.run_sam2:
+            if not torch.cuda.is_available():
+                raise ValueError("If run_sam2 is True, cuda must be available.")
+            if not mask_config:
+                mask_config = MaskConfig()
+            self.masker = Masker(self.data_extractor, mask_config)
+        else:
+            self.masker = None
+            
+    def _load_embed_model(self):
+        if self.config.embed_model_name == "ssl4eo_vit_s16":
+            embed_model = torch.load(self.config.embed_model_path,
+                                     weights_only=False)
+        else:
+            raise ValueError(
+                f"Unknown embedding model: {self.config.embed_model_name}")
+
+        embed_model = embed_model.to(self.device)
+        embed_model.eval()
+        return embed_model
+        
     def _make_embedding_cache_path(self, tile: TileType) -> Optional[Path]:
         """Return Path to an embedding cache file; None if disabled."""
         emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
@@ -504,6 +561,11 @@ class InferenceEngine:
                 preds = self._model_infer(chips)
                 preds_gdf = self._preds_to_gdf(preds, chip_geoms)
 
+            if not preds_gdf.empty and self.masker:
+                rgb = np.clip(
+                    pixels[..., [3, 2, 1]]/3000 * 255, 0, 255).astype(np.uint8)
+                self.masker.predict(rgb, tile, preds_gdf)
+
             return preds_gdf, None
 
         except Exception as e:
@@ -674,7 +736,88 @@ class InferenceEngine:
         preds_gdf, _ = self.predict_on_tile_pixels(pixels, tile)
         return preds_gdf
 
-class Masker:
+class SAM2_Masker:
+    """Computes pixelwise segmentations."""
+    def __init__(
+        self, raster_io: GEE_Data_Extractor, config: MaskConfig):
+        self.raster_io = raster_io
+        self.config = config
+        self.predictor = self._load_model()
+
+    def _load_model(self):
+        sam2_model = build_sam2(
+            config.sam2_model_cfg,
+            config.sam2_checkpoint,
+            device="cuda")
+
+        state = torch.load(config.finetuned_weights, map_location="cpu")
+        sam2_model.load_state_dict(state, strict=False)
+        sam2_model.eval()
+        
+        return SAM2ImagePredictor(sam2_model)
+
+    @staticmethod
+    def polygon_gdf_to_pixel_bbox(gdf, transform, width, height):
+        """Convert georeferenced polygons to a box prompt in pixel coords."""
+        geom = gdf.geometry.union_all()
+        if geom.is_empty:
+            return None
+
+        minx, miny, maxx, maxy = geom.bounds
+        inv = ~transform
+
+        x0, y0 = inv * (minx, maxy)
+        x1, y1 = inv * (maxx, miny)
+
+        x0 = int(np.clip(np.floor(x0), 0, width - 1))
+        x1 = int(np.clip(np.ceil(x1), 0, width - 1))
+        y0 = int(np.clip(np.floor(y0), 0, height - 1))
+        y1 = int(np.clip(np.ceil(y1), 0, height - 1))
+
+        if x1 <= x0 or y1 <= y0:
+            return None
+
+        return np.array([x0, y0, x1, y1], dtype=np.int32)
+
+    def predict(self, rgb_img: np.ndarray, tile, preds_gdf):
+        """Run SAM2 using polygon-derived box prompts.
+
+        pixels: (H, W, 3) uint8 RGB image
+        tile: DLTile
+        preds_gdf: GeoDataFrame in EPSG:4326
+        """
+        height, width = pixels.shape[:2]
+        transform = self.raster_io.affine_from_tile(tile, width, height)
+
+        box_prompt = self.polygon_gdf_to_pixel_bbox(
+            preds_gdf, transform, width, height)
+
+        if box_prompt is None:
+            return None
+
+        self.predictor.set_image(rgb_img)
+        labels, scores, prob_logits = self.predictor.predict(
+            box=box_prompt,
+            multimask_output=True)
+        
+        best_mask = labels[np.argmax(scores)].astype(np.uint8)
+        self.raster_io.save_tile(
+            pixels=best_mask[..., None],  # single band
+            tile=tile,
+            outdir=self.config.mask_dir,
+            mask_type=True)
+
+        return {
+            "labels": labels,
+            "scores": scores,
+            "prob_logits": prob_logits,
+            "box_prompt": box_prompt,
+        }
+
+        
+        
+    
+class NDVI_Masker:
     """Computes pixel-based masks and masked areas for polygons."""
     def __init__(
         self, data_extractor: GEE_Data_Extractor, ndvi_threshold: float):
