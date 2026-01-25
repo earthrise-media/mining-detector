@@ -119,7 +119,7 @@ class InferenceConfig:
 class MaskConfig:
     sam2_checkpoint: str = "../../sam2/sam2.1_hiera_small.pt"
     finetuned_weights: str = "../../sam2/SAM_model_96_px_final.pth"
-    sam2_model_cfg: str = "../../sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+    sam2_model_cfg: str = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
     mask_dir: str = "../data/outputs/sam2"
 
 class GEE_Data_Extractor:
