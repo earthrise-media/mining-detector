@@ -333,8 +333,6 @@ class InferenceEngine:
             self.embed_model = None
 
         if self.config.run_sam2:
-            if not torch.cuda.is_available():
-                raise ValueError("If run_sam2 is True, cuda must be available.")
             if not mask_config:
                 mask_config = MaskConfig()
             self.masker = SAM2_Masker(self.data_extractor, mask_config)
@@ -742,13 +740,19 @@ class SAM2_Masker:
         self, raster_io: GEE_Data_Extractor, config: MaskConfig):
         self.raster_io = raster_io
         self.config = config
+
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
+
         self.predictor = self._load_model()
 
     def _load_model(self):
         sam2_model = build_sam2(
             self.config.sam2_model_cfg,
             self.config.sam2_checkpoint,
-            device="cuda")
+            device=self.device)
 
         state = torch.load(self.config.finetuned_weights, map_location="cpu")
         sam2_model.load_state_dict(state, strict=False)
