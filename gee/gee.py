@@ -560,8 +560,8 @@ class InferenceEngine:
                 preds_gdf = self._preds_to_gdf(preds, chip_geoms)
 
             if not preds_gdf.empty and self.masker:
-                rgb = np.clip(
-                    pixels[..., [3, 2, 1]]/3000 * 255, 0, 255).astype(np.uint8)
+                # Reflectance [0,1] -> uint8 RGB w/ constrast stretch for SAM
+                rgb = (pixels[..., [3, 2, 1]] * (10/3) * 255).astype(np.uint8)
                 self.masker.predict(rgb, tile, preds_gdf)
 
             return preds_gdf, None
