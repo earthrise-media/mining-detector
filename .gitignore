@@ -9,6 +9,7 @@ data/old
 data/boundaries/protected_areas_and_indigenous_territories/source_data
 data/boundaries/subnational_admin/source_data
 data/boundaries/national_admin/source_data
+data/boundaries/illegality/source_data
 notebooks/scratch_paper
 figures
 models/old
@@ -22,3 +23,4 @@ gee/tmp.geojson
 .tmp
 data/outputs/test-data
 scripts/boundaries/copy_to_site_local.sh
+*.pmtiles
