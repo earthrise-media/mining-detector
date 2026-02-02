@@ -216,8 +216,19 @@
             "https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/guinea/guinea2024_polys_t0.70softcon-LogReg_2026-01-08T14:52.geojson"
         );
 
+        map.data.loadGeoJson(
+            "./GN_reseau_AP_actuel.geojson"
+        );
         map.data.setStyle(feature => {
-            if (feature.getGeometry().getType() === "Polygon") {
+            if (feature.getProperty("NAME") !== undefined) {
+                return {
+                    strokeColor: "#00b300",
+                    strokeWeight: 2,
+                    strokeOpacity: 1.0,
+                    fillOpacity: 0.1
+                };
+            }
+            else if (feature.getGeometry().getType() === "Polygon") {
                 return {
                     strokeColor: "#ffb301",
                     strokeWeight: 2,
@@ -241,8 +252,12 @@
         // Single InfoWindow instance
         const infoWindow = new google.maps.InfoWindow();
 
+        function showLatLonNamePopup(e) {
+            showLatLonPopup(e.latLng, e.feature.getProperty("NAME"));
+        }
+
         // Helper function to show lat/lon popup
-        function showLatLonPopup(latLng) {
+        function showLatLonPopup(latLng, name) {
             const lat = latLng.lat().toFixed(3);
             const lng = latLng.lng().toFixed(3);
             const text = `${lat}, ${lng}`;
@@ -254,6 +269,7 @@
             const html = `
                 <div class="latlon-popup">
                     <div class="coords">${text}</div>
+                    <div class="name">${name ? name : ''}</div>
                     <div class="hint">Copied to clipboard</div>
                 </div>
             `;
@@ -266,7 +282,7 @@
         map.addListener("click", e => showLatLonPopup(e.latLng));
 
         // Data layer click (AOI or mining polygons)
-        map.data.addListener("click", e => showLatLonPopup(e.latLng));
+        map.data.addListener("click", e => showLatLonNamePopup(e));
 
         /* --------------------------------------------------
            Custom menu (imagery toggle)
