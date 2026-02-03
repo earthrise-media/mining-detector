@@ -217,13 +217,13 @@
         );
 
         map.data.loadGeoJson(
-            "./GN_reseau_AP_actuel.geojson"
+            "./guinea-east-protected_areas.geojson"
         );
         map.data.setStyle(feature => {
             if (feature.getProperty("NAME") !== undefined) {
                 return {
                     strokeColor: "#00b300",
-                    strokeWeight: 2,
+                    strokeWeight: 1,
                     strokeOpacity: 1.0,
                     fillOpacity: 0.1
                 };
