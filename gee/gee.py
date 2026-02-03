@@ -19,8 +19,6 @@ import pandas as pd
 import rasterio
 from rasterio.transform import from_bounds
 from rasterstats import zonal_stats
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
@@ -29,6 +27,7 @@ from tqdm import tqdm
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 
 TileType = Union[DLTile, CenteredTile]
+PathLike = Union[str, Path]
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
@@ -49,7 +48,7 @@ class DataConfig:
     bands: Optional[List[str]] = None
     clear_threshold: float = 0.6
     max_workers: int = 8
-    image_cache_dir: Optional[str] = None # If given, will write/read images
+    image_cache_dir: Optional[PathLike] = None #If given, will write/read images
 
     _BAND_IDS: ClassVar[Dict[str, List[str]]] = {
         "S1": ["VV", "VH"],
@@ -75,6 +74,10 @@ class DataConfig:
                                  f"'{self.collection}'")
             self.bands = self._BAND_IDS[self.collection]
 
+        if self.image_cache_dir:
+            self.image_cache_dir = Path(self.image_cache_dir)
+            self.image_cache_dir.mkdir(parents=True, exist_ok=True)
+
     @classmethod
     def available_collections(cls) -> List[str]:
         """Return the list of supported collection IDs."""
@@ -92,11 +95,18 @@ class InferenceConfig:
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
     geo_chip_size: Optional[int] = 48 
-    embeddings_cache_dir: Optional[str] = None
-    run_sam2: bool = True
+    embeddings_cache_dir: Optional[PathLike] = None
+    run_sam2: bool = False
 
     def __post_init__(self):
         self._validate_embedding_config()
+        
+        if self.embeddings_cache_dir:
+            self.embeddings_cache_dir = Path(self.embeddings_cache_dir)
+            self.embeddings_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        if not self.embed_model_path:
+            self.embed_model_path = ""
 
     def _validate_embedding_config(self):
         if not self.embed_model_name or not self.embed_model_path:
@@ -117,10 +127,18 @@ class InferenceConfig:
 
 @dataclass
 class MaskConfig:
-    sam2_checkpoint: str = "../../sam2/sam2.1_hiera_small.pt"
-    finetuned_weights: str = "../../sam2/SAM_model_96_px_final.pth"
-    sam2_model_cfg: str = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
-    mask_dir: str = "../data/outputs/sam2"
+    sam2_checkpoint: PathLike = "../../sam2/sam2.1_hiera_small.pt"
+    finetuned_weights: PathLike = "../../sam2/SAM_model_96_px_final.pth"
+    sam2_model_cfg: PathLike = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+    mask_dir: PathLike = "../data/outputs/sam2"
+
+    def __post_init__(self):
+        self.sam2_checkpoint = Path(self.sam2_checkpoint)
+        self.finetuned_weights = Path(self.finetuned_weights)
+        self.sam2_model_cfg = Path(self.sam2_model_cfg)
+
+        self.mask_dir = Path(self.mask_dir)
+        self.mask_dir.mkdir(parents=True, exist_ok=True)
 
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -191,7 +209,7 @@ class GEE_Data_Extractor:
         tif_name = f"{collection}_{tile.key}_{start}_{end}.tif"
 
         if image_cache_dir:
-            tif_path = Path(image_cache_dir) / tif_name
+            tif_path = image_cache_dir / tif_name
             if tif_path.exists():
                 try:
                     return self.load_tile(tif_path)
@@ -256,7 +274,7 @@ class GEE_Data_Extractor:
         return from_bounds(*tile.geometry.bounds, width, height)
 
     def save_tile(self, pixels: np.ndarray, tile: TileType,
-                  outdir: Union[Path, str], mask_type=False) -> Path:
+                  outdir: Path, mask_type=False) -> Path:
         """Write pixels to disk. 
 
         Uses CRS EPSG:4326 in line with Earth Engine standard and
@@ -287,8 +305,7 @@ class GEE_Data_Extractor:
                     f"{self.start_date}_{self.end_date}.tif")
         if mask_type:
             tif_name = tif_name.split(".tif")[0] + "-msk.tif"
-        outpath = Path(outdir) / tif_name
-        outpath.parent.mkdir(parents=True, exist_ok=True)
+        outpath = outdir / tif_name
         with rasterio.open(outpath, "w", **profile) as dst:
             dst.write(pixels)
 
@@ -356,9 +373,6 @@ class InferenceEngine:
         emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
         if emb_cache_dir is None:
             return None
-
-        emb_cache_dir = Path(emb_cache_dir)
-        emb_cache_dir.mkdir(parents=True, exist_ok=True)
 
         collection = self.data_extractor.config.collection
         start = self.data_extractor.start_date
@@ -532,8 +546,6 @@ class InferenceEngine:
         Run the per-tile pipeline starting from pixels (I/O already done).
         This is intended to run inside the consumer (serialized for GPU use).
         """
-        pixels = np.clip(pixels / 10000.0, 0, 1).astype(np.float32, copy=False)
-
         chip_size, stride = self._resolve_chip_params()
         tile_width = tile.tilesize + 2 * tile.pad
         if tile_width % stride != 0:
@@ -544,8 +556,9 @@ class InferenceEngine:
                 f"Inference may miss some pixels."
             )
 
+        normed = np.clip(pixels / 10000.0, 0, 1).astype(np.float32)
         chips, chip_geoms = cut_chips(
-            pixels, tile.geometry.bounds, chip_size, stride, crs='epsg:4326')
+            normed, tile.geometry.bounds, chip_size, stride, crs='epsg:4326')
 
         try: 
             if self.embed_model is not None:
@@ -560,9 +573,7 @@ class InferenceEngine:
                 preds_gdf = self._preds_to_gdf(preds, chip_geoms)
 
             if not preds_gdf.empty and self.masker:
-                # Reflectance [0,1] -> uint8 RGB w/ constrast stretch for SAM
-                rgb = (pixels[..., [3, 2, 1]] * (10/3) * 255).astype(np.uint8)
-                self.masker.predict(rgb, tile, preds_gdf)
+                self.masker.predict(pixels, tile, preds_gdf)
 
             return preds_gdf, None
 
@@ -630,7 +641,7 @@ class InferenceEngine:
         
     def bulk_predict(
         self, tiles: List[TileType],
-        outpath: Optional[str] = None) -> gpd.GeoDataFrame:
+        outpath: Optional[PathLike] = None) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
          - producers attempt to load embeddings cache; failing, fetch pixels
@@ -737,8 +748,8 @@ class InferenceEngine:
 class SAM2_Masker:
     """Computes pixelwise segmentations."""
     def __init__(
-        self, raster_io: GEE_Data_Extractor, config: MaskConfig):
-        self.raster_io = raster_io
+        self, data_extractor: GEE_Data_Extractor, config: MaskConfig):
+        self.data_extractor = data_extractor
         self.config = config
 
         if torch.cuda.is_available():
@@ -746,9 +757,14 @@ class SAM2_Masker:
         else:
             self.device = torch.device("cpu")
 
+        self._sam_lock = threading.Lock()
+        
         self.predictor = self._load_model()
 
     def _load_model(self):
+        from sam2.build_sam import build_sam2
+        from sam2.sam2_image_predictor import SAM2ImagePredictor
+        
         sam2_model = build_sam2(
             self.config.sam2_model_cfg,
             self.config.sam2_checkpoint,
@@ -763,6 +779,9 @@ class SAM2_Masker:
     @staticmethod
     def polygon_gdf_to_pixel_bbox(gdf, transform, width, height):
         """Convert georeferenced polygons to a box prompt in pixel coords."""
+        if gdf.empty:
+            return None
+
         geom = gdf.geometry.union_all()
         if geom.is_empty:
             return None
@@ -783,15 +802,21 @@ class SAM2_Masker:
 
         return np.array([x0, y0, x1, y1], dtype=np.int32)
 
-    def predict(self, rgb_img: np.ndarray, tile, preds_gdf):
+    def get_rgb(self, pixels):
+        """Convert Sentinel-2 reflectance -> uint8 RGB w/ constrast stretch."""
+        rgb = pixels[..., [3, 2, 1]].astype(np.float32)
+        rgb = np.clip(rgb / 3000.0, 0, 1)
+        return (rgb * 255).astype(np.uint8)
+
+    def predict(self, pixels: np.ndarray, tile, preds_gdf):
         """Run SAM2 using polygon-derived box prompts.
 
-        rgb_img: (H, W, 3) uint8 RGB image
+        pixels: np.ndarray: reflectance values (H, W, B) 
         tile: DLTile
         preds_gdf: GeoDataFrame in EPSG:4326
         """
-        height, width = rgb_img.shape[:2]
-        transform = self.raster_io.affine_from_tile(tile, width, height)
+        height, width = pixels.shape[:2]
+        transform = self.data_extractor.affine_from_tile(tile, width, height)
 
         box_prompt = self.polygon_gdf_to_pixel_bbox(
             preds_gdf, transform, width, height)
@@ -799,13 +824,14 @@ class SAM2_Masker:
         if box_prompt is None:
             return None
 
-        self.predictor.set_image(rgb_img)
-        labels, scores, prob_logits = self.predictor.predict(
-            box=box_prompt,
-            multimask_output=True)
+        with self._sam_lock:
+            self.predictor.set_image(self.get_rgb(pixels))
+            labels, scores, prob_logits = self.predictor.predict(
+                box=box_prompt,
+                multimask_output=True)
         
         best_mask = labels[np.argmax(scores)].astype(np.uint8)
-        self.raster_io.save_tile(
+        self.data_extractor.save_tile(
             pixels=best_mask[..., None],  # single band
             tile=tile,
             outdir=self.config.mask_dir,
@@ -818,8 +844,85 @@ class SAM2_Masker:
             "box_prompt": box_prompt,
         }
 
+    def _simplify_for_tiling(
+        self, gdf: gpd.GeoDataFrame, tol: float = 0.01) -> gpd.GeoDataFrame:
+        """Simplify polygons for tile creation."""
+        gdf = gdf.copy()
+        gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=True)
+
+        def _drop_holes(geom):
+            if geom.is_empty or geom is None:
+                return None
+            if geom.geom_type == "Polygon":
+                return type(geom)(geom.exterior)
+            elif geom.geom_type == "MultiPolygon":
+                return type(geom)([type(p)(p.exterior) for p in geom.geoms
+                                       if not p.is_empty])
+            else:
+                return geom
+
+        gdf["geometry"] = gdf.geometry.map(_drop_holes)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            gdf["geometry"] = gdf.buffer(0)
+
+        gdf = gdf[gdf.is_valid & ~gdf.is_empty].reset_index(drop=True)
+
+        return gdf
+
+    def bulk_mask_polygons(
+        self, polys_gdf: gpd.GeoDataFrame,
+        max_concurrent_tiles=500) -> gpd.GeoDataFrame:
+        """Compute segmentation masks for wide-area polygons."""
         
-        
+        polys_gdf = polys_gdf.to_crs("EPSG:4326")
+        region_gdf = self._simplify_for_tiling(polys_gdf)
+        tiles = create_tiles(
+            region_gdf.union_all(),
+            self.data_extractor.config.tilesize,
+            self.data_extractor.config.pad
+        )
+        print(f'{len(tiles)} tiles created.')
+
+        # --- precompute intersections single-threaded - not thread safe ---
+        tiles_w_polys = []
+        for tile in tqdm(tiles, desc="Clipping polygons"):
+            tile_polys = gpd.clip(polys_gdf, tile.geometry)
+            tile_polys = tile_polys[
+                tile_polys.is_valid &
+                ~tile_polys.geometry.is_empty
+            ]
+            if not tile_polys.empty:
+                tiles_w_polys.append((tile, tile_polys))
+
+        # --- SAM2 masking multi-threaded --- 
+        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
+            pixels = self.data_extractor.get_tile_data(tile)
+            self.predict(pixels, tile, tile_polys)
+
+        for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
+                      desc="Processing tiles"):
+            batch = tiles_w_polys[i : i + max_concurrent_tiles]
+
+            for tile, tp in batch:
+                out = process_tile(tile, tp)
+                print(out['scores'])
+                print(out['box_prompt'])
+            """
+            with ThreadPoolExecutor(
+                max_workers=self.data_extractor.config.max_workers) as ex:
+                futures = {
+                    ex.submit(process_tile, tile, tp): tile for tile, tp
+                        in batch
+                }
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(f"Tile failed with error: {e}", flush=True)
+            """
+
     
 class NDVI_Masker:
     """Computes pixel-based masks and masked areas for polygons."""
@@ -919,7 +1022,7 @@ class NDVI_Masker:
             else:
                 return geom
 
-            gdf["geometry"] = gdf.geometry.map(_drop_holes)
+        gdf["geometry"] = gdf.geometry.map(_drop_holes)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
