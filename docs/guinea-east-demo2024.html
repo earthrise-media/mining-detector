@@ -70,6 +70,40 @@
             color: #777;
         }
 
+        /* Map legend */
+
+        .map-legend {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            font-family: 'Open Sans', sans-serif;
+            font-size: 13px;
+            color: #404040;
+            line-height: 1.4;
+        }
+
+        .map-legend .legend-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .map-legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+
+        .map-legend .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
         /* Hide Google Maps default InfoWindow close button */
         .gm-style-iw > button {
             display: none !important;
@@ -216,9 +250,13 @@
             "https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/guinea/guinea2024_polys_t0.70softcon-LogReg_2026-01-08T14:52.geojson"
         );
 
+        /* --------------------------------------------------
+           Protected areas (GeoJSON)
+        -------------------------------------------------- */
         map.data.loadGeoJson(
             "./guinea-east-protected_areas.geojson"
         );
+
         map.data.setStyle(feature => {
             if (feature.getProperty("NAME") !== undefined) {
                 return {
@@ -284,6 +322,39 @@
         // Data layer click (AOI or mining polygons)
         map.data.addListener("click", e => showLatLonNamePopup(e));
 
+	/* --------------------------------------------------
+           Legend
+        -------------------------------------------------- */
+
+	function addLegend(map) {
+            const legend = document.createElement("div");
+            legend.className = "map-legend";
+
+            legend.innerHTML = `
+                <div class="legend-title"></div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgb(118, 162, 198);"></span>
+                    <span>Guinea eastern regions</span>
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #ffb301;"></span>
+                    <span>Detected mining</span>
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #00b300;"></span>
+                    <span>Protected areas</span>
+                </div>
+            `;
+            
+            map.controls[google.maps.ControlPosition.RIGHT_TOP].push(legend);
+        }
+
+        addLegend(map);
+
+		
         /* --------------------------------------------------
            Custom menu (imagery toggle)
         -------------------------------------------------- */
