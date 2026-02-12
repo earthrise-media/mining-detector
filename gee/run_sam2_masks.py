@@ -10,23 +10,16 @@ import gee
 from build_cogs import main as run_cogging 
 
 
-DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})")
-
-def extract_dates_from_filename(path: str):
-    """
-    Extract start_date, end_date from filename substring like:
-    2025-07-01_2025-09-30
-    """
-    m = DATE_RE.search(path)
-    if not m:
-        raise ValueError(f"Could not parse date range from filename: {path}")
-    return m.group(1), m.group(2)
-
+def valid_date(s: str) -> str:
+    """Validate date string in YYYY-MM-DD format and return it unchanged."""
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return s
+    raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
 
 def main(args):
 
     detections_path = Path(args.detections)
-    start_date, end_date = extract_dates_from_filename(detections_path.name)
+    start_date, end_date = args.start_date, args.end_date
 
     data_defaults = gee.DataConfig()
 
@@ -85,6 +78,12 @@ if __name__ == "__main__":
         "detections", type=str,
         help="Path to detection polygons GeoJSON (w/ date range in filename)"
     )
+    parser.add_argument("--start_date", type=valid_date,
+                        default="2023-01-01",
+                        help="Start date in YYYY-MM-DD format")
+    parser.add_argument("--end_date", type=valid_date,
+                        default="2023-12-31",
+                        help="End date in YYYY-MM-DD format")
     
     # ----------------------------
     # MaskConfig args
