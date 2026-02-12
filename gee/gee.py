@@ -6,7 +6,7 @@ from pathlib import Path
 import platform
 import queue
 import threading
-from typing import List, Optional, Tuple, Union, ClassVar, Dict, Any
+from typing import List, Literal, Optional, Tuple, Union, ClassVar, Dict, Any
 import warnings
 
 from affine import Affine
@@ -19,6 +19,7 @@ import pandas as pd
 import rasterio
 from rasterio.transform import from_bounds
 from rasterstats import zonal_stats
+import scipy.ndimage as ndi
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
@@ -127,6 +128,9 @@ class InferenceConfig:
 
 @dataclass
 class MaskConfig:
+    prior_sigma: float = 8.0   # spatial prior sigma (pixels)
+    smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
+    
     sam2_checkpoint: PathLike = "../../sam2/sam2.1_hiera_small.pt"
     finetuned_weights: PathLike = "../../sam2/SAM_model_96_px_final.pth"
     sam2_model_cfg: PathLike = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
@@ -135,7 +139,7 @@ class MaskConfig:
     def __post_init__(self):
         self.sam2_checkpoint = Path(self.sam2_checkpoint)
         self.finetuned_weights = Path(self.finetuned_weights)
-        self.sam2_model_cfg = Path(self.sam2_model_cfg)
+        self.sam2_model_cfg = self.sam2_model_cfg # SAM2 internals require str
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
@@ -273,24 +277,39 @@ class GEE_Data_Extractor:
         """Construct an EPSG:4326 affine transform from tile metadata."""
         return from_bounds(*tile.geometry.bounds, width, height)
 
-    def save_tile(self, pixels: np.ndarray, tile: TileType,
-                  outdir: Path, mask_type=False) -> Path:
-        """Write pixels to disk. 
-
-        Uses CRS EPSG:4326 in line with Earth Engine standard and
-            ee.geometry.Rectangle(tile.geometry.bounds).
+    def save_tile(
+        self, pixels: np.ndarray, tile: TileType, outdir: Path,
+        product_type: Literal["image", "mask", "logits"] = "image") -> Path:
         """
-        if mask_type:
+        Write a tile GeoTIFF in EPSG:4326.
+
+        product_type:
+            - "image"  -> satellite imagery
+            - "mask"   -> uint8 segmentation mask 
+            - "logits" -> float32 model logits 
+        """
+        if product_type == "mask":
             dtype = "uint8"
-        elif self.config.collection[:2] == "S2":
-            dtype = "uint16"
-        else:
+            nodata = 2
+            suffix = "-msk"
+        elif product_type == "logits":
             dtype = "float32"
+            nodata = np.nan
+            suffix = "-logits"
+        else:  
+            if self.config.collection[:2] == "S2":
+                dtype = "uint16"
+            else:
+                dtype = "float32"
+            nodata = None
+            suffix = ""
+
         pixels = np.moveaxis(pixels.astype(dtype, copy=False), -1, 0)
         bands, height, width = pixels.shape
+
         transform = self.affine_from_tile(tile, width, height)
         crs = "EPSG:4326"
-        
+
         profile = {
             "driver": "GTiff",
             "height": height,
@@ -300,16 +319,25 @@ class GEE_Data_Extractor:
             "crs": crs,
             "transform": transform,
             "compress": "deflate",
+            "tiled": True,
         }
-        tif_name = (f"{self.config.collection}_{tile.key}_"
-                    f"{self.start_date}_{self.end_date}.tif")
-        if mask_type:
-            tif_name = tif_name.split(".tif")[0] + "-msk.tif"
+
+        if nodata is not None:
+            profile["nodata"] = nodata
+
+        base = (
+            f"{self.config.collection}_{tile.key}_"
+            f"{self.start_date}_{self.end_date}"
+        )
+
+        tif_name = f"{base}{suffix}.tif"
         outpath = outdir / tif_name
+
         with rasterio.open(outpath, "w", **profile) as dst:
             dst.write(pixels)
 
         return outpath
+
 
     def load_tile(self, path: Path) -> np.ndarray:
         """Load a tile’s pixels from GeoTIFF."""
@@ -777,7 +805,9 @@ class SAM2_Masker:
         return SAM2ImagePredictor(sam2_model)
 
     @staticmethod
-    def polygon_gdf_to_pixel_bbox(gdf, transform, width, height):
+    def polygon_gdf_to_pixel_bbox(
+        gdf: gpd.GeoDataFrame, transform: Affine,
+        width: int, height: int) -> Optional[np.ndarray]:
         """Convert georeferenced polygons to a box prompt in pixel coords."""
         if gdf.empty:
             return None
@@ -802,18 +832,77 @@ class SAM2_Masker:
 
         return np.array([x0, y0, x1, y1], dtype=np.int32)
 
-    def get_rgb(self, pixels):
+    def get_rgb(self, pixels: np.ndarray) -> np.ndarray:
         """Convert Sentinel-2 reflectance -> uint8 RGB w/ constrast stretch."""
         rgb = pixels[..., [3, 2, 1]].astype(np.float32)
         rgb = np.clip(rgb / 3000.0, 0, 1)
         return (rgb * 255).astype(np.uint8)
 
-    def predict(self, pixels: np.ndarray, tile, preds_gdf):
+    def soft_spatial_prior(
+        self, preds_gdf: gpd.GeoDataFrame, transform: Affine,
+        width: int, height: int) -> np.ndarray:
+        """
+        Piecewise spatial logit prior:
+        - Inside detection mask: 0
+        - Outside: quadratic negative penalty increasing with distance
+        """
+        raster = rasterio.features.rasterize(
+            ((geom, 1) for geom in preds_gdf.geometry
+            if geom is not None and not geom.is_empty),
+            out_shape=(height, width),
+            transform=transform,
+            fill=0,
+            dtype="uint8",
+        ).astype(bool)
+
+        dist_outside = ndi.distance_transform_edt(~raster)
+
+        penalty = -(dist_outside / self.config.prior_sigma) ** 2
+        prior = np.zeros_like(penalty, dtype=np.float32)
+        prior[~raster] = penalty[~raster]
+
+        return prior
+
+    @staticmethod
+    def resize_prior_to_logits(
+        prior: np.ndarray, target_shape: Tuple[int, int]) -> np.ndarray:
+        """Resample prior field to SAM2 logit resolution."""
+
+        scale_y = target_shape[0] / prior.shape[0]
+        scale_x = target_shape[1] / prior.shape[1]
+
+        out = ndi.zoom(prior, (scale_y, scale_x), order=1)
+        return out.astype(np.float32)
+
+    def upsample_logits(
+        self, logits: np.ndarray, target_shape: Tuple[int, int]) -> np.ndarray:
+        """Resample SAM2 logits to target raster resolution, with optional
+            Gaussian smoothing for spatial regularization.
+        """
+        logits_tensor = torch.from_numpy(logits[None, None, ...]).float()  
+        upsampled = F.interpolate(
+            logits_tensor,
+            size=target_shape,
+            mode='bilinear',
+            align_corners=False
+        )[0,0].numpy()
+
+        sigma = self.config.smoothing_sigma
+        if sigma and sigma > 0:
+            upsampled = ndi.gaussian_filter(upsampled, sigma=sigma)
+
+        return upsampled
+
+    def predict(self, pixels: np.ndarray, tile: TileType,
+                preds_gdf: gpd.GeoDataFrame,
+                preds_buffer_width: float = 0.005):
         """Run SAM2 using polygon-derived box prompts.
 
         pixels: np.ndarray: reflectance values (H, W, B) 
-        tile: DLTile
+        tile: TileType
         preds_gdf: GeoDataFrame in EPSG:4326
+        preds_buffer_width: Buffer width in degrees for epsg:4326 geometries.
+            SAM2 masks are clipped to buffered predictions.
         """
         height, width = pixels.shape[:2]
         transform = self.data_extractor.affine_from_tile(tile, width, height)
@@ -822,20 +911,33 @@ class SAM2_Masker:
             preds_gdf, transform, width, height)
 
         if box_prompt is None:
-            return None
+            return {}
 
         with self._sam_lock:
             self.predictor.set_image(self.get_rgb(pixels))
             labels, scores, prob_logits = self.predictor.predict(
                 box=box_prompt,
                 multimask_output=True)
+
+        best_logits = prob_logits[np.argmax(scores)]
         
-        best_mask = labels[np.argmax(scores)].astype(np.uint8)
+        prior = self.soft_spatial_prior(preds_gdf, transform, width, height)
+        prior = self.resize_prior_to_logits(prior, best_logits.shape)
+        log_odds = best_logits + prior
+        upsampled = self.upsample_logits(log_odds, pixels.shape[:2])
+        mask = (upsampled > 0).astype('uint8')
+
         self.data_extractor.save_tile(
-            pixels=best_mask[..., None],  # single band
+            pixels=mask[..., None],  # single band
             tile=tile,
             outdir=self.config.mask_dir,
-            mask_type=True)
+            product_type="mask")
+
+        self.data_extractor.save_tile(
+            pixels=log_odds[..., None],  
+            tile=tile,
+            outdir=self.config.mask_dir,
+            product_type="logits")
 
         return {
             "labels": labels,
@@ -845,10 +947,18 @@ class SAM2_Masker:
         }
 
     def _simplify_for_tiling(
-        self, gdf: gpd.GeoDataFrame, tol: float = 0.01) -> gpd.GeoDataFrame:
-        """Simplify polygons for tile creation."""
+        self, gdf: gpd.GeoDataFrame,
+        buffer_width: float = 0.005) -> gpd.GeoDataFrame:
+        """Simplify polygons for tile creation.
+
+        Argument buffer_width defines the smoothing scale, in degrees 
+            for epsg:4326 geometries.
+        """
         gdf = gdf.copy()
-        gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=True)
+
+        gdf["geometry"] = gdf.geometry.buffer(
+            buffer_width, join_style=2).buffer(
+            -buffer_width, join_style=2)
 
         def _drop_holes(geom):
             if geom.is_empty or geom is None:
@@ -899,17 +1009,12 @@ class SAM2_Masker:
         # --- SAM2 masking multi-threaded --- 
         def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
             pixels = self.data_extractor.get_tile_data(tile)
-            self.predict(pixels, tile, tile_polys)
+            return self.predict(pixels, tile, tile_polys)
 
         for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
                       desc="Processing tiles"):
             batch = tiles_w_polys[i : i + max_concurrent_tiles]
 
-            for tile, tp in batch:
-                out = process_tile(tile, tp)
-                print(out['scores'])
-                print(out['box_prompt'])
-            """
             with ThreadPoolExecutor(
                 max_workers=self.data_extractor.config.max_workers) as ex:
                 futures = {
@@ -921,175 +1026,4 @@ class SAM2_Masker:
                         future.result()
                     except Exception as e:
                         print(f"Tile failed with error: {e}", flush=True)
-            """
-
     
-class NDVI_Masker:
-    """Computes pixel-based masks and masked areas for polygons."""
-    def __init__(
-        self, data_extractor: GEE_Data_Extractor, ndvi_threshold: float):
-        self.data_extractor = data_extractor
-        self.ndvi_threshold = ndvi_threshold
-
-    def compute_ndvi(self, pixels: np.ndarray) -> np.ndarray:
-        """Compute NDVI from pixel array."""
-        red_idx = self.data_extractor.config.bands.index(
-            self.data_extractor.config._NDVI_BANDS['red'])
-        nir_idx = self.data_extractor.config.bands.index(
-            self.data_extractor.config._NDVI_BANDS['nir'])
-        red = pixels[:, :, red_idx]
-        nir = pixels[:, :, nir_idx]
-        return (nir - red) / (nir + red + 1e-6)
-
-    def compute_masked_area(
-        self,
-        polys_gdf: gpd.GeoDataFrame,
-        mask: np.ndarray,
-        tile: TileType) -> gpd.GeoDataFrame:
-        """Compute masked area for polygons given a binary mask."""
-        polys_gdf = polys_gdf[~polys_gdf.geometry.is_empty].copy()
-        polys_proj = polys_gdf.to_crs(tile.crs)
-        polys_gdf["Polygon area (ha)"] = polys_proj.geometry.area / 10_000.0
-
-        transform = self.data_extractor._get_affine_transform(tile.geotrans)
-        stats = zonal_stats(
-            polys_proj.geometry,
-            mask.astype(np.uint8),
-            affine=transform,
-            categorical=True,
-            all_touched=False
-        )
-
-        polys_gdf["Mined area (ha)"] = np.array([s.get(1, 0) for s in stats],
-                                                dtype=np.float32) / 100.0
-        return polys_gdf
-
-    def dissolve(
-        self,
-        polys_gdf: gpd.GeoDataFrame,
-        area_fields: List[str] = ["Polygon area (ha)", "Mined area (ha)"],
-        conf_field: str = "confidence",
-        buffer_deg: float = 0.00001) -> gpd.GeoDataFrame:
-        """Dissolve polygons using buffer+sjoin and aggregate attributes."""
-        gdf = polys_gdf.copy()
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            dissolved_geom = gdf.buffer(buffer_deg, join_style=2).union_all()
-            dissolved = gpd.GeoDataFrame(geometry=[dissolved_geom],
-                                         crs=polys_gdf.crs)
-            dissolved = dissolved.explode(index_parts=False).reset_index(
-                drop=True)
-            dissolved.geometry = dissolved.buffer(-buffer_deg, join_style=2)
-
-        joined = gpd.sjoin(gdf, dissolved, how="inner", predicate="intersects")
-        grouped = joined.groupby("index_right")
-
-        records = []
-        for idx, group in grouped:
-            rec = {}
-            rec["geometry"] = dissolved.loc[idx, "geometry"]
-            for af in area_fields:
-                rec[af] = group[af].sum()
-                
-            # Weighted confidence average
-            if conf_field in gdf.columns:
-                weights = group[area_fields[0]]
-                if weights.sum() > 0:
-                    rec[conf_field] = ((group[conf_field] * weights).sum() /
-                        weights.sum())
-                else:
-                    rec[conf_field] = group[conf_field].mean()
-                    
-            records.append(rec)
-
-        return gpd.GeoDataFrame(records, crs=polys_gdf.crs)
-
-    def _simplify_for_tiling(
-        self, gdf: gpd.GeoDataFrame, tol: float = 0.01) -> gpd.GeoDataFrame:
-        """Simplify polygons for tile creation."""
-        gdf = gdf.copy()
-        gdf["geometry"] = gdf.geometry.simplify(tol, preserve_topology=True)
-
-        def _drop_holes(geom):
-            if geom.is_empty or geom is None:
-                return None
-            if geom.geom_type == "Polygon":
-                return type(geom)(geom.exterior)
-            elif geom.geom_type == "MultiPolygon":
-                return type(geom)([type(p)(p.exterior) for p in geom.geoms
-                                       if not p.is_empty])
-            else:
-                return geom
-
-        gdf["geometry"] = gdf.geometry.map(_drop_holes)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            gdf["geometry"] = gdf.buffer(0)
-
-        gdf = gdf[gdf.is_valid & ~gdf.is_empty].reset_index(drop=True)
-
-        return gdf
-
-    
-    def ndvi_mask_polygons(
-        self, polys_gdf: gpd.GeoDataFrame,
-        max_concurrent_tiles=500) -> gpd.GeoDataFrame:
-        """Compute NDVI-based masked area for polygons."""
-        
-        polys_gdf = polys_gdf.to_crs("EPSG:4326")
-        region_gdf = self._simplify_for_tiling(polys_gdf)
-        tiles = create_tiles(
-            region_gdf.union_all(),
-            self.data_extractor.config.tilesize,
-            self.data_extractor.config.pad
-        )
-        print(f'{len(tiles)} tiles created.')
-
-        # --- precompute intersections single-threaded - not thread safe ---
-        tiles_w_polys = []
-        for tile in tqdm(tiles, desc="Clipping polygons"):
-            tile_polys = gpd.clip(polys_gdf, tile.geometry)
-            if not tile_polys.empty:
-                tiles_w_polys.append((tile, tile_polys))
-
-        # --- NDVI masking multi-threaded --- 
-        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
-            pixels = self.data_extractor.get_tile_data(tile)
-            ndvi = self.compute_ndvi(pixels)
-            mask = (ndvi < self.ndvi_threshold).astype(np.uint8)
-            return self.compute_masked_area(tile_polys, mask, tile)
-
-        results = []
-        for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
-                      desc="Processing tiles"):
-            batch = tiles_w_polys[i : i + max_concurrent_tiles]
-            batch_results = []
-
-            with ThreadPoolExecutor(
-                max_workers=self.data_extractor.config.max_workers) as ex:
-                futures = {
-                    ex.submit(process_tile, tile, tp): tile for tile, tp
-                        in batch
-                }
-                for future in as_completed(futures):
-                    try:
-                        masked = future.result()
-                        if masked is not None and not masked.empty:
-                            batch_results.append(masked)
-                    except Exception as e:
-                        print(f"Tile failed with error: {e}", flush=True)
-
-            if batch_results:
-                batch_gdf = pd.concat(batch_results, ignore_index=True)
-                results.append(batch_gdf)
-
-        if results:
-            masked_polys = gpd.GeoDataFrame(
-                pd.concat(results, ignore_index=True), crs=polys_gdf.crs)
-            masked_polys = self.dissolve(masked_polys)
-            return masked_polys
-        else:
-            return gpd.GeoDataFrame(
-                columns=polys_gdf.columns, crs=polys_gdf.crs)
