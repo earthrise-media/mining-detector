@@ -160,6 +160,7 @@ def intersect_with_areas_of_interest_and_summarize(
     mining_admin_intersect_gdf,
     areas_of_interest_gdf,
     ignore_if_outside_country,
+    ignore_if_outside_of_state,
 ):
     """
     Intersects areas of interest (countries, Indigenous Territories, protected areas)
@@ -169,6 +170,9 @@ def intersect_with_areas_of_interest_and_summarize(
     The ignore_if_outside_country argument makes the function ignore in case the area's
     country code doesn't match the parent country code. This is useful for areas that are
     on the border and might fall outside of the country's boundaries.
+
+    The ignore_if_outside_of_state does the same, by checking if the area being intersected
+    starts with the same code as the parent area.
     """
     # intersect with area of interest, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
@@ -183,6 +187,16 @@ def intersect_with_areas_of_interest_and_summarize(
                 == intersected_with_areas_of_interest["country_code"]
             )
         ]
+    if ignore_if_outside_of_state:
+        mask = [
+            id_val.startswith(admin_val)
+            for id_val, admin_val in zip(
+                intersected_with_areas_of_interest["admin_id_field"],
+                intersected_with_areas_of_interest["id_field"],
+                strict=True,
+            )
+        ]
+        intersected_with_areas_of_interest = intersected_with_areas_of_interest[mask]
 
     # rename mined area col to use it instead of old intersected_area_ha col
     intersected_with_areas_of_interest["intersected_area_ha"] = (
@@ -421,21 +435,25 @@ if __name__ == "__main__":
             "name": "national_admin",
             "file": NATIONAL_ADMIN_GEOJSON,
             "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
         },
         {
             "name": "subnational_admin",
             "file": SUBNATIONAL_ADMIN_GEOJSON,
             "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": True,
         },
         {
             "name": "indigenous_territories",
             "file": INDIGENOUS_TERRITORIES_GEOJSON,
             "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
         },
         {
             "name": "protected_areas",
             "file": PROTECTED_AREAS_GEOJSON,
             "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
         },
     ]
 
@@ -447,6 +465,7 @@ if __name__ == "__main__":
             mining_admin_intersect_gdf=intersected_with_admin,
             areas_of_interest_gdf=gdf,
             ignore_if_outside_country=dataset["ignore_if_outside_country"],
+            ignore_if_outside_of_state=dataset["ignore_if_outside_of_state"],
         )
         summary_illegality = (
             summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
