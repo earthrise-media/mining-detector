@@ -128,7 +128,7 @@ class InferenceConfig:
 
 @dataclass
 class MaskConfig:
-    prior_sigma: float = 8.0   # spatial prior sigma (pixels)
+    prior_sigma: float = 12.0   # spatial prior sigma (pixels)
     smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
     
     sam2_checkpoint: PathLike = "../../sam2/sam2.1_hiera_small.pt"
