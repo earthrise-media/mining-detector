@@ -18,8 +18,8 @@ from tqdm import tqdm
 MASK_SUFFIX = "-msk.tif"
 LOGIT_SUFFIX = "-logits.tif"
 
-MASK_NODATA = 2
-LOGIT_NODATA = float("nan")
+MASK_NODATA = "2"
+LOGIT_NODATA = "nan"
 
 LAT_BAND_SIZE = 8  # degrees
 
@@ -117,39 +117,23 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
 
         run(["gdalbuildvrt", vrt_path] + files)
 
-        if raster_type == "mask":
-            nodata = str(MASK_NODATA)
-            resampling = "near"
-        else:
-            nodata = "nan"
-            resampling = "near"
-
+        nodata = MASK_NODATA if raster_type == "mask" else LOGIT_NODATA
         run([
-            "gdalwarp",
+            "gdal_translate",
             vrt_path,
-            tmp_tif,
-            "-r", resampling,
-            "-srcnodata", nodata,
-            "-dstnodata", nodata,
-            "-co", "TILED=YES",
-            "-co", "COMPRESS=DEFLATE",
-            "-co", "BIGTIFF=IF_SAFER"
+            cog_path,
+            "-of", "COG",
+            "-a_nodata", nodata,
+            "-co", "COMPRESS=ZSTD",
+            "-co", "BLOCKSIZE=512",
+            "-co", "BIGTIFF=IF_SAFER",
+            "-co", "NUM_THREADS=ALL_CPUS"
         ])
 
         os.remove(vrt_path)
 
-        run([
-            "gdal_translate",
-            tmp_tif,
-            cog_path,
-            "-of", "COG",
-            "-co", "COMPRESS=DEFLATE",
-            "-co", "BLOCKSIZE=256",
-            "-co", "PREDICTOR=2"
-        ])
-
-        os.remove(tmp_tif)
         return cog_path, raster_type, utm_zone, lat_start, lat_end, start_date, end_date
+
 
     results = []
 
@@ -160,6 +144,43 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
             as_completed(futures), total=len(futures), desc="Building mosaics"):
             results.append(future.result())
 
+
+    # Build one large mask mosaic across all mask COGs
+    mask_cogs = [r[0] for r in results if r[1] == "mask"]
+
+    if mask_cogs:
+        # Extract unique date range (assuming all identical)
+        start_dates = {r[5] for r in results if r[1] == "mask"}
+        end_dates = {r[6] for r in results if r[1] == "mask"}
+
+        if len(start_dates) == 1 and len(end_dates) == 1:
+            start_date = start_dates.pop()
+            end_date = end_dates.pop()
+        else:
+            raise ValueError("Mask groups have inconsistent date ranges.")
+
+        big_vrt = os.path.join(output_dir, "big_mask.vrt")
+
+        run(["gdalbuildvrt", big_vrt] + mask_cogs)
+
+        big_mask_path = os.path.join(
+            output_dir,
+            f"mining_mask_{start_date}_{end_date}_epsg4326.tif"
+        )
+
+        run([
+            "gdal_translate",
+            big_vrt,
+            big_mask_path,
+            "-of", "COG",
+            "-co", "COMPRESS=ZSTD",
+            "-co", "BLOCKSIZE=512",
+            "-co", "BIGTIFF=YES",
+            "-co", "NUM_THREADS=ALL_CPUS"
+        ])
+
+        os.remove(big_vrt)
+            
     stac_items = []
 
     for cog_path, raster_type, utm_zone, lat_start, lat_end, start_date, end_date in results:
