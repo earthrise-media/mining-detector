@@ -2,7 +2,6 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import datetime
 import json
 import os
 import math
@@ -43,6 +42,76 @@ def extract_date_range(filename):
         return None, None
     start, end = m.groups()
     return start, end
+
+def build_cog(
+    input_files,
+    output_path,
+    raster_type="mask",
+    nodata=None,
+    resampling=None,
+    blocksize=512,
+    predictor=None,
+    tmp_dir=None,
+):
+    """
+    Build a Cloud-Optimized GeoTIFF (COG) from input rasters.
+
+    Args:
+        input_files (list[str]): list of input file paths
+        output_path (str): path to output COG
+        raster_type (str): "mask" or "logits" 
+        nodata (str|float): nodata value to set
+        resampling (str): resampling method for gdalwarp
+        blocksize (int): tile size for COG
+        predictor (int): predictor for compression
+        tmp_dir (str|None): directory for temporary files
+    """
+    tmp_dir = tmp_dir or os.path.dirname(output_path)
+    vrt_path = os.path.join(tmp_dir, "tmp.vrt")
+    tmp_tif = os.path.join(tmp_dir, "tmp.tif")
+
+    # Set defaults based on raster type
+    if raster_type == "mask":
+        resampling = resampling or "near"
+        predictor = predictor or 2
+        nodata = nodata or MASK_NODATA
+    elif raster_type == "logits":
+        resampling = resampling or "bilinear"
+        predictor = predictor or 3
+        nodata = nodata or LOGIT_NODATA
+    else:
+        raise ValueError(f"Unknown raster_type: {raster_type}")
+
+    run(["gdalbuildvrt", vrt_path] + input_files)
+
+    # Warp to align tiles and snap to a consistent grid
+    run([
+        "gdalwarp",
+        vrt_path,
+        tmp_tif,
+        "-r", resampling,
+        "-srcnodata", str(nodata),
+        "-dstnodata", str(nodata),
+        "-co", "TILED=YES",
+        "-co", "COMPRESS=ZSTD",
+        "-co", "BIGTIFF=IF_SAFER",
+        "-co", "NUM_THREADS=ALL_CPUS"
+    ])
+    os.remove(vrt_path)
+
+    run([
+        "gdal_translate",
+        tmp_tif,
+        output_path,
+        "-of", "COG",
+        "-co", "COMPRESS=ZSTD",
+        "-co", f"BLOCKSIZE={blocksize}",
+        "-co", f"PREDICTOR={predictor}",
+        "-co", "BIGTIFF=YES",
+        "-co", "NUM_THREADS=ALL_CPUS",
+        "-a_nodata", str(nodata)
+    ])
+    os.remove(tmp_tif)
 
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers):
@@ -107,31 +176,16 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
 
     def build_group(group_key):
         utm_zone, lat_start, lat_end, raster_type, start_date, end_date = group_key
-        files = groups[group_key]
-
         date_tag = f"{start_date}_{end_date}" if start_date and end_date else "nodate"
         tag = f"{date_tag}_utm{utm_zone}_lat_{lat_start}_{lat_end}_epsg4326"
         vrt_path = os.path.join(output_dir, f"{tag}_{raster_type}.vrt")
         tmp_tif = os.path.join(output_dir, f"{tag}_{raster_type}_tmp.tif")
         cog_path = os.path.join(output_dir, f"mining_{raster_type}_{tag}.tif")
-
-        run(["gdalbuildvrt", vrt_path] + files)
-
-        nodata = MASK_NODATA if raster_type == "mask" else LOGIT_NODATA
-        run([
-            "gdal_translate",
-            vrt_path,
-            cog_path,
-            "-of", "COG",
-            "-a_nodata", nodata,
-            "-co", "COMPRESS=ZSTD",
-            "-co", "BLOCKSIZE=512",
-            "-co", "BIGTIFF=IF_SAFER",
-            "-co", "NUM_THREADS=ALL_CPUS"
-        ])
-
-        os.remove(vrt_path)
-
+        build_cog(
+            input_files=groups[group_key],
+            output_path=cog_path,
+            raster_type=raster_type
+        )
         return cog_path, raster_type, utm_zone, lat_start, lat_end, start_date, end_date
 
 
@@ -160,27 +214,17 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
             raise ValueError("Mask groups have inconsistent date ranges.")
 
         big_vrt = os.path.join(output_dir, "big_mask.vrt")
-
-        run(["gdalbuildvrt", big_vrt] + mask_cogs)
-
+        tmp_tif = os.path.join(output_dir, "big_mask_tmp.tif")
         big_mask_path = os.path.join(
             output_dir,
             f"mining_mask_{start_date}_{end_date}_epsg4326.tif"
         )
-
-        run([
-            "gdal_translate",
-            big_vrt,
-            big_mask_path,
-            "-of", "COG",
-            "-co", "COMPRESS=ZSTD",
-            "-co", "BLOCKSIZE=512",
-            "-co", "BIGTIFF=YES",
-            "-co", "NUM_THREADS=ALL_CPUS"
-        ])
-
-        os.remove(big_vrt)
-            
+        build_cog(
+            input_files=mask_cogs,
+            output_path=big_mask_path,
+            raster_type="mask"
+        )
+ 
     stac_items = []
 
     for cog_path, raster_type, utm_zone, lat_start, lat_end, start_date, end_date in results:
