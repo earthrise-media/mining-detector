@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import re
 import subprocess
+import uuid
 
 import geopandas as gpd
 import rasterio
@@ -67,8 +68,9 @@ def build_cog(
         tmp_dir (str|None): directory for temporary files
     """
     tmp_dir = tmp_dir or os.path.dirname(output_path)
-    vrt_path = os.path.join(tmp_dir, "tmp.vrt")
-    tmp_tif = os.path.join(tmp_dir, "tmp.tif")
+    uid = uuid.uuid4().hex
+    vrt_path = os.path.join(tmp_dir, f"tmp_{uid}.vrt")
+    tmp_tif = os.path.join(tmp_dir, f"tmp_{uid}.tif")
 
     # Set defaults based on raster type
     if raster_type == "mask":
@@ -97,7 +99,6 @@ def build_cog(
         "-co", "BIGTIFF=IF_SAFER",
         "-co", "NUM_THREADS=ALL_CPUS"
     ])
-    os.remove(vrt_path)
 
     run([
         "gdal_translate",
@@ -111,8 +112,10 @@ def build_cog(
         "-co", "NUM_THREADS=ALL_CPUS",
         "-a_nodata", str(nodata)
     ])
-    os.remove(tmp_tif)
 
+    for f in (vrt_path, tmp_tif):
+        if os.path.exists(f):
+            os.remove(f)
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers):
 
@@ -178,8 +181,6 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
         utm_zone, lat_start, lat_end, raster_type, start_date, end_date = group_key
         date_tag = f"{start_date}_{end_date}" if start_date and end_date else "nodate"
         tag = f"{date_tag}_utm{utm_zone}_lat_{lat_start}_{lat_end}_epsg4326"
-        vrt_path = os.path.join(output_dir, f"{tag}_{raster_type}.vrt")
-        tmp_tif = os.path.join(output_dir, f"{tag}_{raster_type}_tmp.tif")
         cog_path = os.path.join(output_dir, f"mining_{raster_type}_{tag}.tif")
         build_cog(
             input_files=groups[group_key],
