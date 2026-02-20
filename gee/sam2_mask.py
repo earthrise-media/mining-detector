@@ -7,7 +7,7 @@ import re
 import geopandas as gpd
 
 import gee  
-from build_cogs import main as run_cogging 
+from sam2_build_cog import main as run_cogging 
 
 
 def valid_date(s: str) -> str:
