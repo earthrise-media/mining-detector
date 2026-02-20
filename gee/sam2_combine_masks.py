@@ -19,6 +19,10 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+# Set before importing GDAL so VRT Python pixel functions and threading are enabled
+os.environ.setdefault("GDAL_NUM_THREADS", "ALL_CPUS")
+os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
+
 from osgeo import gdal
 
 
