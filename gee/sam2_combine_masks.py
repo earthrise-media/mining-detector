@@ -19,8 +19,10 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Set before importing GDAL so VRT Python pixel functions and threading are enabled
-os.environ.setdefault("GDAL_NUM_THREADS", "ALL_CPUS")
+# Set before importing GDAL so VRT Python pixel functions and threading are enabled.
+# Cap threads at 4: the VRT read through the Python pixel function is effectively
+# single-threaded, so extra warp threads add little benefit.
+os.environ.setdefault("GDAL_NUM_THREADS", "4")
 os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
 
 from osgeo import gdal
