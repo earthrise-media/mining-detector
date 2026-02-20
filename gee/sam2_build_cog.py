@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 import re
 import subprocess
-import uuid
+import tempfile
 
 import geopandas as gpd
 import rasterio
@@ -52,7 +52,6 @@ def build_cog(
     resampling=None,
     blocksize=512,
     predictor=None,
-    tmp_dir=None,
 ):
     """
     Build a Cloud-Optimized GeoTIFF (COG) from input rasters.
@@ -60,18 +59,12 @@ def build_cog(
     Args:
         input_files (list[str]): list of input file paths
         output_path (str): path to output COG
-        raster_type (str): "mask" or "logits" 
+        raster_type (str): "mask" or "logits"
         nodata (str|float): nodata value to set
         resampling (str): resampling method for gdalwarp
         blocksize (int): tile size for COG
         predictor (int): predictor for compression
-        tmp_dir (str|None): directory for temporary files
     """
-    tmp_dir = tmp_dir or os.path.dirname(output_path)
-    uid = uuid.uuid4().hex
-    vrt_path = os.path.join(tmp_dir, f"tmp_{uid}.vrt")
-    tmp_tif = os.path.join(tmp_dir, f"tmp_{uid}.tif")
-
     # Set defaults based on raster type
     if raster_type == "mask":
         resampling = resampling or "near"
@@ -84,38 +77,38 @@ def build_cog(
     else:
         raise ValueError(f"Unknown raster_type: {raster_type}")
 
-    run(["gdalbuildvrt", vrt_path] + input_files)
+    with tempfile.TemporaryDirectory(prefix="sam2_build_cog_") as tmpdir:
+        vrt_path = os.path.join(tmpdir, "tmp.vrt")
+        tmp_tif = os.path.join(tmpdir, "tmp.tif")
 
-    # Warp to align tiles and snap to a consistent grid
-    run([
-        "gdalwarp",
-        vrt_path,
-        tmp_tif,
-        "-r", resampling,
-        "-srcnodata", str(nodata),
-        "-dstnodata", str(nodata),
-        "-co", "TILED=YES",
-        "-co", "COMPRESS=ZSTD",
-        "-co", "BIGTIFF=IF_SAFER",
-        "-co", "NUM_THREADS=ALL_CPUS"
-    ])
+        run(["gdalbuildvrt", vrt_path] + input_files)
 
-    run([
-        "gdal_translate",
-        tmp_tif,
-        output_path,
-        "-of", "COG",
-        "-co", "COMPRESS=ZSTD",
-        "-co", f"BLOCKSIZE={blocksize}",
-        "-co", f"PREDICTOR={predictor}",
-        "-co", "BIGTIFF=YES",
-        "-co", "NUM_THREADS=ALL_CPUS",
-        "-a_nodata", str(nodata)
-    ])
+        # Warp to align tiles and snap to a consistent grid
+        run([
+            "gdalwarp",
+            vrt_path,
+            tmp_tif,
+            "-r", resampling,
+            "-srcnodata", str(nodata),
+            "-dstnodata", str(nodata),
+            "-co", "TILED=YES",
+            "-co", "COMPRESS=ZSTD",
+            "-co", "BIGTIFF=IF_SAFER",
+            "-co", "NUM_THREADS=ALL_CPUS"
+        ])
 
-    for f in (vrt_path, tmp_tif):
-        if os.path.exists(f):
-            os.remove(f)
+        run([
+            "gdal_translate",
+            tmp_tif,
+            output_path,
+            "-of", "COG",
+            "-co", "COMPRESS=ZSTD",
+            "-co", f"BLOCKSIZE={blocksize}",
+            "-co", f"PREDICTOR={predictor}",
+            "-co", "BIGTIFF=YES",
+            "-co", "NUM_THREADS=ALL_CPUS",
+            "-a_nodata", str(nodata)
+        ])
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers):
 
