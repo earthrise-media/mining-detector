@@ -147,6 +147,12 @@ if __name__ == '__main__':
                         help="Enable SAM2 segmentation after model predictions")
 
     # MaskConfig args
+    parser.add_argument("--prior_sigma", type=float,
+                        default=MaskConfig().prior_sigma,
+                        help="Spatial prior falloff (pixels)")
+    parser.add_argument("--smoothing_sigma", type=float,
+                        default=MaskConfig().smoothing_sigma,
+                        help="For Gaussian smoothing (pixels)")
     parser.add_argument("--sam2_checkpoint", type=str,
                         default=MaskConfig().sam2_checkpoint,
                         help="Path to SAM2 checkpoint")
