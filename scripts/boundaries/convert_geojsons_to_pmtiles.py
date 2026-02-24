@@ -28,7 +28,7 @@ def convert(filepath: str) -> tuple[str, bool]:
     input_path = REPO_ROOT / filepath
     output_path = input_path.with_suffix(".pmtiles")
     result = subprocess.run(
-        ["tippecanoe", "-z14", "-Z2", "-o", output_path, "-b0", "-r1", "-pk", "-pf", "-f", "-l", input_path.stem, input_path]
+        ["tippecanoe", "-z14", "-Z2", "-o", output_path, "-b5", "-r1", "-pk", "-pf", "-f", "-l", input_path.stem, input_path]
     )
     return filepath, result.returncode == 0
 
