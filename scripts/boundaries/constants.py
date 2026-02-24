@@ -1,7 +1,7 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260212"
+DATA_UPDATED_AT = "20260224"
 
 MINING_DIFFERENCES_FILES = {
     202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",

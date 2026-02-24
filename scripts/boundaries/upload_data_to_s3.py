@@ -32,16 +32,13 @@ load_dotenv()
 
 # File paths to upload
 FILE_PATHS = [
-    "data/boundaries/national_admin/out/national_admin_impacts.geojson",
-    "data/boundaries/national_admin/out/national_admin_impacts_unfiltered.geojson",
+    "data/boundaries/national_admin/out/national_admin_impacts_unfiltered_dict.json",
     "data/boundaries/national_admin/out/national_admin_yearly.json",
-    "data/boundaries/subnational_admin/out/admin_areas_display_impacts_unfiltered.geojson",
+    "data/boundaries/subnational_admin/out/admin_areas_display_impacts_unfiltered_dict.json",
     "data/boundaries/subnational_admin/out/admin_areas_display_yearly.json",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts.geojson",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts_unfiltered.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts_unfiltered_dict.json",
     "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_yearly.json",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
+    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered_dict.json",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
 ] + MINING_SIMPLIFIED_FILES
 
@@ -102,6 +99,8 @@ def main():
             },
         )
         print("\n✓ Invalidated CloudFront cache")
+    else:
+        raise ValueError("CLOUDFRONT_DISTRIBUTION_ID_TILES environment variable is not set")
 
     print(f"\n{len(FILE_PATHS) - len(failed)}/{len(FILE_PATHS)} files uploaded")
     sys.exit(1 if failed else 0)

@@ -567,6 +567,11 @@ if __name__ == "__main__":
             dataset["file"].replace(".geojson", "_impacts_unfiltered.geojson"),
             id_column="id",
         )
+        # save as a simple json, no geometry data
+        gdf_merged_dict = gdf_merged.copy()
+        gdf_merged_dict["bbox"] = gdf_merged_dict.geometry.apply(lambda g: list(g.bounds))  # add bbox column
+        gdf_merged_dict = gdf_merged_dict.drop(columns="geometry")
+        gdf_merged_dict.to_json(dataset["file"].replace(".geojson", "_impacts_unfiltered_dict.json"), orient="records")
 
         # merge with yearly and save to csv for reference
         ref = gdf_merged.merge(

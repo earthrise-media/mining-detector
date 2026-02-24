@@ -21,7 +21,9 @@
 import os
 import sys
 from pathlib import Path
+
 import boto3
+from constants import DATA_UPDATED_AT
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,7 +35,7 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts_unfiltered.pmtiles",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.pmtiles",
 ]
-BASE_FOLDER = "amw"
+BASE_FOLDER = f"amw/{DATA_UPDATED_AT}"
 
 
 def main():
@@ -61,6 +63,7 @@ def main():
         s3_key = f"{BASE_FOLDER}/{file_path.name}"
 
         # Upload the file to BASE_FOLDER/filename
+        print(f"✓ Uploading {file_path} → {s3_key}")
         s3.upload_file(str(file_path), bucket, s3_key)
         print(f"✓ Uploaded {file_path} → {s3_key}")
 
@@ -74,6 +77,8 @@ def main():
             },
         )
         print("\n✓ Invalidated CloudFront cache")
+    else:
+        raise ValueError("CLOUDFRONT_DISTRIBUTION_ID_TILES environment variable is not set")
 
     print(f"\n{len(FILE_PATHS) - len(failed)}/{len(FILE_PATHS)} files uploaded")
     sys.exit(1 if failed else 0)
