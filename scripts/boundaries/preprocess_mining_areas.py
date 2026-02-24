@@ -1,5 +1,7 @@
 """
 Preprocess mining areas for the website:
+- Prepares the mining data, concatenaing it into single gdf for use in this script
+- Saves the mining data as one file per year, with simplified geometries
 - Intersects mining polygons with administrative boundaries.
 - Intersects these with areas of interest (indigenous territories, protected areas).
 - Calculates area summaries, yearly timeseries.
@@ -18,29 +20,41 @@ Preprocess mining areas for the website:
 #     "pandas",
 # ]
 # ///
-import geopandas as gpd
-import pandas as pd
-import numpy as np
+
 import json
 from pathlib import Path
 
-MINING_GEOJSONS_FOLDER = "data/outputs/website"
-MINING_GEOJSONS = [
-    "amazon_basin_2018-2025Q3_all_differences.geojson",
-]
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+from constants import (
+    ILLEGALITY_AREAS_GEOJSON,
+    ILLEGALITY_DATA_UPDATED_AT,
+    MINING_DIFFERENCES_FILES,
+    MINING_YEARS_QUARTERS,
+    generate_mining_simplified_filename,
+)
+from shapely import set_precision
+
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
-ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v1_areas.geojson"
-PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER = (
-    "data/boundaries/protected_areas_and_indigenous_territories/out"
+INDIGENOUS_TERRITORIES_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories.geojson"
+PROTECTED_AREAS_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas.geojson"
+NATIONAL_ADMIN_GEOJSON = "data/boundaries/national_admin/out/national_admin.geojson"
+SUBNATIONAL_ADMIN_GEOJSON = (
+    "data/boundaries/subnational_admin/out/admin_areas_display.geojson"
 )
-INDIGENOUS_TERRITORIES_GEOJSON = f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/indigenous_territories.geojson"
-PROTECTED_AREAS_GEOJSON = (
-    f"{PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER}/protected_areas.geojson"
-)
-NATIONAL_ADMIN_FOLDER = "data/boundaries/national_admin/out"
-NATIONAL_ADMIN_GEOJSON = f"{NATIONAL_ADMIN_FOLDER}/national_admin.geojson"
-SUBNATIONAL_ADMIN_FOLDER = "data/boundaries/subnational_admin/out"
-SUBNATIONAL_ADMIN_GEOJSON = f"{SUBNATIONAL_ADMIN_FOLDER}/admin_areas_display.geojson"
+
+
+def simplify_gdf(gdf):
+    # create a copy with simplified geometries and columns, for display in the website
+    gdf_simplified = gdf.copy()
+    gdf_simplified["geometry"] = gdf_simplified["geometry"].simplify(
+        tolerance=0.0001, preserve_topology=True
+    )
+    gdf_simplified["geometry"] = gdf_simplified["geometry"].apply(
+        lambda geom: set_precision(geom, grid_size=1e-6)
+    )
+    return gdf_simplified
 
 
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
@@ -115,7 +129,7 @@ def ensure_output_path_exists(output_file):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def save_to_geojson(gdf, output_file, id_column):
+def save_to_geojson(gdf, output_file, id_column="id"):
     ensure_output_path_exists(output_file)
     print(f"Saving {output_file}")
 
@@ -127,15 +141,15 @@ def save_to_geojson(gdf, output_file, id_column):
 
     # make sure ids are unique
     print(len(gdf))
-    print(gdf["id"].nunique())
-    duplicates = gdf[gdf.duplicated(subset="id", keep=False)]
+    print(gdf[id_column].nunique())
+    duplicates = gdf[gdf.duplicated(subset=id_column, keep=False)]
     print(duplicates)
-    assert len(gdf) == gdf["id"].nunique()
+    assert len(gdf) == gdf[id_column].nunique()
 
     # move id from properties to top level
     for feature in geojson_dict["features"]:
-        if "id" in feature["properties"]:
-            feature["id"] = feature["properties"]["id"]
+        if id_column in feature["properties"]:
+            feature[id_column] = feature["properties"][id_column]
 
     # save to file
     with open(output_file, "w", encoding="utf-8") as f:
@@ -145,8 +159,8 @@ def save_to_geojson(gdf, output_file, id_column):
 def intersect_with_areas_of_interest_and_summarize(
     mining_admin_intersect_gdf,
     areas_of_interest_gdf,
-    output_file,
     ignore_if_outside_country,
+    ignore_if_outside_of_state,
 ):
     """
     Intersects areas of interest (countries, Indigenous Territories, protected areas)
@@ -156,6 +170,9 @@ def intersect_with_areas_of_interest_and_summarize(
     The ignore_if_outside_country argument makes the function ignore in case the area's
     country code doesn't match the parent country code. This is useful for areas that are
     on the border and might fall outside of the country's boundaries.
+
+    The ignore_if_outside_of_state does the same, by checking if the area being intersected
+    starts with the same code as the parent area.
     """
     # intersect with area of interest, calculate areas
     intersected_with_areas_of_interest = intersect_and_calculate_areas(
@@ -170,6 +187,16 @@ def intersect_with_areas_of_interest_and_summarize(
                 == intersected_with_areas_of_interest["country_code"]
             )
         ]
+    if ignore_if_outside_of_state:
+        mask = [
+            id_val.startswith(admin_val)
+            for id_val, admin_val in zip(
+                intersected_with_areas_of_interest["admin_id_field"],
+                intersected_with_areas_of_interest["id_field"],
+                strict=True,
+            )
+        ]
+        intersected_with_areas_of_interest = intersected_with_areas_of_interest[mask]
 
     # rename mined area col to use it instead of old intersected_area_ha col
     intersected_with_areas_of_interest["intersected_area_ha"] = (
@@ -188,9 +215,6 @@ def intersect_with_areas_of_interest_and_summarize(
             "admin_illegality_max",
         ]
     )[["intersected_area_ha"]].sum()
-    # save to csv
-    ensure_output_path_exists(output_file)
-    summary.to_csv(output_file.replace(".geojson", ".csv"))
 
     return summary
 
@@ -240,7 +264,7 @@ def calculate_mining_area_timeseries(summary):
     return summary_mining_affected_area_ha_yearly
 
 
-def prepare_for_mining_calculator_and_save(summary, output_file):
+def prepare_for_mining_calculator_and_save(summary):
     def cleanup_region_id(region_id, country_code):
         # cleanup region_id to match mining calculator API standard
         return int(region_id.replace(country_code, ""))
@@ -277,11 +301,6 @@ def prepare_for_mining_calculator_and_save(summary, output_file):
         .to_dict()
     )
 
-    output_json = output_file.replace(".geojson", ".json")
-    print(f"Saving to: {output_json}")
-    with open(output_json, "w") as f:
-        json.dump(result, f, indent=2)
-
     return result
 
 
@@ -308,6 +327,7 @@ def overlay_max_category(
     GeoDataFrame
         mining_gdf with an additional column '{category_col}_max' containing the max values.
     """
+    print("Overlaying with illegality data...")
 
     # Ensure both GeoDataFrames share the same CRS
     if illegality_gdf.crs != mining_gdf.crs:
@@ -356,162 +376,227 @@ if __name__ == "__main__":
     admin_areas_gdf = gpd.read_file(ADMIN_AREAS_GEOJSON)
     illegality_areas_gdf = gpd.read_file(ILLEGALITY_AREAS_GEOJSON)
 
-    for file in MINING_GEOJSONS:
-        mining_file = f"{MINING_GEOJSONS_FOLDER}/{file}"
-        print(f"Reading: {mining_file}")
-        mining_gdf = gpd.read_file(mining_file)
+    # load all mining data
+    all_mining_gdfs = []
+    for i in range(0, len(MINING_YEARS_QUARTERS)):
+        # load geodataframes
+        current_year = MINING_YEARS_QUARTERS[i]
+        current_gdf = gpd.read_file(MINING_DIFFERENCES_FILES[current_year])
+        current_gdf["year"] = current_year  # add year column
 
-        # overlay illegality data
-        mining_gdf = overlay_max_category(
-            illegality_areas_gdf, mining_gdf, "illegality"
+        # simplify
+        gdf_simplified = simplify_gdf(current_gdf)
+
+        # cleanup and save
+        gdf_simplified = gdf_simplified.drop(columns=["Polygon area (ha)"])
+        output_file = generate_mining_simplified_filename(current_year)
+        ensure_output_path_exists(output_file)
+        gdf_simplified.to_file(output_file, driver="GeoJSON")
+        print(f"Created: {output_file}")
+
+        all_mining_gdfs.append((current_year, current_gdf))
+
+    # for illegality, use a cutoff date, which is when illegality data was produced
+    mining_gdf_for_illegality = gpd.pd.concat(
+        [x[1] for x in all_mining_gdfs if x[0] <= ILLEGALITY_DATA_UPDATED_AT],
+        ignore_index=True,
+    )
+    # take the rest of the mining data and store in variable
+    mining_gdf_rest = gpd.pd.concat(
+        [x[1] for x in all_mining_gdfs if x[0] > ILLEGALITY_DATA_UPDATED_AT],
+        ignore_index=True,
+    )
+
+    # overlay illegality data
+    mining_gdf_with_illegality = overlay_max_category(
+        illegality_areas_gdf, mining_gdf_for_illegality, "illegality"
+    )
+    # ensure the illegality_max column exists in rest gdf with a -1 value, to be ignored
+    if len(mining_gdf_rest) > 0:
+        mining_gdf_rest["illegality_max"] = -1
+
+    # concat with rest of data
+    mining_gdf = gpd.pd.concat(
+        [mining_gdf_with_illegality, mining_gdf_rest], ignore_index=True
+    )
+
+    # intersect mining with admin boundaries and calculate areas (once per mining file)
+    intersected_with_admin = intersect_and_calculate_areas(
+        mining_gdf, admin_areas_gdf, "Mined area (ha)"
+    )
+    # prefix columns with admin_
+    intersected_with_admin.columns = [
+        "admin_" + col if col != "geometry" else col
+        for col in intersected_with_admin.columns
+    ]
+
+    datasets_to_process = [
+        {
+            "name": "national_admin",
+            "file": NATIONAL_ADMIN_GEOJSON,
+            "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
+        },
+        {
+            "name": "subnational_admin",
+            "file": SUBNATIONAL_ADMIN_GEOJSON,
+            "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": True,
+        },
+        {
+            "name": "indigenous_territories",
+            "file": INDIGENOUS_TERRITORIES_GEOJSON,
+            "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
+        },
+        {
+            "name": "protected_areas",
+            "file": PROTECTED_AREAS_GEOJSON,
+            "ignore_if_outside_country": True,
+            "ignore_if_outside_of_state": False,
+        },
+    ]
+
+    # process each dataset
+    for dataset in datasets_to_process:
+        gdf = gpd.read_file(dataset["file"])
+
+        summary = intersect_with_areas_of_interest_and_summarize(
+            mining_admin_intersect_gdf=intersected_with_admin,
+            areas_of_interest_gdf=gdf,
+            ignore_if_outside_country=dataset["ignore_if_outside_country"],
+            ignore_if_outside_of_state=dataset["ignore_if_outside_of_state"],
+        )
+        summary_illegality = (
+            summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
+            .sum()
+            .round(2)
+            .reset_index()
+            .rename(columns={"intersected_area_ha": "mining_affected_area"})
         )
 
-        # intersect mining with admin boundaries and calculate areas (once per mining file)
-        intersected_with_admin = intersect_and_calculate_areas(
-            mining_gdf, admin_areas_gdf, "Mined area (ha)"
+        # filter out -1 (no illegality data) from the illegality breakdown
+        summary_illegality_filtered = summary_illegality[
+            summary_illegality["admin_illegality_max"] != -1
+        ]
+
+        # calculate the denominator for percentages (only area WITH illegality data)
+        illegality_area_totals = summary_illegality_filtered.groupby("id")[
+            "mining_affected_area"
+        ].sum()
+
+        illegality_by_id = (
+            summary_illegality_filtered.groupby("id")
+            .apply(
+                lambda g: g[["admin_illegality_max", "mining_affected_area"]].to_dict(
+                    "records"
+                ),
+                include_groups=False,
+            )
+            .to_dict()
         )
-        # prefix columns with admin_
-        intersected_with_admin.columns = [
-            "admin_" + col if col != "geometry" else col
-            for col in intersected_with_admin.columns
-        ]
 
-        datasets_to_process = [
-            {
-                "name": "national_admin",
-                "file": NATIONAL_ADMIN_GEOJSON,
-                "output_folder": NATIONAL_ADMIN_FOLDER,
-                "output_subfolder": "mining_by_national_admin",
-                "ignore_if_outside_country": True,
-            },
-            {
-                "name": "subnational_admin",
-                "file": SUBNATIONAL_ADMIN_GEOJSON,
-                "output_folder": SUBNATIONAL_ADMIN_FOLDER,
-                "output_subfolder": "mining_by_subnational_admin",
-                "ignore_if_outside_country": True,
-            },
-            {
-                "name": "indigenous_territories",
-                "file": INDIGENOUS_TERRITORIES_GEOJSON,
-                "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
-                "output_subfolder": "mining_by_indigenous_territories",
-                "ignore_if_outside_country": True,
-            },
-            {
-                "name": "protected_areas",
-                "file": PROTECTED_AREAS_GEOJSON,
-                "output_folder": PROTECTED_AREAS_AND_INDIGENOUS_TERRITORIES_FOLDER,
-                "output_subfolder": "mining_by_protected_areas",
-                "ignore_if_outside_country": True,
-            },
-        ]
+        summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
+            summary
+        )
+        # save yearly summary to a json
+        summary_mining_affected_area_ha_yearly.to_json(
+            dataset["file"].replace(".geojson", "_yearly.json"),
+            index=False,
+            orient="records",
+        )
 
-        # process each dataset
-        for dataset in datasets_to_process:
-            gdf = gpd.read_file(dataset["file"])
-            output_file = (
-                f"{dataset['output_folder']}/{dataset['output_subfolder']}/{file}"
-            )
+        result = prepare_for_mining_calculator_and_save(summary)
 
-            summary = intersect_with_areas_of_interest_and_summarize(
-                mining_admin_intersect_gdf=intersected_with_admin,
-                areas_of_interest_gdf=gdf,
-                output_file=output_file,
-                ignore_if_outside_country=dataset["ignore_if_outside_country"],
-            )
-            summary_illegality = (
-                summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
-                .sum()
-                .round(2)
-                .reset_index()
-                .rename(columns={"intersected_area_ha": "mining_affected_area"})
-            )
-            illegality_by_id = (
-                summary_illegality.groupby("id")
-                .apply(
-                    lambda g: g[
-                        ["admin_illegality_max", "mining_affected_area"]
-                    ].to_dict("records")
-                )
-                .to_dict()
-            )
+        # transform json result into dataframe
+        summary_mining_affected_area_ha = summary.groupby("id")[
+            "intersected_area_ha"
+        ].sum()
+        result_df = pd.DataFrame(
+            [
+                {
+                    "id": id,
+                    "locations": v["locations"],
+                    "mining_affected_area_ha": summary_mining_affected_area_ha[id],
+                    "illegality_areas": [
+                        {
+                            **x,
+                            "mining_affected_area_pct": round(
+                                x["mining_affected_area"]
+                                / illegality_area_totals.get(
+                                    id, 1
+                                ),  # use filtered totals, excluding -1 values
+                                3,
+                            ),
+                        }
+                        for x in illegality_by_id.get(id, [])
+                    ],
+                }
+                for id, v in result.items()
+            ]
+        )
 
-            summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
-                summary
-            )
-            # save yearly summary to a json
-            summary_mining_affected_area_ha_yearly.to_json(
-                dataset["file"].replace(".geojson", "_yearly.json"),
-                index=False,
-                orient="records",
-            )
+        def group_and_sum_locations(locations):
+            # group by country and regionId, sum affectedArea to reduce repetitions
+            grouped = {}
+            for loc in locations:
+                key = (loc["country"], loc["regionId"])
+                if key in grouped:
+                    grouped[key]["affectedArea"] += loc["affectedArea"]
+                else:
+                    grouped[key] = loc.copy()
 
-            result = prepare_for_mining_calculator_and_save(summary, output_file)
+            # round affectedArea to 2 decimal places
+            for loc in grouped.values():
+                loc["affectedArea"] = round(loc["affectedArea"], 2)
 
-            # transform json result into dataframe
-            summary_mining_affected_area_ha = summary.groupby("id")[
-                "intersected_area_ha"
-            ].sum()
-            result_df = pd.DataFrame(
-                [
-                    {
-                        "id": id,
-                        "locations": v["locations"],
-                        "mining_affected_area_ha": summary_mining_affected_area_ha[id],
-                        "illegality_areas": [
-                            {
-                                **x,
-                                "mining_affected_area_pct": round(
-                                    x["mining_affected_area"]
-                                    / summary_mining_affected_area_ha[id],
-                                    3,
-                                ),
-                            }
-                            for x in illegality_by_id.get(id, [])
-                        ],
-                    }
-                    for id, v in result.items()
-                ]
-            )
+            return list(grouped.values())
 
-            def group_and_sum_locations(locations):
-                # group by country and regionId, sum affectedArea to reduce repetitions
-                grouped = {}
-                for loc in locations:
-                    key = (loc["country"], loc["regionId"])
-                    if key in grouped:
-                        grouped[key]["affectedArea"] += loc["affectedArea"]
-                    else:
-                        grouped[key] = loc.copy()
+        result_df["locations"] = result_df["locations"].apply(group_and_sum_locations)
 
-                # round affectedArea to 2 decimal places
-                for loc in grouped.values():
-                    loc["affectedArea"] = round(loc["affectedArea"], 2)
+        # round results
+        result_df["mining_affected_area_ha"] = result_df[
+            "mining_affected_area_ha"
+        ].round(2)
+        # merge back to original gdf and save
+        gdf_merged = gdf.merge(result_df, on="id", how="left")
 
-                return list(grouped.values())
+        # save unfiltered
+        save_to_geojson(
+            gdf_merged,
+            dataset["file"].replace(".geojson", "_impacts_unfiltered.geojson"),
+            id_column="id",
+        )
 
-            result_df["locations"] = result_df["locations"].apply(
-                group_and_sum_locations
-            )
+        # merge with yearly and save to csv for reference
+        ref = gdf_merged.merge(
+            summary_mining_affected_area_ha_yearly, on="id", how="left"
+        )
+        ref = ref.drop(
+            columns=[
+                "locations",
+                "mining_affected_area_ha",
+                "geometry",
+                "illegality_areas",
+                "area_field",
+                "area_units",
+            ],
+            errors="ignore",
+        )
+        ref = ref.rename(
+            columns={
+                "intersected_area_ha": "mining_affected_area_ha",
+                "intersected_area_ha_cumulative": "mining_affected_area_ha_cumulative",
+            }
+        )
+        ref.to_csv(
+            dataset["file"].replace(".geojson", "_impacts_yearly.csv"), index=False
+        )
 
-            # round results
-            result_df["mining_affected_area_ha"] = result_df[
-                "mining_affected_area_ha"
-            ].round(2)
-            # merge back to original gdf and save
-            gdf_merged = gdf.merge(result_df, on="id", how="left")
-
-            # save unfiltered
-            save_to_geojson(
-                gdf_merged,
-                dataset["file"].replace(".geojson", "_impacts_unfiltered.geojson"),
-                id_column="id",
-            )
-            # filter and save only areas with impact
-            gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
-            save_to_geojson(
-                gdf_merged,
-                dataset["file"].replace(".geojson", "_impacts.geojson"),
-                id_column="id",
-            )
+        # filter and save only areas with impact
+        gdf_merged = gdf_merged[gdf_merged["mining_affected_area_ha"] > 0]
+        save_to_geojson(
+            gdf_merged,
+            dataset["file"].replace(".geojson", "_impacts.geojson"),
+            id_column="id",
+        )

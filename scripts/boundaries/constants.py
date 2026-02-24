@@ -1,0 +1,31 @@
+OUTPUTS_FOLDER = "data/outputs"
+WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
+
+DATA_UPDATED_AT = "20260212"
+
+MINING_DIFFERENCES_FILES = {
+    202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
+    202503: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q3diff-clean-gt11ha.geojson",
+    202502: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q2diff-clean-gt11ha.geojson",
+    202400: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2024-clean-diff-gt11ha.geojson",
+    202300: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2023diff.geojson",
+    202200: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2022diff.geojson",
+    202100: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2021diff.geojson",
+    202000: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2020diff.geojson",
+    201900: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2019diff.geojson",
+    201800: f"{OUTPUTS_FOLDER}/48px_v3.2-3.7ensemble/cumulative/amazon_basin_48px_v3.2-3.7ensemble_dissolved-0.6_2018-2018cumulative.geojson",
+}
+
+MINING_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_FILES.keys())
+first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
+
+def generate_mining_simplified_filename(year_quarter):
+    return f"{WEBSITE_OUTPUTS_FOLDER}/mining_{year_quarter}_simplified.geojson"
+
+
+MINING_SIMPLIFIED_FILES = [
+    generate_mining_simplified_filename(yq) for yq in MINING_YEARS_QUARTERS
+]
+
+ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v2_areas_simplified.geojson"
+ILLEGALITY_DATA_UPDATED_AT = 202503

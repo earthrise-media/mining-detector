@@ -28,7 +28,7 @@ def dissolve_patches(
     
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        dissolved_geom = gdf.buffer(buffer_deg, join_style=2).unary_union
+        dissolved_geom = gdf.buffer(buffer_deg, join_style=2).union_all()
         dissolved = gpd.GeoDataFrame(geometry=[dissolved_geom], crs=gdf.crs)
         dissolved = dissolved.explode(index_parts=False).reset_index(drop=True)
         dissolved.geometry = dissolved.buffer(-buffer_deg, join_style=2)

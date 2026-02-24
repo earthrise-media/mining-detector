@@ -1,7 +1,7 @@
 affine
 descarteslabs==2.1.2
 earthengine-api
-geopandas
+geopandas==1.1
 numpy>=1.23,<2.0
 tensorflow==2.14.0
 torch

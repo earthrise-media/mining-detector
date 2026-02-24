@@ -21,8 +21,11 @@
 
 import os
 import sys
+import time
 from pathlib import Path
+
 import boto3
+from constants import DATA_UPDATED_AT, MINING_SIMPLIFIED_FILES
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -40,57 +43,63 @@ FILE_PATHS = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_yearly.json",
-    
-    "data/outputs/website/mining_201800_simplified.geojson",
-    "data/outputs/website/mining_201900_simplified.geojson",
-    "data/outputs/website/mining_202000_simplified.geojson",
-    "data/outputs/website/mining_202100_simplified.geojson",
-    "data/outputs/website/mining_202200_simplified.geojson",
-    "data/outputs/website/mining_202300_simplified.geojson",
-    "data/outputs/website/mining_202400_simplified.geojson",
-    "data/outputs/website/mining_202502_simplified.geojson",
-    "data/outputs/website/mining_202503_simplified.geojson",
-]
+] + MINING_SIMPLIFIED_FILES
 
 CONTENT_TYPES = {".json": "application/json", ".geojson": "application/geo+json"}
 
+
 def main():
-    required_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_BUCKET"]
+    required_vars = [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_REGION",
+        "AWS_BUCKET",
+    ]
     if missing := [v for v in required_vars if not os.getenv(v)]:
         sys.exit(f"Missing environment variables: {', '.join(missing)}")
 
     s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION"))
     bucket = os.getenv("AWS_BUCKET")
-    
+
     failed = []
     for path in FILE_PATHS:
         if not Path(path).exists():
             print(f"✗ Missing: {path}")
             failed.append(path)
             continue
-        
+
         # Rename .geojson files to .json, because Cloudfront doesn't natively compress geojsons
         file_path = Path(path)
-        if file_path.suffix.lower() == '.geojson':
-            new_path = file_path.with_suffix('.json')
+        if file_path.suffix.lower() == ".geojson":
+            new_path = file_path.with_suffix(".json")
             print(f"Renaming {path} to {new_path}")
         else:
             new_path = file_path
 
-        content_type = CONTENT_TYPES.get(new_path.suffix.lower(), "application/octet-stream")
-        
+        content_type = CONTENT_TYPES.get(
+            new_path.suffix.lower(), "application/octet-stream"
+        )
+
+        # place the DATA_UPDATED_AT as a folder at the begining of the path for versioning
+        new_path = f"{DATA_UPDATED_AT}/" + str(new_path)
+
         # Upload the file with the new path (if renamed)
-        s3.upload_file(str(file_path), bucket, str(new_path), ExtraArgs={"ContentType": content_type})
+        s3.upload_file(
+            str(file_path),
+            bucket,
+            str(new_path),
+            ExtraArgs={"ContentType": content_type},
+        )
         print(f"✓ Uploaded {new_path}")
-    
+
     if cf_id := os.getenv("CLOUDFRONT_DISTRIBUTION_ID"):
         cf = boto3.client("cloudfront", region_name=os.getenv("AWS_REGION"))
         cf.create_invalidation(
             DistributionId=cf_id,
             InvalidationBatch={
-                "Paths": {"Quantity": 1, "Items": ["/data/*"]},
-                "CallerReference": str(int(os.times().elapsed * 1000)),
-            }
+                "Paths": {"Quantity": 1, "Items": [f"/{DATA_UPDATED_AT}/*"]},
+                "CallerReference": str(int(time.time() * 1000)),
+            },
         )
         print("\n✓ Invalidated CloudFront cache")
 

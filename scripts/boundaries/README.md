@@ -16,12 +16,22 @@ Besides the python libraries required in each of the scripts, you'll need to hav
 To get a full refresh of the data, run the following scripts sequentially:
 
 ```bash
-python scripts/concat_differences.py
+# these are only required if the admin areas, ITs, PAs, or illegality areas have changed
 python scripts/boundaries/standardize_subnational_admin_areas.py
 python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
+python scripts/boundaries/standardize_illegality_areas.py
+
 python scripts/boundaries/preprocess_mining_areas.py
 python scripts/boundaries/convert_geojsons_to_pmtiles.py
-python scripts/upload_data_to_s3.py
-python scripts/upload_tiles_to_s3.py
+python scripts/boundaries/upload_data_to_s3.py
+python scripts/boundaries/upload_tiles_to_s3.py
 ```
+
+## Updating mining data
+
+If you are updating mining data:
+
+1. Update the `DATA_UPDATED_AT` variable in `scripts/boundaries/constants.py`, using the `YYYYMMDD` format. This ensures you will not overwrite previous data when uploading to S3
+2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
+3. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs, PAs, and illegality areas have not changed

@@ -132,30 +132,44 @@ def ensure_tile_shape(raster, height, width=None):
 
     return padded
 
-def chips_from_tile(pixels, tile, chip_size, stride):
-    (west, south, east, north) = tile.bounds
-    delta_x = east - west
-    delta_y = north - south  
+def cut_chips(pixels, bbox, chip_size, stride, crs):
+    """ Create chips and chip geometries from a pixel array."""
+    west, south, east, north = bbox
+    H = pixels.shape[0]  
+    W = pixels.shape[1]  
 
-    x_per_pixel = delta_x / pixels.shape[1]  
-    y_per_pixel = delta_y / pixels.shape[0]  
+    x_per_pixel = (east - west) / W
+    y_per_pixel = (north - south) / H
 
     chips = []
-    chip_coords = []
+    chip_polys = []
 
-    for i in range(0, pixels.shape[1] - chip_size + stride, stride): 
-        for j in range(0, pixels.shape[0] - chip_size + stride, stride): 
-            chip = pixels[j : j + chip_size, i : i + chip_size]
+    for col in range(0, W - chip_size + stride, stride):
+        for row in range(0, H - chip_size + stride, stride):
+            chip = pixels[row : row + chip_size, col : col + chip_size]
             chips.append(chip)
 
-            nw = (west + i * x_per_pixel, north - j * y_per_pixel)
-            ne = (west + (i + chip_size) * x_per_pixel, north - j * y_per_pixel)
-            sw = (west + i * x_per_pixel, north - (j + chip_size) * y_per_pixel)
-            se = (west + (i + chip_size) * x_per_pixel,
-                  north - (j + chip_size) * y_per_pixel)
+            nw_x = west + col * x_per_pixel
+            nw_y = north - row * y_per_pixel
 
-            chip_coords.append(Polygon([nw, sw, se, ne, nw]))
+            ne_x = west + (col + chip_size) * x_per_pixel
+            ne_y = nw_y
 
-    chip_coords = gpd.GeoDataFrame(geometry=chip_coords, crs=tile.crs)
-    return chips, chip_coords
+            sw_x = nw_x
+            sw_y = north - (row + chip_size) * y_per_pixel
 
+            se_x = ne_x
+            se_y = sw_y
+
+            poly = Polygon([
+                (nw_x, nw_y),
+                (sw_x, sw_y),
+                (se_x, se_y),
+                (ne_x, ne_y),
+                (nw_x, nw_y)
+            ])
+
+            chip_polys.append(poly)
+
+    chip_geoms = gpd.GeoDataFrame(geometry=chip_polys, crs=crs)
+    return np.array(chips), chip_geoms

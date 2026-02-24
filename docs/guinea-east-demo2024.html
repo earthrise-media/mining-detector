@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title> Guinea mining demo 2024</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+        #menu {
+            background: #fff;
+            position: absolute;
+            z-index: 1000;
+            top: 10px;
+            left: 10px;
+            width: 240px;
+            font-family: 'Open Sans', sans-serif;
+            border-radius: 8px;
+        }
+
+        #menu menu-title {
+            font-size: 18px;
+            color: #404040;
+            display: block;
+            padding: 10px;
+            text-align: center;
+        }
+
+        #menu a {
+            font-size: 14px;
+            color: #404040;
+            display: block;
+            padding: 10px;
+            text-decoration: none;
+            text-align: center;
+            border-radius: 8px;
+            background-color: #dfdfdf;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        #menu a.active {
+            background-color: #3887be;
+            color: #ffffff;
+        }
+
+        /* Lat/Lon popup styling */
+        .latlon-popup {
+            font-family: 'Open Sans', sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #ffffff;       /* solid white background */
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            color: #404040;
+        }
+
+        .latlon-popup .coords {
+            font-weight: 600;
+            color: #3887be;
+        }
+
+        .latlon-popup .hint {
+            font-size: 11px;
+            color: #777;
+        }
+
+        /* Map legend */
+
+        .map-legend {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            font-family: 'Open Sans', sans-serif;
+            font-size: 13px;
+            color: #404040;
+            line-height: 1.4;
+        }
+
+        .map-legend .legend-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .map-legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+
+        .map-legend .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        /* Hide Google Maps default InfoWindow close button */
+        .gm-style-iw > button {
+            display: none !important;
+        }
+        .gm-style-iw {
+            padding: 0 !important;
+        }
+
+        .map-title-banner {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 10px 18px;
+            margin: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            font-family: 'Open Sans', sans-serif;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .map-title-banner .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #404040;
+            letter-spacing: 0.3px;
+        }
+
+        .map-title-banner .subtitle {
+            margin-top: 2px;
+            font-size: 14px;
+            font-weight: 400;
+            color: #666;
+        }
+
+        @media (max-width: 640px) {
+            .map-title-banner .title {
+                font-size: 15px;
+            }
+            .map-title-banner .subtitle {
+                font-size: 11px;
+            }
+        }
+
+        .map-logo {
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 6px;
+            padding: 6px;
+            margin: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .map-logo img {
+            display: block;
+            height: 32px;          /* adjust as needed */
+            width: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <nav id="menu"></nav>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCYi1HB6c9AI75Yo7ltx5x6eLue0KlZdHA"></script>
+    <script>
+        /* --------------------------------------------------
+           Map setup
+        -------------------------------------------------- */
+
+        const initialCenter = { lat: 9.8, lng: -10.9 };
+        const initialZoom = 7.5;
+
+        const map = new google.maps.Map(document.getElementById("map"), {
+            center: initialCenter,
+            zoom: initialZoom,
+            mapTypeId: "hybrid",
+            streetViewControl: false,
+            fullscreenControl: false
+        });
+
+        function addTitleBanner(map) {
+            const banner = document.createElement('div');
+            banner.className = 'map-title-banner';
+
+            banner.innerHTML = `
+                <div class="title">Guinea artisanal mining 2024</div>
+                <div class="subtitle">  Earth Index demo </div>
+            `;
+
+            map.controls[google.maps.ControlPosition.TOP_CENTER].push(banner);
+        }
+
+        addTitleBanner(map);
+
+
+        /* --------------------------------------------------
+           URL hash sync (#zoom/lat/lon)
+        -------------------------------------------------- */
+
+        function updateHash() {
+            const c = map.getCenter();
+            const z = map.getZoom();
+            location.hash = `${z}/${c.lat().toFixed(4)}/${c.lng().toFixed(4)}`;
+        }
+
+        function applyHash() {
+            if (!location.hash) return false;
+            const p = location.hash.replace('#', '').split('/');
+            if (p.length !== 3) return false;
+
+            map.setZoom(parseFloat(p[0]));
+            map.setCenter({ lat: parseFloat(p[1]), lng: parseFloat(p[2]) });
+            return true;
+        }
+
+        applyHash();
+        map.addListener("idle", updateHash);
+
+        /* --------------------------------------------------
+           Sentinel-2 raster overlay (ImageMapType)
+        -------------------------------------------------- */
+
+        const sentinelOverlay = new google.maps.ImageMapType({
+            getTileUrl: function (coord, zoom) {
+                return `https://tiles.earthindex.ai/v1/tiles/sentinel2-yearly-mosaics/2024-01-01/2025-01-01/rgb/${zoom}/${coord.x}/${coord.y}.webp`;
+            },
+            tileSize: new google.maps.Size(256, 256),
+            name: "Sentinel-2",
+            opacity: 1.0
+        });
+
+        /* --------------------------------------------------
+           AOI boundary (GeoJSON)
+        -------------------------------------------------- */
+
+        map.data.loadGeoJson(
+            "https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/boundaries/guinea-east.geojson"
+        );
+
+        /* --------------------------------------------------
+           Mining detections (GeoJSON)
+        -------------------------------------------------- */
+
+        map.data.loadGeoJson(
+            "https://raw.githubusercontent.com/earthrise-media/mining-detector/main/data/outputs/ei/guinea/guinea2024_polys_t0.70softcon-LogReg_2026-01-08T14:52.geojson"
+        );
+
+        /* --------------------------------------------------
+           Protected areas (GeoJSON)
+        -------------------------------------------------- */
+        map.data.loadGeoJson(
+            "./guinea-east-protected_areas.geojson"
+        );
+
+        map.data.setStyle(feature => {
+            if (feature.getProperty("NAME") !== undefined) {
+                return {
+                    strokeColor: "#00b300",
+                    strokeWeight: 1,
+                    strokeOpacity: 1.0,
+                    fillOpacity: 0.1
+                };
+            }
+            else if (feature.getGeometry().getType() === "Polygon") {
+                return {
+                    strokeColor: "#ffb301",
+                    strokeWeight: 2,
+                    strokeOpacity: 1.0,
+                    fillOpacity: 0
+                };
+            }
+
+            return {
+                strokeColor: "rgb(118, 162, 198)",
+                strokeWeight: 2,
+                strokeOpacity: 1.0,
+                fillOpacity: 0 
+            };
+        });
+
+        /* --------------------------------------------------
+           Click → lat/lon popup + clipboard
+        -------------------------------------------------- */
+
+        // Single InfoWindow instance
+        const infoWindow = new google.maps.InfoWindow();
+
+        function showLatLonNamePopup(e) {
+            showLatLonPopup(e.latLng, e.feature.getProperty("NAME"));
+        }
+
+        // Helper function to show lat/lon popup
+        function showLatLonPopup(latLng, name) {
+            const lat = latLng.lat().toFixed(3);
+            const lng = latLng.lng().toFixed(3);
+            const text = `${lat}, ${lng}`;
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(text);
+
+            // Set content and open popup
+            const html = `
+                <div class="latlon-popup">
+                    <div class="coords">${text}</div>
+                    <div class="name">${name ? name : ''}</div>
+                    <div class="hint">Copied to clipboard</div>
+                </div>
+            `;
+            infoWindow.setContent(html);
+            infoWindow.setPosition(latLng);
+            infoWindow.open(map);
+        }
+
+        // Map click (outside polygons)
+        map.addListener("click", e => showLatLonPopup(e.latLng));
+
+        // Data layer click (AOI or mining polygons)
+        map.data.addListener("click", e => showLatLonNamePopup(e));
+
+	/* --------------------------------------------------
+           Legend
+        -------------------------------------------------- */
+
+	function addLegend(map) {
+            const legend = document.createElement("div");
+            legend.className = "map-legend";
+
+            legend.innerHTML = `
+                <div class="legend-title"></div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgb(118, 162, 198);"></span>
+                    <span>Guinea eastern regions</span>
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #ffb301;"></span>
+                    <span>Detected mining</span>
+                </div>
+
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #00b300;"></span>
+                    <span>Protected areas</span>
+                </div>
+            `;
+            
+            map.controls[google.maps.ControlPosition.RIGHT_TOP].push(legend);
+        }
+
+        addLegend(map);
+
+		
+        /* --------------------------------------------------
+           Custom menu (imagery toggle)
+        -------------------------------------------------- */
+
+	const attributionDiv = document.createElement('div');
+	attributionDiv.style.position = 'absolute';
+	attributionDiv.style.bottom = '5px';
+	attributionDiv.style.left = '10px';
+	attributionDiv.style.fontSize = '11px';
+	attributionDiv.style.color = '#444';
+	attributionDiv.style.background = 'rgba(255,255,255,0.7)';
+	attributionDiv.style.padding = '2px 5px';
+	attributionDiv.style.borderRadius = '3px';
+	attributionDiv.innerHTML = 'Recent imagery ©2024 Copernicus Sentinel-2';
+	document.body.appendChild(attributionDiv);
+		
+        const menu = document.getElementById("menu");
+
+        const title = document.createElement("menu-title");
+        title.textContent = "Toggle satellite imagery:";
+        menu.appendChild(title);
+
+        const btnHybrid = document.createElement("a");
+        btnHybrid.textContent = "Higher resolution (Google Maps)";
+        btnHybrid.className = "active";
+
+        const btnSentinel = document.createElement("a");
+        btnSentinel.textContent = "More recent (2024 Sentinel-2)";
+
+        menu.appendChild(btnHybrid);
+        menu.appendChild(btnSentinel);
+
+        btnHybrid.onclick = () => {
+            map.overlayMapTypes.clear();
+            btnHybrid.className = "active";
+            btnSentinel.className = "";
+        };
+
+        btnSentinel.onclick = () => {
+            map.overlayMapTypes.clear();
+            map.overlayMapTypes.push(sentinelOverlay);
+            btnSentinel.className = "active";
+	    btnHybrid.className = "";
+	    sentinelAttribution.style.display = 'block';
+	};
+
+        /* --------------------------------------------------
+           Logo
+        -------------------------------------------------- */
+
+        function addLogoControl(map) {
+            const container = document.createElement('div');
+            container.className = 'map-logo';
+
+            const img = document.createElement('img');
+            img.src = './logo.png';        // or full URL
+            img.alt = 'Company logo';
+
+            container.appendChild(img);
+
+            map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(container);
+        }
+
+        addLogoControl(map);
+
+    </script>
+</body>
+</html>
