@@ -5,7 +5,12 @@ These scripts prepare boundaries for use in the AMW website:
 1. Concatenates all the mining detection geojsons into a single file, and also saves copies of the individual files while simplifying the geometry
 2. Standardizes all subnational and national admin areas, as well as Indigienous Territories and protected areas from different shapefile sources
 3. Preprocesses mining areas, atrributing admin jurisdiction data to them (for use in the Mining Calculator API); pre-calculates timeseries for admin areas; overlays with mining illegality layer
-4. Uploads data to S3 for use in the website
+4. Converts the geojsons to pmtiles for use in the website
+5. Uploads data to S3 for use in the website
+
+## Requirements
+
+Besides the python libraries required in each of the scripts, you'll need to have [tippecanoe](https://github.com/mapbox/tippecanoe) installed.
 
 ## Pipeline
 
@@ -19,7 +24,9 @@ python scripts/boundaries/standardize_it_and_pa_areas.py
 python scripts/boundaries/standardize_illegality_areas.py
 
 python scripts/boundaries/preprocess_mining_areas.py
+python scripts/boundaries/convert_geojsons_to_pmtiles.py
 python scripts/boundaries/upload_data_to_s3.py
+python scripts/boundaries/upload_tiles_to_s3.py
 ```
 
 ## Updating mining data
