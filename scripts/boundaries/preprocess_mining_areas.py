@@ -28,6 +28,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from constants import (
+    COMBINED_MINING_FILE,
     ILLEGALITY_AREAS_GEOJSON,
     ILLEGALITY_DATA_UPDATED_AT,
     MINING_DIFFERENCES_FILES,
@@ -378,12 +379,14 @@ if __name__ == "__main__":
 
     # load all mining data
     all_mining_gdfs = []
+    full_resolution_mining_gdfs = []
     for i in range(0, len(MINING_YEARS_QUARTERS)):
         # load geodataframes
         current_year = MINING_YEARS_QUARTERS[i]
         current_gdf = gpd.read_file(MINING_DIFFERENCES_FILES[current_year])
         current_gdf["year"] = current_year  # add year column
 
+        full_resolution_mining_gdfs.append(current_gdf)
         # simplify
         gdf_simplified = simplify_gdf(current_gdf)
 
@@ -395,6 +398,10 @@ if __name__ == "__main__":
         print(f"Created: {output_file}")
 
         all_mining_gdfs.append((current_year, current_gdf))
+
+    combined_mining_gdf = gpd.GeoDataFrame(pd.concat(full_resolution_mining_gdfs, ignore_index=True))
+    ensure_output_path_exists(COMBINED_MINING_FILE)
+    combined_mining_gdf.to_file(COMBINED_MINING_FILE, driver="GeoJSON")
 
     # for illegality, use a cutoff date, which is when illegality data was produced
     mining_gdf_for_illegality = gpd.pd.concat(

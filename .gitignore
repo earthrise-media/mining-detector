@@ -24,3 +24,4 @@ gee/tmp.geojson
 data/outputs/test-data
 scripts/boundaries/copy_to_site_local.sh
 data/boundaries/**/*.pmtiles*
+data/outputs/website/**/*.pmtiles*

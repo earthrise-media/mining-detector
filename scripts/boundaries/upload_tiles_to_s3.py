@@ -24,17 +24,13 @@ from pathlib import Path
 
 import boto3
 from constants import DATA_UPDATED_AT
+from convert_geojsons_to_pmtiles import GEOJSONS_TO_PMTILES
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # File paths to upload
-FILE_PATHS = [
-    "data/boundaries/national_admin/out/national_admin_impacts_unfiltered.pmtiles",
-    "data/boundaries/subnational_admin/out/admin_areas_display_impacts_unfiltered.pmtiles",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories_impacts_unfiltered.pmtiles",
-    "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.pmtiles",
-]
+FILE_PATHS = [x.replace(".geojson", ".pmtiles") for x in GEOJSONS_TO_PMTILES]
 BASE_FOLDER = f"amw/{DATA_UPDATED_AT}"
 
 

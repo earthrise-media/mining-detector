@@ -26,6 +26,7 @@ def generate_mining_simplified_filename(year_quarter):
 MINING_SIMPLIFIED_FILES = [
     generate_mining_simplified_filename(yq) for yq in MINING_YEARS_QUARTERS
 ]
+COMBINED_MINING_FILE = f"{WEBSITE_OUTPUTS_FOLDER}/mining_combined_full.geojson"
 
 ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v2_areas_simplified.geojson"
 ILLEGALITY_DATA_UPDATED_AT = 202503
