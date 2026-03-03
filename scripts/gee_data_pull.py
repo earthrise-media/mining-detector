@@ -1,6 +1,10 @@
-"""Tiles an AOI and exports data GEE to GeoTiffs for supported collections.
+"""Tiles an AOI and exports data from GEE to GeoTiffs for supported collections.
 
-A utility function for uses outside the main ML workflow.
+This is a utility function for uses outside the main ML workflow.
+
+Usage: 
+python gee_data_pull.py my_aoi.geojson --start_date 2024-01-01 --end_date 2024-01-31 --collection AlphaEarth --tilesize 224
+
 """
 
 import argparse

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Extract embedding pixels from GeoTIFFs into a GeoDataFrame and write to parquet.
 
+This is a utility function for uses outside the main ML workflow.
+
 Each input GeoTIFF has shape (bands, H, W). Band count is inferred from the first
 file and must match all others. Each pixel becomes one row: one column per band
 (e0, e1, ...) plus point geometry at the pixel centroid.
