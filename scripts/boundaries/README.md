@@ -17,7 +17,11 @@ Besides the python libraries required in each of the scripts, you'll need to hav
 To get a full refresh of the data, run the following scripts sequentially:
 
 ```bash
-# these are only required if the admin areas, ITs, PAs, or illegality areas have changed
+# If you're starting from a fresh repo clone, you'll need too bring in the source data
+# For more details on this see the "Source data and outputs" section further below.
+python scripts/boundaries/sync_source_data_to_s3.py --download
+
+# These are only required if the admin areas, ITs, PAs, or illegality areas have changed.
 python scripts/boundaries/standardize_subnational_admin_areas.py
 python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
@@ -36,3 +40,24 @@ If you are updating mining data:
 1. Update the `DATA_UPDATED_AT` variable in `scripts/boundaries/constants.py`, using the `YYYYMMDD` format. This ensures you will not overwrite previous data when uploading to S3
 2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
 3. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs, PAs, and illegality areas have not changed
+
+## Source data and outputs
+
+We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. Instead, you can use our S3 bucket to sync it with your local dev folder:
+
+```bash
+aws s3 sync ./data/boundaries s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/boundaries --exclude "*/.DS_Store" --exclude ".DS_Store"
+aws s3 sync ./data/outputs/website s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/outputs/ --exclude "*/.DS_Store" --exclude ".DS_Store"website
+```
+
+Or you can use the python script instead to upload:
+
+```bash
+python scripts/boundaries/sync_source_data_to_s3.py
+```
+
+Or download:
+
+```bash
+python scripts/boundaries/sync_source_data_to_s3.py --download
+```
