@@ -80,6 +80,21 @@ def create_tiles(region, tilesize, pad, resolution=10):
     return list(tiles)
 
 
+def tiles_for_geometry(geom, tilesize, pad=0, resolution=10):
+    """
+    Return tiles covering a geometry. For Point/MultiPoint, uses CenteredTile
+    (one tile per point). For Polygon/MultiPolygon, uses DLTile.iter_from_shape.
+    """
+    if geom.geom_type == "Point":
+        return [CenteredTile(geom.y, geom.x, tilesize=tilesize, resolution=resolution)]
+    if geom.geom_type == "MultiPoint":
+        return [
+            CenteredTile(p.y, p.x, tilesize=tilesize, resolution=resolution)
+            for p in geom.geoms
+        ]
+    return create_tiles(geom, tilesize, pad, resolution)
+
+
 def ensure_tile_shape(raster, height, width=None):
     """
     Ensure tile raster data has the exact requested shape by trimming 
