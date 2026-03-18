@@ -52,6 +52,8 @@ def main(args):
         )
 
         for tile in tiles:
+            if not row.geometry.intersects(tile.geometry):
+                continue
             try:
                 pixels = extractor.get_tile_data(tile)
                 extractor.save_tile(pixels, tile, outdir)
