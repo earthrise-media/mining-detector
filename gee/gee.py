@@ -38,6 +38,7 @@ SSL4EO_PATH = str(
 )
 SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
 DEFAULT_MASK_DIR = str((REPO_ROOT / "data/outputs/sam2").resolve())
+DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
 
 # Load foundation weights via: torch.load(SSL4EO_PATH, weights_only=False)
 
@@ -94,10 +95,11 @@ class DataConfig:
     
 @dataclass
 class InferenceConfig:
+    # Path to Keras classifier (.h5). Loaded inside :class:`InferenceEngine`.
+    model_path: PathLike = (
+        "../models/48px_v0.X-SSL4EO-MLPensemble_2025-10-21.h5"
+    )
     pred_threshold: float = 0.5
-    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
-    tries: int = 2
-    max_concurrent_tiles: int = 500
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
     embed_model_path: Optional[str] = SSL4EO_PATH
     # The next 3 parameters are required if using an embedding model
@@ -106,8 +108,14 @@ class InferenceConfig:
     geo_chip_size: Optional[int] = 48 
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
+    # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
+    inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
+    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
+    tries: int = 2
+    max_concurrent_tiles: int = 500
 
     def __post_init__(self):
+        self.model_path = Path(self.model_path)
         self._validate_embedding_config()
         
         if self.embeddings_cache_dir:
@@ -116,6 +124,8 @@ class InferenceConfig:
 
         if not self.embed_model_path:
             self.embed_model_path = ""
+
+        self.inference_output_base = Path(self.inference_output_base)
 
     def _validate_embedding_config(self):
         if not self.embed_model_name or not self.embed_model_path:
@@ -374,15 +384,19 @@ class InferenceEngine:
     def __init__(
         self,
         data_extractor: GEE_Data_Extractor,
-        model: tf.keras.Model,
         config: InferenceConfig,
         mask_config: Optional[MaskConfig] = None,
-        logger: Optional[logging.Logger] = None):
+        logger: Optional[logging.Logger] = None,
+    ):
         
         self.data_extractor = data_extractor
-        self.model = model
         self.config = config
         self.logger = logger or logging.getLogger()
+
+        if not config.model_path:
+            raise ValueError("InferenceConfig.model_path must be set to a Keras .h5 file")
+        self.model = tf.keras.models.load_model(
+            str(config.model_path), compile=False)
 
         # Add a lock to serialize model access (in-process)
         self._tf_model_lock = threading.Lock()
@@ -405,6 +419,29 @@ class InferenceEngine:
             self.masker = SAM2_Masker(self.data_extractor, mask_config)
         else:
             self.masker = None
+
+    def predictions_geojson_path(self, region_path: PathLike) -> Path:
+        """Path for bulk-inference positive-chip GeoJSON under ``inference_output_base``.
+
+        Uses ``config.model_path`` stem (first two ``_``-separated tokens as model
+        version), ``config.pred_threshold``, ``config.inference_output_base``, and
+        the data extractor's date range.
+        """
+        if not self.config.model_path:
+            raise ValueError(
+                "InferenceConfig.model_path must be set to build output path"
+            )
+        region_path = Path(region_path)
+        mp = Path(self.config.model_path)
+        model_version = "_".join(mp.stem.split("_")[:2])
+        region_name = region_path.stem
+        period = f"{self.data_extractor.start_date}_{self.data_extractor.end_date}"
+        outdir = self.config.inference_output_base / model_version
+        outdir.mkdir(parents=True, exist_ok=True)
+        pred = self.config.pred_threshold
+        return outdir / (
+            f"{region_name}_{model_version}_{pred:.2f}_{period}.geojson"
+        )
             
     def _load_embed_model(self):
         if self.config.embed_model_name == "ssl4eo_vit_s16":
@@ -697,8 +734,10 @@ class InferenceEngine:
             consumer_done.set()
         
     def bulk_predict(
-        self, tiles: List[TileType],
-        outpath: Optional[PathLike] = None) -> gpd.GeoDataFrame:
+        self,
+        tiles: List[TileType],
+        region_path: PathLike,
+    ) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
          - producers attempt to load embeddings cache; failing, fetch pixels
@@ -710,7 +749,12 @@ class InferenceEngine:
         tile (see ``produce_tile_input``). Typical production inference without
         an embeddings cache is unaffected.
 
+        Writes cumulative predictions to the GeoJSON path from
+        :meth:`predictions_geojson_path` (after each batch merge).
+
         """
+        outpath = self.predictions_geojson_path(region_path)
+
         predictions = gpd.GeoDataFrame({
             "geometry": gpd.GeoSeries(dtype="geometry"),
             "confidence": gpd.pd.Series(dtype="float"),
@@ -775,9 +819,8 @@ class InferenceEngine:
                     self.logger.info(f"Found {len(batch_gdf)} new positives.")
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     
-                    if outpath is not None:
-                        Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                        predictions.to_file(outpath, index=False)
+                    Path(outpath).parent.mkdir(parents=True, exist_ok=True)
+                    predictions.to_file(outpath, index=False)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails

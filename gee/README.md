@@ -22,7 +22,7 @@ pip install -r requirements.txt  # May require tweaking - only critical version 
 
 2025 models are built on the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12) foundation model. The model is also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. 
 
-Default paths in `gee.py` are anchored to the **repository root** (`REPO_ROOT`): SSL4EO weights `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt` (`SSL4EO_PATH`), SAM2 checkout  `models/sam2` (`SAM2_PATH`), and mask output dir `data/outputs/sam2` (`DEFAULT_MASK_DIR`). Run scripts from the `gee/` folder; other CLI paths are relative to the current working directory unless you pass absolutes.
+Default paths in `gee.py` are anchored to the **repository root** (`REPO_ROOT`): SSL4EO weights `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt` (`SSL4EO_PATH`), SAM2 checkout `models/sam2` (`SAM2_PATH`), mask output dir `data/outputs/sam2` (`DEFAULT_MASK_DIR`), and bulk inference GeoJSON base dir `data/outputs` (`DEFAULT_INFERENCE_OUTPUT_BASE` on `InferenceConfig.inference_output_base`). Actual prediction filenames are built at runtime via `InferenceConfig.predictions_geojson_path` / `build_predictions_geojson_path` (subfolder per model version, same naming as before). Run scripts from the `gee/` folder; other CLI paths are relative to the current working directory unless you pass absolutes.
 
 
 ### Model training workflow

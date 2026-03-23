@@ -7,8 +7,6 @@ import re
 from pathlib import Path
 
 import geopandas as gpd
-import tensorflow as tf
-import torch
 
 import gee
 import tile_utils
@@ -30,24 +28,12 @@ def get_logger(logpath: Path, maxBytes=1e6,
     logger.setLevel(level)
     return logger
 
-def get_outpath(model_path: Path, region_path: Path,
-                start_date: str, end_date: str,
-                pred_threshold: float) -> Path:
-    model_version = '_'.join(model_path.stem.split('_')[:2])
-    region_name = region_path.stem
-    period = f"{start_date}_{end_date}"
-    outdir = Path('../data/outputs') / model_version
-    outdir.mkdir(parents=True, exist_ok=True)
-    return outdir / f"{region_name}_{model_version}_{pred_threshold:.2f}_{period}.geojson"
-
-
 def main(data_config: gee.DataConfig,
          inference_config: gee.InferenceConfig,
          mask_config: gee.MaskConfig,
          cli_args: argparse.Namespace,
          logger: logging.Logger):
 
-    model = tf.keras.models.load_model(cli_args.model_path, compile=False)
     region = gpd.read_file(cli_args.region_path).union_all()
 
     tiles = tile_utils.create_tiles(
@@ -60,21 +46,13 @@ def main(data_config: gee.DataConfig,
         config=data_config
     )
 
-    outpath = get_outpath(
-        cli_args.model_path,
-        cli_args.region_path,
-        cli_args.start_date,
-        cli_args.end_date,
-        inference_config.pred_threshold
-    )
     engine = gee.InferenceEngine(
         data_extractor=data_extractor,
-        model=model,
         config=inference_config,
         mask_config=mask_config,
-        logger=logger
+        logger=logger,
     )
-    preds = engine.bulk_predict(tiles, outpath=outpath)
+    preds = engine.bulk_predict(tiles, cli_args.region_path)
 
     analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
@@ -112,6 +90,9 @@ if __name__ == '__main__':
 
 
     # InferenceConfig args
+    parser.add_argument("--model_path", type=Path,
+                        default=inference_defaults.model_path,
+                        help="Path to saved Keras classifier (.h5)")
     parser.add_argument("--pred_threshold", type=float,
                         default=inference_defaults.pred_threshold,
                         help="Prediction threshold for positive chips")
@@ -149,6 +130,15 @@ if __name__ == '__main__':
     parser.add_argument("--run_sam2", action="store_true",
                         default=inference_defaults.run_sam2,
                         help="Enable SAM2 segmentation after model predictions")
+    parser.add_argument(
+        "--inference_output_base",
+        type=str,
+        default=str(inference_defaults.inference_output_base),
+        help=(
+            "Base directory for prediction GeoJSON outputs "
+            "(default: <repo>/data/outputs; subfolder per model version)"
+        ),
+    )
 
     # MaskConfig args
     parser.add_argument("--prior_sigma", type=float,
@@ -174,9 +164,6 @@ if __name__ == '__main__':
                         help="Directory to save SAM2 outputs")
 
     # General args
-    parser.add_argument("--model_path", type=Path,
-                        default="../models/48px_v3.2-3.7ensemble_2024-02-13.h5",
-                        help="Path to saved Keras model")
     parser.add_argument("--region_path", type=Path,
                         default="../data/boundaries/amazon_basin.geojson",
                         help="Path to ROI geojson")
