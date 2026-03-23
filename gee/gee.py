@@ -555,6 +555,13 @@ class InferenceEngine:
         - otherwise fetch pixels via get_tile_data -> return {'mode':'pixels',
             'pixels':..., 'tile': tile}
         Errors are raised to the caller.
+
+        Note: When mode is ``embeddings``, the consumer runs classification only
+        from cached vectors (no tile pixels in the queue). Inline SAM2 masking
+        (``InferenceConfig.run_sam2``) is therefore skipped for those tiles even
+        if there are positive detections. For production runs with SAM2, leave
+        ``embeddings_cache_dir`` unset or avoid hitting the cache for tiles that
+        need masks; use the standalone SAM2 scripts for a separate masking pass.
         """
         # Try loading cached embeddings first (best-case fast path).
         emb_path = self._make_embedding_cache_path(tile)
@@ -687,8 +694,13 @@ class InferenceEngine:
         """
         Producer-consumer bulk inference, with retry logic:
          - producers attempt to load embeddings cache; failing, fetch pixels
-         - consumer serializes GPU work: embedding model (if required) and 
+         - consumer serializes GPU work: embedding model (if required) and
           TF classifier
+
+        If ``embeddings_cache_dir`` is set and a tile is served from cache
+        (``mode == "embeddings"``), inline SAM2 masking does not run for that
+        tile (see ``produce_tile_input``). Typical production inference without
+        an embeddings cache is unaffected.
 
         """
         predictions = gpd.GeoDataFrame({
@@ -908,15 +920,12 @@ class SAM2_Masker:
         return upsampled
 
     def predict(self, pixels: np.ndarray, tile: TileType,
-                preds_gdf: gpd.GeoDataFrame,
-                preds_buffer_width: float = 0.005):
+                preds_gdf: gpd.GeoDataFrame):
         """Run SAM2 using polygon-derived box prompts.
 
-        pixels: np.ndarray: reflectance values (H, W, B) 
+        pixels: np.ndarray: reflectance values (H, W, B)
         tile: TileType
-        preds_gdf: GeoDataFrame in EPSG:4326
-        preds_buffer_width: Buffer width in degrees for epsg:4326 geometries.
-            SAM2 masks are clipped to buffered predictions.
+        preds_gdf: GeoDataFrame in EPSG:4326 (positive chip geometries).
         """
         height, width = pixels.shape[:2]
         transform = self.data_extractor.affine_from_tile(tile, width, height)

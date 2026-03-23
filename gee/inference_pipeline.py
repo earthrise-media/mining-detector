@@ -142,7 +142,10 @@ if __name__ == '__main__':
                         help="Input size for embedding model")
     parser.add_argument("--embeddings_cache_dir", type=str,
                         default=inference_defaults.embeddings_cache_dir,
-                        help="Optional directory to save/reload embeddings")
+                        help=("Optional directory to save/reload embeddings. "
+                              "Tiles read from cache skip fetching pixels; "
+                              "with --run_sam2, inline SAM2 does not run for "
+                              "those tiles (use standalone SAM2 masking if needed)."))
     parser.add_argument("--run_sam2", action="store_true",
                         default=inference_defaults.run_sam2,
                         help="Enable SAM2 segmentation after model predictions")
