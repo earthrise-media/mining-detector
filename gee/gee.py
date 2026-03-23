@@ -383,13 +383,15 @@ class InferenceEngine:
 
     def __init__(
         self,
-        data_extractor: GEE_Data_Extractor,
+        start_date: str,
+        end_date: str,
+        data_config: DataConfig,
         config: InferenceConfig,
         mask_config: Optional[MaskConfig] = None,
         logger: Optional[logging.Logger] = None,
     ):
-        
-        self.data_extractor = data_extractor
+        self.data_extractor = GEE_Data_Extractor(
+            start_date, end_date, data_config)
         self.config = config
         self.logger = logger or logging.getLogger()
 

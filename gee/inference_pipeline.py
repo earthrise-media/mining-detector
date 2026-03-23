@@ -40,14 +40,10 @@ def main(data_config: gee.DataConfig,
         region, data_config.tilesize, data_config.pad)
     logger.info(f"Created {len(tiles)} tiles")
 
-    data_extractor = gee.GEE_Data_Extractor(
-        cli_args.start_date,
-        cli_args.end_date,
-        config=data_config
-    )
-
     engine = gee.InferenceEngine(
-        data_extractor=data_extractor,
+        start_date=cli_args.start_date,
+        end_date=cli_args.end_date,
+        data_config=data_config,
         config=inference_config,
         mask_config=mask_config,
         logger=logger,
