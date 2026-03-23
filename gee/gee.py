@@ -30,12 +30,20 @@ from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 TileType = Union[DLTile, CenteredTile]
 PathLike = Union[str, Path]
 
+# Repository root (directory that contains ``gee/`` and ``models/``).
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+SSL4EO_PATH = str(
+    (REPO_ROOT / "models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt").resolve()
+)
+SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
+DEFAULT_MASK_DIR = str((REPO_ROOT / "data/outputs/sam2").resolve())
+
+# Load foundation weights via: torch.load(SSL4EO_PATH, weights_only=False)
+
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
               project=EE_PROJECT)
-
-SSL4EO_PATH = 'SSL4EO/pretrained/dino_vit_small_patch16_224.pt'
-# Load via: torch.load(SSL4EO_PATH, weights_only=False)
 
 if platform.system() == 'Darwin':
     tf.config.run_functions_eagerly(True)
@@ -91,7 +99,7 @@ class InferenceConfig:
     tries: int = 2
     max_concurrent_tiles: int = 500
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
-    embed_model_path: Optional[str] = "SSL4EO/pretrained/dino_vit_small_patch16_224.pt"
+    embed_model_path: Optional[str] = SSL4EO_PATH
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
@@ -131,11 +139,11 @@ class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
     smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
 
-    sam2_repo_path: PathLike = "../../sam2"
+    sam2_repo_path: PathLike = SAM2_PATH
     sam2_checkpoint: Optional[PathLike] = None
     finetuned_weights: Optional[PathLike] = None
     sam2_model_cfg: Optional[PathLike] = None
-    mask_dir: PathLike = "../data/outputs/sam2"
+    mask_dir: PathLike = DEFAULT_MASK_DIR
 
     def __post_init__(self):
         sam2_repo = Path(self.sam2_repo_path)
