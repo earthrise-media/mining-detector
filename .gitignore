@@ -15,6 +15,7 @@ figures
 models/old
 gee/tmp_boundaries.geojson
 gee/tmp.geojson
+gee/inference-scratch.ipynb
 *.qml
 *.~lock.*
 *.gpkg-shm

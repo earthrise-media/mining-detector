@@ -447,8 +447,11 @@ class InferenceEngine:
         else:
             self.masker = None
 
-    def predictions_geojson_path(self, region_path: PathLike) -> Path:
+    def predictions_geojson_path(self, region_name: str) -> Path:
         """Path for bulk-inference positive-chip GeoJSON under ``inference_output_base``.
+
+        ``region_name`` is a label for the output file only (e.g. ``Path(geojson).stem``);
+        it is not used to load geometry.
 
         Uses ``config.model_path`` stem (first two ``_``-separated tokens as model
         version), ``config.pred_threshold``, ``config.inference_output_base``, and
@@ -458,10 +461,8 @@ class InferenceEngine:
             raise ValueError(
                 "InferenceConfig.model_path must be set to build output path"
             )
-        region_path = Path(region_path)
         mp = Path(self.config.model_path)
         model_version = "_".join(mp.stem.split("_")[:2])
-        region_name = region_path.stem
         period = f"{self.data_extractor.start_date}_{self.data_extractor.end_date}"
         outdir = self.config.inference_output_base / model_version
         outdir.mkdir(parents=True, exist_ok=True)
@@ -763,7 +764,7 @@ class InferenceEngine:
     def bulk_predict(
         self,
         tiles: List[TileType],
-        region_path: PathLike,
+        region_name: str,
     ) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
@@ -776,11 +777,13 @@ class InferenceEngine:
         tile (see ``produce_tile_input``). Typical production inference without
         an embeddings cache is unaffected.
 
+        ``region_name`` labels the output GeoJSON only (e.g. ``region_path.stem``).
+
         Writes cumulative predictions to the GeoJSON path from
         :meth:`predictions_geojson_path` (after each batch merge).
 
         """
-        outpath = self.predictions_geojson_path(region_path)
+        outpath = self.predictions_geojson_path(region_name)
 
         predictions = gpd.GeoDataFrame({
             "geometry": gpd.GeoSeries(dtype="geometry"),

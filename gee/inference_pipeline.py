@@ -48,7 +48,7 @@ def main(data_config: gee.DataConfig,
         mask_config=mask_config,
         logger=logger,
     )
-    preds = engine.bulk_predict(tiles, cli_args.region_path)
+    preds = engine.bulk_predict(tiles, cli_args.region_path.stem)
 
     analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
