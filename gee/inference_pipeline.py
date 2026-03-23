@@ -154,7 +154,9 @@ if __name__ == '__main__':
                         help="Path to fine-tuned SAM2 model weights")
     parser.add_argument("--sam2_model_cfg", type=str,
                         default=mask_defaults.sam2_model_cfg,
-                        help="Path to SAM2 YAML config")
+                        help="Hydra config name for SAM2 (e.g. configs/sam2.1/"
+                             "sam2.1_hiera_s.yaml), or path to a YAML under "
+                             "sam2_repo/sam2/configs/")
     parser.add_argument("--mask_dir", type=str,
                         default=mask_defaults.mask_dir,
                         help="Directory to save SAM2 outputs")

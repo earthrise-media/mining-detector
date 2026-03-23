@@ -111,7 +111,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--sam2_model_cfg", type=str,
                         default=mask_defaults.sam2_model_cfg,
-                        help="Path to SAM2 YAML config")
+                        help="Hydra config name (e.g. configs/sam2.1/"
+                             "sam2.1_hiera_s.yaml) or path under sam2_repo/sam2/configs/")
 
     parser.add_argument("--mask_dir", type=str,
                         default=mask_defaults.mask_dir,

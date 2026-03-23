@@ -40,6 +40,12 @@ SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
 DEFAULT_MASK_DIR = str((REPO_ROOT / "data/outputs/sam2").resolve())
 DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
 
+# SAM2 ``build_sam2`` uses Hydra ``compose(config_name=...)`` — this must be a
+# config name relative to the installed ``sam2`` package (see ``sam2.build_sam``),
+# not an absolute filesystem path. Passing ``/Users/.../sam2.1_hiera_s.yaml``
+# makes Hydra look for a config literally named ``Users/...`` (leading ``/`` lost).
+DEFAULT_SAM2_HYDRA_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
+
 # Load foundation weights via: torch.load(SSL4EO_PATH, weights_only=False)
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
@@ -152,6 +158,7 @@ class MaskConfig:
     sam2_repo_path: PathLike = SAM2_PATH
     sam2_checkpoint: Optional[PathLike] = None
     finetuned_weights: Optional[PathLike] = None
+    # Hydra config name for ``build_sam2`` (e.g. configs/sam2.1/...), not a path.
     sam2_model_cfg: Optional[PathLike] = None
     mask_dir: PathLike = DEFAULT_MASK_DIR
 
@@ -168,13 +175,31 @@ class MaskConfig:
             Path(self.finetuned_weights) if self.finetuned_weights
             else sam2_repo / "SAM_model_96_px_final.pth"
         )
-        self.sam2_model_cfg = str(
-            Path(self.sam2_model_cfg) if self.sam2_model_cfg
-            else sam2_repo / "sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+        self.sam2_model_cfg = self._resolve_sam2_hydra_config(
+            self.sam2_model_cfg, sam2_repo
         )
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _resolve_sam2_hydra_config(
+        sam2_model_cfg: Optional[PathLike], sam2_repo: Path
+    ) -> str:
+        """Return Hydra ``config_name`` for ``sam2.build_sam.build_sam2``."""
+        if not sam2_model_cfg:
+            return DEFAULT_SAM2_HYDRA_CONFIG
+        raw = str(sam2_model_cfg).strip()
+        path = Path(raw).expanduser()
+        configs_root = (sam2_repo / "sam2" / "configs").resolve()
+        if path.is_file():
+            try:
+                rel = path.resolve().relative_to(configs_root)
+                return f"configs/{rel.as_posix()}"
+            except ValueError:
+                pass
+        # Already a Hydra package-relative name (or user override to experiment).
+        return raw
 
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
