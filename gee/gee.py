@@ -130,16 +130,30 @@ class InferenceConfig:
 class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
     smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
-    
-    sam2_checkpoint: PathLike = "../../sam2/sam2.1_hiera_small.pt"
-    finetuned_weights: PathLike = "../../sam2/SAM_model_96_px_final.pth"
-    sam2_model_cfg: PathLike = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+
+    sam2_repo_path: PathLike = "../../sam2"
+    sam2_checkpoint: Optional[PathLike] = None
+    finetuned_weights: Optional[PathLike] = None
+    sam2_model_cfg: Optional[PathLike] = None
     mask_dir: PathLike = "../data/outputs/sam2"
 
     def __post_init__(self):
-        self.sam2_checkpoint = Path(self.sam2_checkpoint)
-        self.finetuned_weights = Path(self.finetuned_weights)
-        self.sam2_model_cfg = self.sam2_model_cfg # SAM2 internals require str
+        sam2_repo = Path(self.sam2_repo_path)
+        self.sam2_repo_path = str(sam2_repo)
+
+        # Keep these as strings: SAM2 internals expect str paths.
+        self.sam2_checkpoint = str(
+            Path(self.sam2_checkpoint) if self.sam2_checkpoint
+            else sam2_repo / "sam2.1_hiera_small.pt"
+        )
+        self.finetuned_weights = str(
+            Path(self.finetuned_weights) if self.finetuned_weights
+            else sam2_repo / "SAM_model_96_px_final.pth"
+        )
+        self.sam2_model_cfg = str(
+            Path(self.sam2_model_cfg) if self.sam2_model_cfg
+            else sam2_repo / "sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
+        )
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)

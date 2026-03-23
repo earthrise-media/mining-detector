@@ -85,6 +85,7 @@ def main(data_config: gee.DataConfig,
 if __name__ == '__main__':
     data_defaults = gee.DataConfig()
     inference_defaults = gee.InferenceConfig()
+    mask_defaults = gee.MaskConfig()
 
     parser = argparse.ArgumentParser(description="Run bulk ML inference.")
 
@@ -148,22 +149,25 @@ if __name__ == '__main__':
 
     # MaskConfig args
     parser.add_argument("--prior_sigma", type=float,
-                        default=MaskConfig().prior_sigma,
+                        default=mask_defaults.prior_sigma,
                         help="Spatial prior falloff (pixels)")
     parser.add_argument("--smoothing_sigma", type=float,
-                        default=MaskConfig().smoothing_sigma,
+                        default=mask_defaults.smoothing_sigma,
                         help="For Gaussian smoothing (pixels)")
+    parser.add_argument("--sam2_repo_path", type=str,
+                        default=mask_defaults.sam2_repo_path,
+                        help="Path to SAM2 repository root")
     parser.add_argument("--sam2_checkpoint", type=str,
-                        default=MaskConfig().sam2_checkpoint,
+                        default=mask_defaults.sam2_checkpoint,
                         help="Path to SAM2 checkpoint")
     parser.add_argument("--finetuned_weights", type=str,
-                        default=MaskConfig().finetuned_weights,
+                        default=mask_defaults.finetuned_weights,
                         help="Path to fine-tuned SAM2 model weights")
     parser.add_argument("--sam2_model_cfg", type=str,
-                        default=MaskConfig().model_cfg,
+                        default=mask_defaults.sam2_model_cfg,
                         help="Path to SAM2 YAML config")
     parser.add_argument("--mask_dir", type=str,
-                        default=MaskConfig().mask_dir,
+                        default=mask_defaults.mask_dir,
                         help="Directory to save SAM2 outputs")
 
     # General args

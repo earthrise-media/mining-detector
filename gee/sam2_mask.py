@@ -70,6 +70,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run SAM2 segmentation on detection polygons"
     )
+    mask_defaults = gee.MaskConfig()
 
     # ----------------------------
     # Required detections file
@@ -89,27 +90,31 @@ if __name__ == "__main__":
     # MaskConfig args
     # ----------------------------
     parser.add_argument("--prior_sigma", type=float,
-                        default=gee.MaskConfig().prior_sigma,
+                        default=mask_defaults.prior_sigma,
                         help="Spatial prior falloff (pixels)")
 
     parser.add_argument("--smoothing_sigma", type=float,
-                        default=gee.MaskConfig().smoothing_sigma,
+                        default=mask_defaults.smoothing_sigma,
                         help="Gaussian smoothing sigma (pixels)")
 
+    parser.add_argument("--sam2_repo_path", type=str,
+                        default=mask_defaults.sam2_repo_path,
+                        help="Path to SAM2 repository root")
+
     parser.add_argument("--sam2_checkpoint", type=str,
-                        default=gee.MaskConfig().sam2_checkpoint,
+                        default=mask_defaults.sam2_checkpoint,
                         help="Path to SAM2 checkpoint")
 
     parser.add_argument("--finetuned_weights", type=str,
-                        default=gee.MaskConfig().finetuned_weights,
+                        default=mask_defaults.finetuned_weights,
                         help="Path to fine-tuned SAM2 weights")
 
     parser.add_argument("--sam2_model_cfg", type=str,
-                        default=gee.MaskConfig().sam2_model_cfg,
+                        default=mask_defaults.sam2_model_cfg,
                         help="Path to SAM2 YAML config")
 
     parser.add_argument("--mask_dir", type=str,
-                        default=gee.MaskConfig().mask_dir,
+                        default=mask_defaults.mask_dir,
                         help="Directory to write SAM2 GeoTIFF masks")
 
     # ----------------------------
