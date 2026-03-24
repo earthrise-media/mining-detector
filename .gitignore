@@ -12,7 +12,7 @@ data/boundaries/national_admin/source_data
 data/boundaries/illegality/source_data
 figures
 models/old
-gee/*-scratch.ipynb
+gee/*scratch*.ipynb
 *.qml
 *.~lock.*
 *.gpkg-shm
