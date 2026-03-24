@@ -9,7 +9,6 @@ Assumptions
 - Resolution defaults to 10 m/pixel (S2)
 
 """
-import os
 from pathlib import Path
 from typing import Iterable, List
 
@@ -90,7 +89,7 @@ class TrainingData:
         
         tiles_written = []
         for source_file, group in tqdm(gdf.groupby('source_file')):
-            source = str(Path(source_file.stem))
+            source = str(Path(source_file).stem)
             print(f"Retrieving data for {source}")
             rgb_tiles: List[np.ndarray] = []
             start_dates = group['start_date'].unique()
@@ -122,6 +121,7 @@ class TrainingData:
             for (pixels, tile), (_, row) in zip(zip(data, tiles),
                                                 group.iterrows()):
                 outdir = self.outdir / source / str(row.split) / str(row.label)
+                outdir.mkdir(parents=True, exist_ok=True)
                 extractor.save_tile(pixels, tile, outdir)
                 tiles_written.append(tile)
 

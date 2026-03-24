@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "geo_holdout_caroni",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": null, "Zona": null }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ -64.67, 8.41 ], [ -61.5, 8.41 ], [ -61.5, 4.11 ], [ -64.67, 4.11], [ -64.67, 8.41 ] ] ] ] } }
+]
+}
