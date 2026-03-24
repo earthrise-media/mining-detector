@@ -36,6 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SSL4EO_PATH = str(
     (REPO_ROOT / "models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt").resolve()
 )
+
 SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
 DEFAULT_MASK_DIR = str((REPO_ROOT / "data/outputs/sam2").resolve())
 DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
@@ -45,8 +46,6 @@ DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
 # not an absolute filesystem path. Passing ``/Users/.../sam2.1_hiera_s.yaml``
 # makes Hydra look for a config literally named ``Users/...`` (leading ``/`` lost).
 DEFAULT_SAM2_HYDRA_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
-
-# Load foundation weights via: torch.load(SSL4EO_PATH, weights_only=False)
 
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
