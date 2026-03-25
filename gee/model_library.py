@@ -228,3 +228,26 @@ def MLP(
     model.add(layers.Dense(1, activation=output_activation))
 
     return model
+
+
+def LogisticRegression(
+    input_dim: int = 384,
+    output_activation: str = "sigmoid",
+) -> tf.keras.Model:
+    """
+    Build a single-layer logistic regression model for binary classification.
+
+    Args:
+        input_dim (int): Dimension of the input features (default 384).
+        output_activation (str): Activation for output layer (default "sigmoid").
+
+    Returns:
+        tf.keras.Model: Keras Sequential logistic regression model.
+    """
+    model = keras.Sequential(
+        [
+            layers.Input(shape=(input_dim,)),
+            layers.Dense(1, activation=output_activation),
+        ]
+    )
+    return model
