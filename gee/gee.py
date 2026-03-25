@@ -23,7 +23,7 @@ import scipy.ndimage as ndi
 import tensorflow as tf
 import torch
 import torch.nn.functional as F
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 
@@ -528,8 +528,13 @@ class InferenceEngine:
 
         embeddings_list = []
         batch_size = self.config.embedding_batch_size
+        batch_iter = range(0, len(tensor), batch_size)
+        # Show batch progress for notebook-style embedding runs (no tile context),
+        # while keeping bulk inference output unchanged.
+        if tile is None:
+            batch_iter = tqdm(batch_iter, desc="Embedding batches")
         with torch.no_grad():
-            for i in range(0, len(tensor), batch_size):
+            for i in batch_iter:
                 batch = tensor[i:i+batch_size].to(
                     self.device, dtype=torch.float32)
                 out = self.embed_model(batch)
