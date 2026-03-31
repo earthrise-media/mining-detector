@@ -90,7 +90,8 @@ class TrainingData:
         
         tiles_written = []
         for source_file, group in tqdm(gdf.groupby('source_file')):
-            print(f"Retrieving data for {source_file}")
+            source = str(Path(source_file.stem))
+            print(f"Retrieving data for {source}")
             rgb_tiles: List[np.ndarray] = []
             start_dates = group['start_date'].unique()
             end_dates = group['end_date'].unique()
@@ -120,14 +121,14 @@ class TrainingData:
             
             for (pixels, tile), (_, row) in zip(zip(data, tiles),
                                                 group.iterrows()):
-                outdir = self.outdir / str(row.split) / str(row.label)
+                outdir = self.outdir / source / str(row.split) / str(row.label)
                 extractor.save_tile(pixels, tile, outdir)
                 tiles_written.append(tile)
 
                 rgb = self.make_rgb_preview(pixels)
                 rgb_tiles.append(rgb)
 
-            png_fname = (f"{Path(source_file).stem}_{self.config.collection}"
+            png_fname = (f"{source}_{self.config.collection}"
                          f"_clear{self.config.clear_threshold}" +
                          f"_{start_date}_{end_date}.png")
             png_path = self.outdir / png_fname

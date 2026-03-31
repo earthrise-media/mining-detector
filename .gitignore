@@ -10,11 +10,9 @@ data/boundaries/protected_areas_and_indigenous_territories/source_data
 data/boundaries/subnational_admin/source_data
 data/boundaries/national_admin/source_data
 data/boundaries/illegality/source_data
-notebooks/scratch_paper
 figures
 models/old
-gee/tmp_boundaries.geojson
-gee/tmp.geojson
+gee/*scratch*.ipynb
 *.qml
 *.~lock.*
 *.gpkg-shm
@@ -25,3 +23,10 @@ data/outputs/test-data
 scripts/boundaries/copy_to_site_local.sh
 data/boundaries/**/*.pmtiles*
 data/outputs/website/**/*.pmtiles*
+models/sam2/
+models/SSL4EO/
+data/training_patches*
+venv/
+checkpoints/
+checkpts-tmp/
+data/outputs/48px_v3.2-3.7ensemble/partial_years/

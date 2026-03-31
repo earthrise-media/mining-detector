@@ -7,8 +7,6 @@ import re
 from pathlib import Path
 
 import geopandas as gpd
-import tensorflow as tf
-import torch
 
 import gee
 import tile_utils
@@ -30,51 +28,27 @@ def get_logger(logpath: Path, maxBytes=1e6,
     logger.setLevel(level)
     return logger
 
-def get_outpath(model_path: Path, region_path: Path,
-                start_date: str, end_date: str,
-                pred_threshold: float) -> Path:
-    model_version = '_'.join(model_path.stem.split('_')[:2])
-    region_name = region_path.stem
-    period = f"{start_date}_{end_date}"
-    outdir = Path('../data/outputs') / model_version
-    outdir.mkdir(parents=True, exist_ok=True)
-    return outdir / f"{region_name}_{model_version}_{pred_threshold:.2f}_{period}.geojson"
-
-
 def main(data_config: gee.DataConfig,
          inference_config: gee.InferenceConfig,
          mask_config: gee.MaskConfig,
          cli_args: argparse.Namespace,
          logger: logging.Logger):
 
-    model = tf.keras.models.load_model(cli_args.model_path, compile=False)
     region = gpd.read_file(cli_args.region_path).union_all()
 
     tiles = tile_utils.create_tiles(
         region, data_config.tilesize, data_config.pad)
     logger.info(f"Created {len(tiles)} tiles")
 
-    data_extractor = gee.GEE_Data_Extractor(
-        cli_args.start_date,
-        cli_args.end_date,
-        config=data_config
-    )
-
-    outpath = get_outpath(
-        cli_args.model_path,
-        cli_args.region_path,
-        cli_args.start_date,
-        cli_args.end_date,
-        inference_config.pred_threshold
-    )
     engine = gee.InferenceEngine(
-        data_extractor=data_extractor,
-        model=model,
+        start_date=cli_args.start_date,
+        end_date=cli_args.end_date,
+        data_config=data_config,
         config=inference_config,
         mask_config=mask_config,
-        logger=logger
+        logger=logger,
     )
-    preds = engine.bulk_predict(tiles, outpath=outpath)
+    preds = engine.bulk_predict(tiles, cli_args.region_path.stem)
 
     analyzed_area = len(tiles) * (data_config.tilesize / 100) ** 2
     logger.info(f"{analyzed_area} ha analyzed")
@@ -85,6 +59,7 @@ def main(data_config: gee.DataConfig,
 if __name__ == '__main__':
     data_defaults = gee.DataConfig()
     inference_defaults = gee.InferenceConfig()
+    mask_defaults = gee.MaskConfig()
 
     parser = argparse.ArgumentParser(description="Run bulk ML inference.")
 
@@ -111,6 +86,9 @@ if __name__ == '__main__':
 
 
     # InferenceConfig args
+    parser.add_argument("--model_path", type=Path,
+                        default=inference_defaults.model_path,
+                        help="Path to saved Keras classifier (.h5)")
     parser.add_argument("--pred_threshold", type=float,
                         default=inference_defaults.pred_threshold,
                         help="Prediction threshold for positive chips")
@@ -141,35 +119,49 @@ if __name__ == '__main__':
                         help="Input size for embedding model")
     parser.add_argument("--embeddings_cache_dir", type=str,
                         default=inference_defaults.embeddings_cache_dir,
-                        help="Optional directory to save/reload embeddings")
+                        help=("Optional directory to save/reload embeddings. "
+                              "Tiles read from cache skip fetching pixels; "
+                              "with --run_sam2, inline SAM2 does not run for "
+                              "those tiles (use standalone SAM2 masking if needed)."))
     parser.add_argument("--run_sam2", action="store_true",
                         default=inference_defaults.run_sam2,
                         help="Enable SAM2 segmentation after model predictions")
+    parser.add_argument(
+        "--inference_output_base",
+        type=str,
+        default=str(inference_defaults.inference_output_base),
+        help=(
+            "Base directory for prediction GeoJSON outputs "
+            "(default: <repo>/data/outputs; subfolder per model version)"
+        ),
+    )
 
     # MaskConfig args
     parser.add_argument("--prior_sigma", type=float,
-                        default=MaskConfig().prior_sigma,
+                        default=mask_defaults.prior_sigma,
                         help="Spatial prior falloff (pixels)")
     parser.add_argument("--smoothing_sigma", type=float,
-                        default=MaskConfig().smoothing_sigma,
+                        default=mask_defaults.smoothing_sigma,
                         help="For Gaussian smoothing (pixels)")
+    parser.add_argument("--sam2_repo_path", type=str,
+                        default=mask_defaults.sam2_repo_path,
+                        help="Path to SAM2 repository root")
     parser.add_argument("--sam2_checkpoint", type=str,
-                        default=MaskConfig().sam2_checkpoint,
+                        default=mask_defaults.sam2_checkpoint,
                         help="Path to SAM2 checkpoint")
     parser.add_argument("--finetuned_weights", type=str,
-                        default=MaskConfig().finetuned_weights,
+                        default=mask_defaults.finetuned_weights,
                         help="Path to fine-tuned SAM2 model weights")
     parser.add_argument("--sam2_model_cfg", type=str,
-                        default=MaskConfig().model_cfg,
-                        help="Path to SAM2 YAML config")
+                        default=mask_defaults.sam2_model_cfg,
+                        help="Hydra config name for SAM2 (e.g. configs/sam2.1/"
+                             "sam2.1_hiera_s.yaml), or path to a YAML under "
+                             "sam2_repo/sam2/configs/")
     parser.add_argument("--mask_dir", type=str,
-                        default=MaskConfig().mask_dir,
+                        default=mask_defaults.mask_dir,
                         help="Directory to save SAM2 outputs")
 
     # General args
-    parser.add_argument("--model_path", type=Path,
-                        default="../models/48px_v3.2-3.7ensemble_2024-02-13.h5",
-                        help="Path to saved Keras model")
     parser.add_argument("--region_path", type=Path,
                         default="../data/boundaries/amazon_basin.geojson",
                         help="Path to ROI geojson")

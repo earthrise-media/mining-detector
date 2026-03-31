@@ -22,7 +22,7 @@ Ahead of COP in Belém, we significantly redeveloped Amazon Mining Watch, with:
 * A new webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
 * [Quarterly data updates](https://github.com/earthrise-media/mining-detector#results), starting from Q2, 2025.
 * New models, built on a global geospatial foundation model. Details are in the [methodology](https://github.com/earthrise-media/mining-detector#methodology).
-* Revised mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), excluding intact vegetation around mine scars with an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask.
+* Revised mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), using a secondary segmentation algorithm that more closely delineates around mine scars.
   
 The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs, which have largely been cleaned of false positive detections by a human reviewer. 
 
@@ -43,7 +43,7 @@ The mining of concern here touches every country in the Amazon basin. In the typ
 
 Scars from the mining can be seen from satellite. On the banks of a river, you will observe muddy flats jumbled together with multi-colored toxic wastewater pools. The pools can be brown, tan, yellow, different shades of green, even turquoise. For the most part they are irregular in size, shape, and orientation. Often nearby you can observe miners' encampments, perhaps with blue-tarped tents, and in well-developed mines, a dirt airstrip cut to fly in miners and to fly out the gold. 
 
-On Amazon Mining Watch, detected mines are delineated by the yellow stroke. Here are some characteristic examples of mines:
+Here are some characteristic examples of mines:
 
 ![MinesEx](https://user-images.githubusercontent.com/11287904/150804841-fabcef8f-4394-46ff-be11-c87ad789ae19.jpg)
 (These are mines.)
@@ -73,7 +73,11 @@ For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch w
 
 #### Area estimation
 
-The goal of this work is mine detection rather than area estimation, and our classification operates on square image patches covering around twenty hectares each. If the network determines a patch to contain a mine scar, we compute the mined area within the patch by masking and excluding intact vegetation using the Normalized Difference Vegetation Index ([NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index)). This yields good masks in forest backgrounds. Area estimates will have higher uncertainties over bare ground and rangelands.
+The primary goal of this work is to detect mines, and our classification operates on square image patches covering around twenty hectares each. However, we have been working to improve area estimates, first by deploying an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask to exclude intact vegetation, and more recently, deploying a fine-tuned [SAM2 segmentation model](https://github.com/facebookresearch/sam2) on RGB channels of the Sentinel-2 imagery to delineate the borders of the mining scars. 
+
+As of March, 2026, this remains a work in progress. Area estimates on [amazonminingwatch.org](https://amazonminingwatch.org) still derive from NDVI masking, which somewhat undercounts areas in forest backgrounds and can have high uncertainties over bare ground. The first SAM2 mining scar rasters are [available on source.coop](https://source.coop/earthgenome/amazon-mining-watch/2025/mining_scar_raster_masks). 
+
+We would like to thank Michael Braun, Daemon Li, and Divas Subedi, masters students in computer science at Georgia Tech University, who fine-tuned and tested the SAM2 model for this work.
 
 ## Journalism 
 

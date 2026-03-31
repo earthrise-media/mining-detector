@@ -14,10 +14,11 @@ import re
 import sys
 
 import geopandas as gpd
+from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gee"))
 import gee
-from tile_utils import create_tiles
+from tile_utils import tiles_for_geometry
 
 def valid_date(s: str) -> str:
     """Validate date string in YYYY-MM-DD format and return it unchanged."""
@@ -28,29 +29,39 @@ def valid_date(s: str) -> str:
 def main(args):
     """Pull raster data from Earth Engine."""
     tiles_written = []
-    
+
     extractor = gee.GEE_Data_Extractor(
-        args.start_date, 
+        args.start_date,
         args.end_date,
         args.config
     )
 
     gdf = gpd.read_file(args.geojson_path).to_crs("EPSG:4326")
-    tiles = create_tiles(
-        gdf.unary_union,
-        extractor.config.tilesize,
-        extractor.config.pad
-    )
-    print(f'{len(tiles)} tiles created.')
 
     outdir = Path(args.geojson_path.split('.geojson')[0] + args.collection)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    for tile in tiles: 
-        pixels = extractor.get_tile_data(tile)
-        extractor.save_tile(pixels, tile, outdir)
-        tiles_written.append(tile)
+    for idx, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Geometries"):
+        geom = row.geometry
+        if geom.is_empty or not geom.is_valid:
+            continue
+        tiles = tiles_for_geometry(
+            geom,
+            extractor.config.tilesize,
+            extractor.config.pad
+        )
 
+        for tile in tiles:
+            if not row.geometry.intersects(tile.geometry):
+                continue
+            try:
+                pixels = extractor.get_tile_data(tile)
+                extractor.save_tile(pixels, tile, outdir)
+                tiles_written.append(tile)
+            except Exception as e:
+                print(f"Tile {tile.key} failed: {e}")
+
+    print(f"{len(tiles_written)} tiles written from {len(gdf)} geometries.")
     return tiles_written
 
 if __name__ == "__main__":

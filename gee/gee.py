@@ -30,12 +30,26 @@ from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 TileType = Union[DLTile, CenteredTile]
 PathLike = Union[str, Path]
 
+# Repository root (directory that contains ``gee/`` and ``models/``).
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+SSL4EO_PATH = str(
+    (REPO_ROOT / "models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt").resolve()
+)
+
+SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
+DEFAULT_MASK_DIR = str((REPO_ROOT / "data/outputs/sam2").resolve())
+DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
+
+# SAM2 ``build_sam2`` uses Hydra ``compose(config_name=...)`` — this must be a
+# config name relative to the installed ``sam2`` package (see ``sam2.build_sam``),
+# not an absolute filesystem path. Passing ``/Users/.../sam2.1_hiera_s.yaml``
+# makes Hydra look for a config literally named ``Users/...`` (leading ``/`` lost).
+DEFAULT_SAM2_HYDRA_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
+
 EE_PROJECT = os.environ.get('EE_PROJECT', 'earthindex')
 ee.Initialize(opt_url="https://earthengine-highvolume.googleapis.com",
               project=EE_PROJECT)
-
-SSL4EO_PATH = 'SSL4EO/pretrained/dino_vit_small_patch16_224.pt'
-# Load via: torch.load(SSL4EO_PATH, weights_only=False)
 
 if platform.system() == 'Darwin':
     tf.config.run_functions_eagerly(True)
@@ -86,20 +100,27 @@ class DataConfig:
     
 @dataclass
 class InferenceConfig:
+    # Path to Keras classifier (.h5). Loaded inside :class:`InferenceEngine`.
+    model_path: PathLike = (
+        "../models/48px_v0.X-SSL4EO-MLPensemble_2025-10-21.h5"
+    )
     pred_threshold: float = 0.5
-    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
-    tries: int = 2
-    max_concurrent_tiles: int = 500
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
-    embed_model_path: Optional[str] = "SSL4EO/pretrained/dino_vit_small_patch16_224.pt"
+    embed_model_path: Optional[str] = SSL4EO_PATH
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
     geo_chip_size: Optional[int] = 48 
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
+    # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
+    inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
+    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
+    tries: int = 2
+    max_concurrent_tiles: int = 500
 
     def __post_init__(self):
+        self.model_path = Path(self.model_path)
         self._validate_embedding_config()
         
         if self.embeddings_cache_dir:
@@ -108,6 +129,8 @@ class InferenceConfig:
 
         if not self.embed_model_path:
             self.embed_model_path = ""
+
+        self.inference_output_base = Path(self.inference_output_base)
 
     def _validate_embedding_config(self):
         if not self.embed_model_name or not self.embed_model_path:
@@ -130,19 +153,52 @@ class InferenceConfig:
 class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
     smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
-    
-    sam2_checkpoint: PathLike = "../../sam2/sam2.1_hiera_small.pt"
-    finetuned_weights: PathLike = "../../sam2/SAM_model_96_px_final.pth"
-    sam2_model_cfg: PathLike = "../../sam2/sam2/configs/sam2.1/sam2.1_hiera_s.yaml"
-    mask_dir: PathLike = "../data/outputs/sam2"
+
+    sam2_repo_path: PathLike = SAM2_PATH
+    sam2_checkpoint: Optional[PathLike] = None
+    finetuned_weights: Optional[PathLike] = None
+    # Hydra config name for ``build_sam2`` (e.g. configs/sam2.1/...), not a path.
+    sam2_model_cfg: Optional[PathLike] = None
+    mask_dir: PathLike = DEFAULT_MASK_DIR
 
     def __post_init__(self):
-        self.sam2_checkpoint = Path(self.sam2_checkpoint)
-        self.finetuned_weights = Path(self.finetuned_weights)
-        self.sam2_model_cfg = self.sam2_model_cfg # SAM2 internals require str
+        sam2_repo = Path(self.sam2_repo_path)
+        self.sam2_repo_path = str(sam2_repo)
+
+        # Keep these as strings: SAM2 internals expect str paths.
+        self.sam2_checkpoint = str(
+            Path(self.sam2_checkpoint) if self.sam2_checkpoint
+            else sam2_repo / "sam2.1_hiera_small.pt"
+        )
+        self.finetuned_weights = str(
+            Path(self.finetuned_weights) if self.finetuned_weights
+            else sam2_repo / "SAM_model_96_px_final.pth"
+        )
+        self.sam2_model_cfg = self._resolve_sam2_hydra_config(
+            self.sam2_model_cfg, sam2_repo
+        )
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _resolve_sam2_hydra_config(
+        sam2_model_cfg: Optional[PathLike], sam2_repo: Path
+    ) -> str:
+        """Return Hydra ``config_name`` for ``sam2.build_sam.build_sam2``."""
+        if not sam2_model_cfg:
+            return DEFAULT_SAM2_HYDRA_CONFIG
+        raw = str(sam2_model_cfg).strip()
+        path = Path(raw).expanduser()
+        configs_root = (sam2_repo / "sam2" / "configs").resolve()
+        if path.is_file():
+            try:
+                rel = path.resolve().relative_to(configs_root)
+                return f"configs/{rel.as_posix()}"
+            except ValueError:
+                pass
+        # Already a Hydra package-relative name (or user override to experiment).
+        return raw
 
 class GEE_Data_Extractor:
     def __init__(self, start_date: str, end_date: str, config: DataConfig):
@@ -351,16 +407,22 @@ class InferenceEngine:
 
     def __init__(
         self,
-        data_extractor: GEE_Data_Extractor,
-        model: tf.keras.Model,
+        start_date: str,
+        end_date: str,
+        data_config: DataConfig,
         config: InferenceConfig,
         mask_config: Optional[MaskConfig] = None,
-        logger: Optional[logging.Logger] = None):
-        
-        self.data_extractor = data_extractor
-        self.model = model
+        logger: Optional[logging.Logger] = None,
+    ):
+        self.data_extractor = GEE_Data_Extractor(
+            start_date, end_date, data_config)
         self.config = config
         self.logger = logger or logging.getLogger()
+
+        if not config.model_path:
+            raise ValueError("InferenceConfig.model_path must be set to a Keras .h5 file")
+        self.model = tf.keras.models.load_model(
+            str(config.model_path), compile=False)
 
         # Add a lock to serialize model access (in-process)
         self._tf_model_lock = threading.Lock()
@@ -383,6 +445,30 @@ class InferenceEngine:
             self.masker = SAM2_Masker(self.data_extractor, mask_config)
         else:
             self.masker = None
+
+    def predictions_geojson_path(self, region_name: str) -> Path:
+        """Path for bulk-inference positive-chip GeoJSON under ``inference_output_base``.
+
+        ``region_name`` is a label for the output file only (e.g. ``Path(geojson).stem``);
+        it is not used to load geometry.
+
+        Uses ``config.model_path`` stem (first two ``_``-separated tokens as model
+        version), ``config.pred_threshold``, ``config.inference_output_base``, and
+        the data extractor's date range.
+        """
+        if not self.config.model_path:
+            raise ValueError(
+                "InferenceConfig.model_path must be set to build output path"
+            )
+        mp = Path(self.config.model_path)
+        model_version = "_".join(mp.stem.split("_")[:2])
+        period = f"{self.data_extractor.start_date}_{self.data_extractor.end_date}"
+        outdir = self.config.inference_output_base / model_version
+        outdir.mkdir(parents=True, exist_ok=True)
+        pred = self.config.pred_threshold
+        return outdir / (
+            f"{region_name}_{model_version}_{pred:.2f}_{period}.geojson"
+        )
             
     def _load_embed_model(self):
         if self.config.embed_model_name == "ssl4eo_vit_s16":
@@ -541,6 +627,13 @@ class InferenceEngine:
         - otherwise fetch pixels via get_tile_data -> return {'mode':'pixels',
             'pixels':..., 'tile': tile}
         Errors are raised to the caller.
+
+        Note: When mode is ``embeddings``, the consumer runs classification only
+        from cached vectors (no tile pixels in the queue). Inline SAM2 masking
+        (``InferenceConfig.run_sam2``) is therefore skipped for those tiles even
+        if there are positive detections. For production runs with SAM2, leave
+        ``embeddings_cache_dir`` unset or avoid hitting the cache for tiles that
+        need masks; use the standalone SAM2 scripts for a separate masking pass.
         """
         # Try loading cached embeddings first (best-case fast path).
         emb_path = self._make_embedding_cache_path(tile)
@@ -668,15 +761,29 @@ class InferenceEngine:
             consumer_done.set()
         
     def bulk_predict(
-        self, tiles: List[TileType],
-        outpath: Optional[PathLike] = None) -> gpd.GeoDataFrame:
+        self,
+        tiles: List[TileType],
+        region_name: str,
+    ) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
          - producers attempt to load embeddings cache; failing, fetch pixels
-         - consumer serializes GPU work: embedding model (if required) and 
+         - consumer serializes GPU work: embedding model (if required) and
           TF classifier
 
+        If ``embeddings_cache_dir`` is set and a tile is served from cache
+        (``mode == "embeddings"``), inline SAM2 masking does not run for that
+        tile (see ``produce_tile_input``). Typical production inference without
+        an embeddings cache is unaffected.
+
+        ``region_name`` labels the output GeoJSON only (e.g. ``region_path.stem``).
+
+        Writes cumulative predictions to the GeoJSON path from
+        :meth:`predictions_geojson_path` (after each batch merge).
+
         """
+        outpath = self.predictions_geojson_path(region_name)
+
         predictions = gpd.GeoDataFrame({
             "geometry": gpd.GeoSeries(dtype="geometry"),
             "confidence": gpd.pd.Series(dtype="float"),
@@ -741,9 +848,8 @@ class InferenceEngine:
                     self.logger.info(f"Found {len(batch_gdf)} new positives.")
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     
-                    if outpath is not None:
-                        Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                        predictions.to_file(outpath, index=False)
+                    Path(outpath).parent.mkdir(parents=True, exist_ok=True)
+                    predictions.to_file(outpath, index=False)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
@@ -894,15 +1000,12 @@ class SAM2_Masker:
         return upsampled
 
     def predict(self, pixels: np.ndarray, tile: TileType,
-                preds_gdf: gpd.GeoDataFrame,
-                preds_buffer_width: float = 0.005):
+                preds_gdf: gpd.GeoDataFrame):
         """Run SAM2 using polygon-derived box prompts.
 
-        pixels: np.ndarray: reflectance values (H, W, B) 
+        pixels: np.ndarray: reflectance values (H, W, B)
         tile: TileType
-        preds_gdf: GeoDataFrame in EPSG:4326
-        preds_buffer_width: Buffer width in degrees for epsg:4326 geometries.
-            SAM2 masks are clipped to buffered predictions.
+        preds_gdf: GeoDataFrame in EPSG:4326 (positive chip geometries).
         """
         height, width = pixels.shape[:2]
         transform = self.data_extractor.affine_from_tile(tile, width, height)
