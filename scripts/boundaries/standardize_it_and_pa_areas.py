@@ -16,19 +16,20 @@
 #     "numpy",
 # ]
 # ///
+import json
+from pathlib import Path
+
 import chardet
 import geopandas as gpd
 import numpy as np
-import json
 from shapely import set_precision
-from pathlib import Path
 
 SOURCE_DATA_FOLDER = (
     "data/boundaries/protected_areas_and_indigenous_territories/source_data"
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
 SIMPLIFY_TOLERANCE = 0.00025
-AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
+AMAZON_LIMITS_GEOJSON = "data/boundaries/Amazon_ACA.geojson"
 
 with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
     FILES_METADATA = json.load(f)
@@ -68,22 +69,23 @@ def combine_and_save_frames(
     # Dissolve based on country, name, and status
     if dissolve_by_attributes:
         # we'll ignore those that don't have country and name fields
-        combined_gdf_missing = combined_gdf[
-            (combined_gdf["name_field"].isna()) | (combined_gdf["country_code"].isna())
-        ]
+        # or that the name field is the equivalent of "no information"
+        missing_mask = (
+            combined_gdf["country_code"].isna()
+            | combined_gdf["name_field"].isna()
+            | (combined_gdf["name_field"] == "Sin Información")
+        )
 
-        to_dissolve = combined_gdf[
-            (combined_gdf["name_field"].notna())
-            & (combined_gdf["country_code"].notna())
-        ]
+        combined_gdf_missing = combined_gdf[missing_mask]
+        to_dissolve = combined_gdf[~missing_mask].copy()
+
         # replace NaNs with a unique placeholder
         to_dissolve["_status_field"] = to_dissolve["status_field"].fillna("__nan__")
 
         # dissolve using the temporary columns
         dissolved_gdf = to_dissolve.dissolve(
             by=["country_code", "name_field", "_status_field"], as_index=False
-        )
-        dissolved_gdf = dissolved_gdf.drop(columns=["_status_field"])
+        ).drop(columns=["_status_field"])
 
         # concat again into single gdf
         combined_gdf = gpd.pd.concat(
