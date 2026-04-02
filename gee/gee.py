@@ -27,6 +27,13 @@ from tqdm.auto import tqdm
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 
+from dense_embedding_cache import (
+    DenseCachePaths,
+    load_dense_embedding_parquets,
+    make_dense_cache_paths,
+    save_dense_embedding_parquets,
+)
+
 TileType = Union[DLTile, CenteredTile]
 PathLike = Union[str, Path]
 
@@ -511,11 +518,34 @@ class InferenceEngine:
         return outdir / (
             f"{region_name}_{model_version}_{pred:.2f}_{period}.geojson"
         )
-            
-    def _load_embed_model(self):
+
+    def _load_embed_model_frozen(self):
         if self.config.embed_model_name == "ssl4eo_vit_s16":
             embed_model = torch.load(self.config.embed_model_path,
                                      weights_only=False)
+        else:
+            raise ValueError(
+                f"Unknown embedding model: {self.config.embed_model_name}")
+
+        embed_model = embed_model.to(self.device)
+        embed_model.eval()
+        return embed_model
+
+    def _load_embed_model(self):
+        if self.config.embed_model_name == "ssl4eo_vit_s16":
+            import sys
+            sys.path.insert(0, str(REPO_ROOT / 'models/SSL4EO-S12/src/benchmark/transfer_classification/'))
+            from models.dino.vision_transformer import vit_small
+            
+            embed_model = vit_small(
+                patch_size=16,
+                num_classes=0, 
+                in_chans=13
+            )
+            state_dict = torch.load(self.config.embed_model_path,
+                                    map_location=self.device)
+            embed_model.load_state_dict(state_dict)
+            
         else:
             raise ValueError(
                 f"Unknown embedding model: {self.config.embed_model_name}")
@@ -535,7 +565,22 @@ class InferenceEngine:
         end = self.data_extractor.end_date
         emb_name = f"{collection}_{tile.key}_{start}_{end}_embeddings.parquet"
         return emb_cache_dir / emb_name
-    
+
+    def _make_dense_embedding_cache_paths(
+        self, tile: TileType
+    ) -> Optional[DenseCachePaths]:
+        """Paths for the cls / patch Parquet pair; None if caching disabled."""
+        emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
+        if emb_cache_dir is None:
+            return None
+        emb_cache_dir = Path(emb_cache_dir)
+        collection = self.data_extractor.config.collection
+        start = self.data_extractor.start_date
+        end = self.data_extractor.end_date
+        return make_dense_cache_paths(
+            emb_cache_dir, collection, tile.key, start, end
+        )
+
     def embed(
         self,
         chips: np.ndarray,
@@ -571,10 +616,10 @@ class InferenceEngine:
         embeddings_list = []
         batch_size = self.config.embedding_batch_size
         batch_iter = range(0, len(tensor), batch_size)
-        # Show batch progress for notebook-style embedding runs (no tile context),
-        # while keeping bulk inference output unchanged.
+        # Show batch progress for notebook embedding runs (no tile context)
         if tile is None:
             batch_iter = tqdm(batch_iter, desc="Embedding batches")
+            
         with torch.no_grad():
             for i in batch_iter:
                 batch = tensor[i:i+batch_size].to(
@@ -600,6 +645,94 @@ class InferenceEngine:
                     f"Failed to save embeddings cache for {tile.key}: {e}")
 
         return embeddings
+
+    def embed_dense(
+        self,
+        chips: np.ndarray,  # (N, H, W, C) typically square H=W=embed_model_chip_size
+        chip_geoms: gpd.GeoDataFrame,
+        tile: Optional[TileType] = None) -> dict:
+        """
+        Returns a dictionary containing:
+        - 'cls': Global embeddings (N, Dim)
+        - 'spatial': Patch embeddings in a grid (N, H, W, Dim) with H=W=sqrt(n_patches)
+        """
+        dense_paths = (
+            self._make_dense_embedding_cache_paths(tile)
+            if tile is not None
+            else None
+        )
+
+        if dense_paths is not None:
+            try:
+                cached = load_dense_embedding_parquets(dense_paths)
+                if cached is not None:
+                    return {
+                        "cls": cached["cls"],
+                        "spatial": cached["spatial"],
+                    }
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to load dense embedding cache for {tile.key}: {e}"
+                )
+
+        model_chip_size = self.config.embed_model_chip_size
+        geo_chip_size = self.config.geo_chip_size
+        
+        tensor = torch.from_numpy(chips).permute(0, 3, 1, 2).to(torch.float32)
+        if geo_chip_size != model_chip_size:
+            tensor = F.interpolate(
+                tensor, size=(model_chip_size, model_chip_size),
+                mode='bicubic', align_corners=False)
+            
+        cls_list = []
+        spatial_list = []
+        batch_size = self.config.embedding_batch_size
+        batch_iter = range(0, len(tensor), batch_size)
+        if tile is None:
+            batch_iter = tqdm(batch_iter, desc="Embedding batches")
+            
+        with torch.no_grad():
+            for i in batch_iter:
+                batch = tensor[i:i+batch_size].to(self.device)
+                out = self.embed_model.get_intermediate_layers(batch, n=1)[0] 
+
+                # Extract CLS
+                cls_tokens = out[:, 0, :] # [B, Dim]
+            
+                # Extract and Reshape Patches
+                # Index 1: is the start of the 196 patches
+                patches = out[:, 1:, :]
+                dim = patches.shape[-1]
+                n_patches = patches.shape[1]
+                grid_side = int(round(n_patches**0.5))
+                if grid_side * grid_side != n_patches:
+                    raise ValueError(
+                        f"embed_dense: expected square patch grid, got n_patches={n_patches}"
+                    )
+                spatial_features = patches.reshape(-1, grid_side, grid_side, dim)
+                cls_list.append(cls_tokens.cpu())
+                spatial_list.append(spatial_features.cpu())
+
+        out = {
+            "cls": torch.cat(cls_list, dim=0).numpy(),
+            "spatial": torch.cat(spatial_list, dim=0).numpy(),
+        }
+
+        if dense_paths is not None and tile is not None:
+            try:
+                save_dense_embedding_parquets(
+                    dense_paths,
+                    out["cls"],
+                    out["spatial"],
+                    chip_geoms,
+                    parent_key=tile.key,
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to save dense embedding cache for {tile.key}: {e}"
+                )
+
+        return out
 
     def _resolve_chip_params(self):
         """Return (chip_size, stride) based on model/config."""
