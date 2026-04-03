@@ -312,16 +312,14 @@ class GEE_Data_Extractor:
         return pixels
 
     def get_tile_data_concurrent(
-        self, tiles: List[TileType]) -> List[np.ndarray]:
+        self, tiles: List[TileType]) -> List[Optional[np.ndarray]]:
         """
         Download all tile data concurrently.
 
         Per-tile failures do not abort the whole batch: failed indices are
         collected and retried in a second concurrent pass (helps transient EE
         errors such as user memory limit). Output order matches ``tiles``.
-        If a tile still fails after retry, logs an error and uses a NaN-filled
-        placeholder array (same H×W×bands as a successful tile) so the caller
-        can continue.
+        Entries that still fail after retry are ``None``; an error is logged.
         """
         log = logging.getLogger(__name__)
         if not tiles:
@@ -364,22 +362,13 @@ class GEE_Data_Extractor:
         if failed:
             sample = [tiles[i].key for i in failed[:5]]
             log.error(
-                "get_tile_data still failed for %d tile(s) after retry; "
-                "filling NaN placeholders. Sample keys: %r",
+                "get_tile_data still failed for %d tile(s) after retry "
+                "(entries will be None). Sample keys: %r",
                 len(failed),
                 sample,
             )
 
-        n_bands = len(self.config.bands)
-        out: List[np.ndarray] = []
-        for i in range(n):
-            r = results[i]
-            if r is None:
-                t = tiles[i]
-                side = t.tilesize + 2 * t.pad
-                r = np.full((side, side, n_bands), np.nan, dtype=np.float32)
-            out.append(r)
-        return out
+        return list(results)
 
     @staticmethod
     def affine_from_tile(tile, width: int, height: int):

@@ -120,6 +120,8 @@ class TrainingData:
             
             for (pixels, tile), (_, row) in zip(zip(data, tiles),
                                                 group.iterrows()):
+                if pixels is None:
+                    continue
                 outdir = self.outdir / source / str(row.split) / str(row.label)
                 outdir.mkdir(parents=True, exist_ok=True)
                 extractor.save_tile(pixels, tile, outdir)
