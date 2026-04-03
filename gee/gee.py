@@ -315,18 +315,64 @@ class GEE_Data_Extractor:
         self, tiles: List[TileType]) -> List[np.ndarray]:
         """
         Download all tile data concurrently.
-        Args:
-            tiles: list of tile objects
-        Returns:
-            - data: list of numpy arrays (one per tile)
+
+        Per-tile failures do not abort the whole batch: failed indices are
+        collected and retried in a second concurrent pass (helps transient EE
+        errors such as user memory limit). Output order matches ``tiles``.
+        Raises ``RuntimeError`` if any tile still fails after retry.
         """
-        data = []
+        log = logging.getLogger(__name__)
+        if not tiles:
+            return []
 
-        with ThreadPoolExecutor(
-            max_workers=self.config.max_workers) as executor:
-            data = list(executor.map(self.get_tile_data, tiles))
+        n = len(tiles)
+        results: List[Optional[np.ndarray]] = [None] * n
 
-        return data
+        def run_indices(indices: List[int]) -> List[int]:
+            failed_local: List[int] = []
+            if not indices:
+                return failed_local
+            with ThreadPoolExecutor(
+                max_workers=self.config.max_workers
+            ) as executor:
+                future_to_i = {
+                    executor.submit(self.get_tile_data, tiles[i]): i
+                    for i in indices
+                }
+                for fut in as_completed(future_to_i):
+                    i = future_to_i[fut]
+                    try:
+                        results[i] = fut.result()
+                    except Exception as exc:
+                        log.warning(
+                            "get_tile_data failed for tile %s: %s",
+                            tiles[i].key,
+                            exc,
+                        )
+                        failed_local.append(i)
+            return failed_local
+
+        failed = run_indices(list(range(n)))
+        if failed:
+            log.info(
+                "Retrying %d failed tile(s) after initial concurrent batch",
+                len(failed),
+            )
+            failed = run_indices(failed)
+        if failed:
+            sample = [tiles[i].key for i in failed[:5]]
+            raise RuntimeError(
+                f"get_tile_data failed for {len(failed)} tile(s) after retry; "
+                f"sample keys: {sample!r}"
+            )
+
+        out: List[np.ndarray] = []
+        for i in range(n):
+            r = results[i]
+            if r is None:
+                raise RuntimeError(f"internal error: missing result for index {i}")
+            out.append(r)
+        return out
 
     @staticmethod
     def affine_from_tile(tile, width: int, height: int):
