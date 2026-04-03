@@ -24,13 +24,16 @@ import tensorflow as tf
 import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
+from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 
 from dense_embedding_cache import (
     DenseCachePaths,
+    build_patch_cell_geometries,
     load_dense_embedding_parquets,
     make_dense_cache_paths,
+    merge_cls_patch_for_probe,
     save_dense_embedding_parquets,
 )
 
@@ -117,7 +120,11 @@ class InferenceConfig:
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
-    geo_chip_size: Optional[int] = 48 
+    geo_chip_size: Optional[int] = 48
+    #: ``cls_only``: frozen FM + :meth:`InferenceEngine.embed` + legacy
+    #: ``*_embeddings.parquet``. ``dense``: ViT + :meth:`InferenceEngine.embed_dense`
+    #: + ``*_embed_dense_{cls,patch}.parquet`` pair. No cross-format cache fallback.
+    embedding_strategy: Literal["cls_only", "dense"] = "cls_only"
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
@@ -142,19 +149,27 @@ class InferenceConfig:
     def _validate_embedding_config(self):
         if not self.embed_model_name or not self.embed_model_path:
             return
-        
+
         required = {
             "embed_model_chip_size": self.embed_model_chip_size,
             "embedding_batch_size": self.embedding_batch_size,
             "geo_chip_size": self.geo_chip_size,
         }
-
-        missing = [k for k,v in required.items() if v is None]
+        missing = [k for k, v in required.items() if v is None]
         if missing:
             raise ValueError(
                 "Embedding model enabled but missing required parameters: "
                 + ", ".join(missing)
             )
+
+        if self.embedding_strategy == "dense":
+            if self.geo_chip_size != self.embed_model_chip_size:
+                raise ValueError(
+                    "For embedding_strategy='dense', set geo_chip_size == "
+                    "embed_model_chip_size (per-window FM input, no resize). "
+                    f"Got geo_chip_size={self.geo_chip_size}, "
+                    f"embed_model_chip_size={self.embed_model_chip_size}."
+                )
 
 @dataclass
 class MaskConfig:
@@ -451,6 +466,46 @@ class GEE_Data_Extractor:
             arr = np.moveaxis(arr, 0, -1)  # back to (H,W,B)
         return arr
 
+
+def split_parent_pixels_to_embed_windows(
+    pixels: np.ndarray,
+    tile: TileType,
+    window_px: int,
+) -> Tuple[np.ndarray, gpd.GeoDataFrame]:
+    """
+    Split a parent H×W raster into a ``n_h×n_w`` grid of ``window_px`` squares
+    and build matching EPSG:4326 window polygons (row-major: wr then wc).
+
+    Pixel row 0 is the northern edge (matches :func:`tile_utils.cut_chips`).
+    """
+    if pixels.ndim != 3:
+        raise ValueError(f"pixels must be H×W×C, got shape {pixels.shape}")
+    h, w, _ = pixels.shape
+    if h % window_px != 0 or w % window_px != 0:
+        raise ValueError(
+            f"pixels {h}×{w} are not divisible by window_px={window_px}"
+        )
+    n_h = h // window_px
+    n_w = w // window_px
+    west, south, east, north = tile.geometry.bounds
+    chips: List[np.ndarray] = []
+    polys: List = []
+    dx_win = (east - west) / n_w
+    dy_win = (north - south) / n_h
+    for wr in range(n_h):
+        for wc in range(n_w):
+            r0, r1 = wr * window_px, (wr + 1) * window_px
+            c0, c1 = wc * window_px, (wc + 1) * window_px
+            chips.append(pixels[r0:r1, c0:c1, :])
+            minx_w = west + wc * dx_win
+            maxx_w = west + (wc + 1) * dx_win
+            maxy_w = north - wr * dy_win
+            miny_w = north - (wr + 1) * dy_win
+            polys.append(box(minx_w, miny_w, maxx_w, maxy_w))
+    stacked = np.stack(chips, axis=0)
+    gdf = gpd.GeoDataFrame(geometry=polys, crs="EPSG:4326")
+    return stacked, gdf
+
 class InferenceEngine:
     """Handles tile inference, retries, and aggregation."""
 
@@ -484,7 +539,10 @@ class InferenceEngine:
             self.device = torch.device("cpu")
 
         if config.embed_model_path:
-            self.embed_model = self._load_embed_model()
+            if config.embedding_strategy == "dense":
+                self.embed_model = self._load_embed_model()
+            else:
+                self.embed_model = self._load_embed_model_frozen()
         else:
             self.embed_model = None
 
@@ -587,7 +645,12 @@ class InferenceEngine:
         chip_geoms: gpd.GeoDataFrame,
         tile: Optional[TileType] = None) -> np.ndarray:
         """Embed chips via a foundation model, with optional caching."""
-        
+        if self.config.embedding_strategy != "cls_only":
+            raise ValueError(
+                "embed() requires embedding_strategy='cls_only'; "
+                "use embed_dense() when embedding_strategy is 'dense'"
+            )
+
         emb_path = (
             self._make_embedding_cache_path(tile) if
             tile is not None else None
@@ -656,6 +719,12 @@ class InferenceEngine:
         - 'cls': Global embeddings (N, Dim)
         - 'spatial': Patch embeddings in a grid (N, H, W, Dim) with H=W=sqrt(n_patches)
         """
+        if self.config.embedding_strategy != "dense":
+            raise ValueError(
+                "embed_dense() requires embedding_strategy='dense' "
+                "(ViT with intermediate layers + dense cache)"
+            )
+
         dense_paths = (
             self._make_dense_embedding_cache_paths(tile)
             if tile is not None
@@ -801,12 +870,10 @@ class InferenceEngine:
     def produce_tile_input(self, tile: TileType) -> Dict[str, Any]:
         """
         Producer work for a single tile:
-        - try to load cached embeddings (if embeddings_cache_dir configured)
-        - if cached embeddings exist and load OK -> return {'mode':'embeddings',
-            'embeddings':..., 'chip_geoms':..., 'tile': tile}
-        - otherwise fetch pixels via get_tile_data -> return {'mode':'pixels',
-            'pixels':..., 'tile': tile}
-        Errors are raised to the caller.
+        - ``embedding_strategy == 'dense'``: try dense cls/patch Parquet pair;
+          on hit return patch-level ``embeddings`` and patch cell ``chip_geoms``.
+        - ``embedding_strategy == 'cls_only'``: try legacy ``*_embeddings.parquet``.
+        - Otherwise fetch pixels -> ``{'mode':'pixels', ...}``.
 
         Note: When mode is ``embeddings``, the consumer runs classification only
         from cached vectors (no tile pixels in the queue). Inline SAM2 masking
@@ -815,28 +882,49 @@ class InferenceEngine:
         ``embeddings_cache_dir`` unset or avoid hitting the cache for tiles that
         need masks; use the standalone SAM2 scripts for a separate masking pass.
         """
-        # Try loading cached embeddings first (best-case fast path).
-        emb_path = self._make_embedding_cache_path(tile)
-        if emb_path and emb_path.exists():
-            try:
-                embeddings_gdf = gpd.read_parquet(emb_path)
-                chip_geoms = embeddings_gdf[["geometry"]].copy()
-                embeddings = embeddings_gdf.drop(
-                    columns="geometry",
-                    errors="ignore").to_numpy(dtype=np.float32)
-                return {
-                    "mode": "embeddings",
-                    "embeddings": embeddings,
-                    "chip_geoms": chip_geoms,
-                    "tile": tile
-                }
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to load embedding for {tile.key}: {e}. "
-                    f"Will fetch pixels.")
+        if self.config.embedding_strategy == "dense":
+            dense_paths = self._make_dense_embedding_cache_paths(tile)
+            if dense_paths is not None:
+                try:
+                    loaded = load_dense_embedding_parquets(dense_paths)
+                    if loaded is not None:
+                        features, _meta = merge_cls_patch_for_probe(loaded)
+                        grid_side = loaded["spatial"].shape[1]
+                        patch_geoms = build_patch_cell_geometries(
+                            loaded["chip_geoms"], grid_side
+                        )
+                        return {
+                            "mode": "embeddings",
+                            "embeddings": features,
+                            "chip_geoms": patch_geoms,
+                            "tile": tile,
+                        }
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to load dense embedding cache for {tile.key}: {e}. "
+                        "Will fetch pixels."
+                    )
+        else:
+            emb_path = self._make_embedding_cache_path(tile)
+            if emb_path and emb_path.exists():
+                try:
+                    embeddings_gdf = gpd.read_parquet(emb_path)
+                    chip_geoms = embeddings_gdf[["geometry"]].copy()
+                    embeddings = embeddings_gdf.drop(
+                        columns="geometry",
+                        errors="ignore").to_numpy(dtype=np.float32)
+                    return {
+                        "mode": "embeddings",
+                        "embeddings": embeddings,
+                        "chip_geoms": chip_geoms,
+                        "tile": tile
+                    }
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to load embedding for {tile.key}: {e}. "
+                        f"Will fetch pixels.")
 
-        # If no usable embeddings cache, fetch pixels (I/O bound).
-        pixels = self.data_extractor.get_tile_data(tile) 
+        pixels = self.data_extractor.get_tile_data(tile)
         return {"mode": "pixels", "pixels": pixels, "tile": tile}
 
     def predict_on_tile_pixels(
@@ -847,6 +935,9 @@ class InferenceEngine:
         Run the per-tile pipeline starting from pixels (I/O already done).
         This is intended to run inside the consumer (serialized for GPU use).
         """
+        if self.config.embedding_strategy == "dense":
+            return self._predict_on_tile_pixels_dense(pixels, tile)
+
         chip_size, stride = self._resolve_chip_params()
         tile_width = tile.tilesize + 2 * tile.pad
         if tile_width % stride != 0:
@@ -880,6 +971,54 @@ class InferenceEngine:
 
         except Exception as e:
             self.logger.error(f"Error predicting for tile {tile.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+
+    def _predict_on_tile_pixels_dense(
+        self,
+        pixels: np.ndarray,
+        tile: TileType,
+    ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
+        """448×448-style parent → ``embed_model_chip_size`` windows → dense probe."""
+        if self.embed_model is None:
+            self.logger.error(
+                f"embedding_strategy='dense' requires embed_model (tile {tile.key})"
+            )
+            return gpd.GeoDataFrame(), tile
+        window_px = self.config.embed_model_chip_size
+        if window_px is None:
+            self.logger.error("embed_model_chip_size is required for dense inference")
+            return gpd.GeoDataFrame(), tile
+        try:
+            chips, window_geoms = split_parent_pixels_to_embed_windows(
+                pixels, tile, int(window_px)
+            )
+        except ValueError as e:
+            self.logger.error(f"Dense window split failed for tile {tile.key}: {e}")
+            return gpd.GeoDataFrame(), tile
+
+        normed = np.clip(chips / 10000.0, 0, 1).astype(np.float32)
+        try:
+            dense_out = self.embed_dense(normed, window_geoms, tile)
+            nwin = dense_out["cls"].shape[0]
+            loaded = {
+                "cls": dense_out["cls"],
+                "spatial": dense_out["spatial"],
+                "parent_key": tile.key,
+                "window_ids": [f"{tile.key}_q{i}" for i in range(nwin)],
+            }
+            features, _ = merge_cls_patch_for_probe(loaded)
+            grid_side = dense_out["spatial"].shape[1]
+            patch_geoms = build_patch_cell_geometries(window_geoms, grid_side)
+            preds_gdf, failed_tile = self.predict_on_tile_embeddings(
+                features, patch_geoms, tile
+            )
+            if failed_tile is not None:
+                return gpd.GeoDataFrame(), failed_tile
+            if not preds_gdf.empty and self.masker:
+                self.masker.predict(pixels, tile, preds_gdf)
+            return preds_gdf, None
+        except Exception as e:
+            self.logger.error(f"Error in dense predict for tile {tile.key}: {e}")
             return gpd.GeoDataFrame(), tile
 
     def predict_on_tile_embeddings(
@@ -947,14 +1086,15 @@ class InferenceEngine:
     ) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
-         - producers attempt to load embeddings cache; failing, fetch pixels
+         - producers load cache per ``embedding_strategy`` (dense pair vs legacy
+           parquet), or fetch pixels
          - consumer serializes GPU work: embedding model (if required) and
-          TF classifier
+           TF classifier
 
         If ``embeddings_cache_dir`` is set and a tile is served from cache
         (``mode == "embeddings"``), inline SAM2 masking does not run for that
-        tile (see ``produce_tile_input``). Typical production inference without
-        an embeddings cache is unaffected.
+        tile (see ``produce_tile_input``). Dense cache rows are **patch-cell**
+        geometries, not stride chips.
 
         ``region_name`` labels the output GeoJSON only (e.g. ``region_path.stem``).
 
@@ -1044,16 +1184,31 @@ class InferenceEngine:
         """
         emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
         if emb_cache_dir is not None:
-            emb_path = self._make_embedding_cache_path(tile)
-            if emb_path.exists():
-                gdf = gpd.read_parquet(emb_path)
-                chip_geoms = gdf[["geometry"]].copy()
-                embeddings = gdf.drop(
-                    columns="geometry",
-                    errors="ignore").to_numpy(dtype=np.float32)
-                preds_gdf, _ = self.predict_on_tile_embeddings(
-                    embeddings, chip_geoms, tile)
-                return preds_gdf
+            if self.config.embedding_strategy == "dense":
+                dense_paths = self._make_dense_embedding_cache_paths(tile)
+                if dense_paths is not None:
+                    loaded = load_dense_embedding_parquets(dense_paths)
+                    if loaded is not None:
+                        features, _ = merge_cls_patch_for_probe(loaded)
+                        grid_side = loaded["spatial"].shape[1]
+                        patch_geoms = build_patch_cell_geometries(
+                            loaded["chip_geoms"], grid_side
+                        )
+                        preds_gdf, _ = self.predict_on_tile_embeddings(
+                            features, patch_geoms, tile
+                        )
+                        return preds_gdf
+            else:
+                emb_path = self._make_embedding_cache_path(tile)
+                if emb_path.exists():
+                    gdf = gpd.read_parquet(emb_path)
+                    chip_geoms = gdf[["geometry"]].copy()
+                    embeddings = gdf.drop(
+                        columns="geometry",
+                        errors="ignore").to_numpy(dtype=np.float32)
+                    preds_gdf, _ = self.predict_on_tile_embeddings(
+                        embeddings, chip_geoms, tile)
+                    return preds_gdf
 
         pixels = self.data_extractor.get_tile_data(tile)
         preds_gdf, _ = self.predict_on_tile_pixels(pixels, tile)

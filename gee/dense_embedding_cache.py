@@ -14,6 +14,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.geometry import box
 
 
 class DenseCachePaths(NamedTuple):
@@ -199,6 +200,39 @@ def load_dense_embedding_parquets(
         "parent_key": parent_key,
         "window_ids": window_ids,
     }
+
+
+def build_patch_cell_geometries(
+    window_geoms: gpd.GeoDataFrame,
+    grid_side: int,
+) -> gpd.GeoDataFrame:
+    """
+    Subdivide each 224 (FM input) window polygon into a ``grid_side×grid_side``
+    geographic grid. Row order matches :func:`merge_cls_patch_for_probe`:
+    window 0, patch (0,0)…(0,W-1), (1,0)…, then window 1, …
+    """
+    if grid_side < 1:
+        raise ValueError("grid_side must be >= 1")
+    n_win = len(window_geoms)
+    if n_win == 0:
+        return gpd.GeoDataFrame(geometry=[], crs=window_geoms.crs or "EPSG:4326")
+
+    crs = window_geoms.crs or "EPSG:4326"
+    polys: List[Any] = []
+    for qi in range(n_win):
+        geom = window_geoms.geometry.iloc[qi]
+        west, south, east, north = geom.bounds
+        dx = (east - west) / grid_side
+        dy = (north - south) / grid_side
+        for pr in range(grid_side):
+            for pc in range(grid_side):
+                left = west + pc * dx
+                right = west + (pc + 1) * dx
+                maxy = north - pr * dy
+                miny = north - (pr + 1) * dy
+                polys.append(box(left, miny, right, maxy))
+
+    return gpd.GeoDataFrame(geometry=polys, crs=crs)
 
 
 def merge_cls_patch_for_probe(

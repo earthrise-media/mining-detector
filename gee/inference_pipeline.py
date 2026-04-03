@@ -116,7 +116,19 @@ if __name__ == '__main__':
                         help="Batch size for embedding model inference")
     parser.add_argument("--geo_chip_size", type=int,
                         default=inference_defaults.geo_chip_size,
-                        help="Input size for embedding model")
+                        help="Chip size in pixels for cls_only stride cutting, or "
+                             "per-window size for dense (typically 224; must match "
+                             "embed_model_chip_size when --embedding_strategy dense)")
+    parser.add_argument(
+        "--embedding_strategy",
+        type=str,
+        choices=["cls_only", "dense"],
+        default=inference_defaults.embedding_strategy,
+        help=(
+            "cls_only: frozen FM, embed(), legacy *_embeddings.parquet. "
+            "dense: ViT intermediate layers, embed_dense(), *_embed_dense_*.parquet."
+        ),
+    )
     parser.add_argument("--embeddings_cache_dir", type=str,
                         default=inference_defaults.embeddings_cache_dir,
                         help=("Optional directory to save/reload embeddings. "
