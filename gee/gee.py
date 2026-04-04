@@ -122,9 +122,9 @@ class InferenceConfig:
     embedding_batch_size: Optional[int] = 32
     geo_chip_size: Optional[int] = 224
     #: ``cls_only``: frozen FM + :meth:`InferenceEngine.embed` + legacy
-    #: ``*_embeddings.parquet``. ``dense``: ViT + :meth:`InferenceEngine.embed_dense`
+    #: ``*_embeddings.parquet``. ``cls_patch``: ViT + :meth:`InferenceEngine.embed_dense`
     #: + ``*_embed_dense_{cls,patch}.parquet`` pair. No cross-format cache fallback.
-    embedding_strategy: Literal["cls_only", "dense"] = "dense"
+    embedding_strategy: Literal["cls_only", "cls_patch"] = "cls_patch"
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
@@ -162,10 +162,10 @@ class InferenceConfig:
                 + ", ".join(missing)
             )
 
-        if self.embedding_strategy == "dense":
+        if self.embedding_strategy == "cls_patch":
             if self.geo_chip_size != self.embed_model_chip_size:
                 raise ValueError(
-                    "For embedding_strategy='dense', set geo_chip_size == "
+                    "For embedding_strategy='cls_patch', set geo_chip_size == "
                     "embed_model_chip_size (per-window FM input, no resize). "
                     f"Got geo_chip_size={self.geo_chip_size}, "
                     f"embed_model_chip_size={self.embed_model_chip_size}."
@@ -539,7 +539,7 @@ class InferenceEngine:
             self.device = torch.device("cpu")
 
         if config.embed_model_path:
-            if config.embedding_strategy == "dense":
+            if config.embedding_strategy == "cls_patch":
                 self.embed_model = self._load_embed_model()
             else:
                 self.embed_model = self._load_embed_model_frozen()
@@ -648,7 +648,7 @@ class InferenceEngine:
         if self.config.embedding_strategy != "cls_only":
             raise ValueError(
                 "embed() requires embedding_strategy='cls_only'; "
-                "use embed_dense() when embedding_strategy is 'dense'"
+                "use embed_dense() when embedding_strategy is 'cls_patch'"
             )
 
         emb_path = (
@@ -719,9 +719,9 @@ class InferenceEngine:
         - 'cls': Global embeddings (N, Dim)
         - 'spatial': Patch embeddings in a grid (N, H, W, Dim) with H=W=sqrt(n_patches)
         """
-        if self.config.embedding_strategy != "dense":
+        if self.config.embedding_strategy != "cls_patch":
             raise ValueError(
-                "embed_dense() requires embedding_strategy='dense' "
+                "embed_dense() requires embedding_strategy='cls_patch' "
                 "(ViT with intermediate layers + dense cache)"
             )
 
@@ -868,7 +868,7 @@ class InferenceEngine:
     def produce_tile_input(self, tile: TileType) -> Dict[str, Any]:
         """
         Producer work for a single tile:
-        - ``embedding_strategy == 'dense'``: try dense cls/patch Parquet pair;
+        - ``embedding_strategy == 'cls_patch'``: try dense cls/patch Parquet pair;
           on hit return patch-level ``embeddings`` and patch cell ``chip_geoms``.
         - ``embedding_strategy == 'cls_only'``: try legacy ``*_embeddings.parquet``.
         - Otherwise fetch pixels -> ``{'mode':'pixels', ...}``.
@@ -880,7 +880,7 @@ class InferenceEngine:
         ``embeddings_cache_dir`` unset or avoid hitting the cache for tiles that
         need masks; use the standalone SAM2 scripts for a separate masking pass.
         """
-        if self.config.embedding_strategy == "dense":
+        if self.config.embedding_strategy == "cls_patch":
             dense_paths = self._make_dense_embedding_cache_paths(tile)
             if dense_paths is not None:
                 try:
@@ -933,7 +933,7 @@ class InferenceEngine:
         Run the per-tile pipeline starting from pixels (I/O already done).
         This is intended to run inside the consumer (serialized for GPU use).
         """
-        if self.config.embedding_strategy == "dense":
+        if self.config.embedding_strategy == "cls_patch":
             return self._predict_on_tile_pixels_dense(pixels, tile)
 
         chip_size, stride = self._resolve_chip_params()
@@ -979,7 +979,7 @@ class InferenceEngine:
         """448×448-style parent → ``embed_model_chip_size`` windows → dense probe."""
         if self.embed_model is None:
             self.logger.error(
-                f"embedding_strategy='dense' requires embed_model (tile {tile.key})"
+                f"embedding_strategy='cls_patch' requires embed_model (tile {tile.key})"
             )
             return gpd.GeoDataFrame(), tile
         window_px = self.config.embed_model_chip_size
@@ -1084,7 +1084,7 @@ class InferenceEngine:
     ) -> gpd.GeoDataFrame:
         """
         Producer-consumer bulk inference, with retry logic:
-         - producers load cache per ``embedding_strategy`` (dense pair vs legacy
+         - producers load cache per ``embedding_strategy`` (cls_patch pair vs legacy
            parquet), or fetch pixels
          - consumer serializes GPU work: embedding model (if required) and
            TF classifier
@@ -1182,7 +1182,7 @@ class InferenceEngine:
         """
         emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
         if emb_cache_dir is not None:
-            if self.config.embedding_strategy == "dense":
+            if self.config.embedding_strategy == "cls_patch":
                 dense_paths = self._make_dense_embedding_cache_paths(tile)
                 if dense_paths is not None:
                     loaded = load_dense_embedding_parquets(dense_paths)

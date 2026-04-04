@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-04-02 (design session; implementation draft in repo follows this note.)  
 **Updated:** 2026-04-02 — inference wiring (448→4×224→patch geometries into existing `predict_on_tile_embeddings` path) and pooling notes.  
-**Updated:** 2026-04-02 — `InferenceConfig.embedding_strategy`: either `cls_only` or `dense`; cache and FM loader/embed path are **not** mixed (see below).
+**Updated:** 2026-04-02 — `InferenceConfig.embedding_strategy`: either `cls_only` or `cls_patch`; cache and FM loader/embed path are **not** mixed (see below).
 
 ## Context
 
@@ -46,7 +46,7 @@ For each **parent** footprint (e.g. one **DLTile** / same `tile.key` used in fil
 ### Code (draft)
 
 - `gee/dense_embedding_cache.py` — path helpers, `save_dense_embedding_parquets` / `load_dense_embedding_parquets`, `merge_cls_patch_for_probe`, `build_patch_cell_geometries`.
-- `gee/gee.py` — `InferenceConfig.embedding_strategy` (`cls_only` | `dense`); FM loader selection; `split_parent_pixels_to_embed_windows`; `produce_tile_input` / `predict_on_tile_pixels` / `predict_on_tile` wired per strategy; `embed` vs `embed_dense` guarded by strategy; dense cache paths on `embed_dense` when caching enabled.
+- `gee/gee.py` — `InferenceConfig.embedding_strategy` (`cls_only` | `cls_patch`); FM loader selection; `split_parent_pixels_to_embed_windows`; `produce_tile_input` / `predict_on_tile_pixels` / `predict_on_tile` wired per strategy; `embed` vs `embed_dense` guarded by strategy; dense cache paths on `embed_dense` when caching enabled.
 
 ## Operational notes
 
@@ -77,7 +77,7 @@ No change is required to the **TF model** interface: it still sees a single 2D b
 
 **Order of attempts in `produce_tile_input`:**
 
-- **`embedding_strategy == "dense"`:** (1) dense Parquet **pair** on disk → (2) raw pixels → split parent into 224 windows → `embed_dense` → optional cache write → patch geometries → `predict_on_tile_embeddings`.
+- **`embedding_strategy == "cls_patch"`:** (1) dense Parquet **pair** on disk → (2) raw pixels → split parent into 224 windows → `embed_dense` → optional cache write → patch geometries → `predict_on_tile_embeddings`.
 - **`embedding_strategy == "cls_only"`:** (1) legacy **`*_embeddings.parquet`** → (2) raw pixels → `cut_chips` / `embed` / existing path.
 
 There is **no** cross-format fallback: the strategy picks **one** cache type and **one** FM forward (`embed` vs `embed_dense`).
@@ -92,11 +92,11 @@ There is **no** cross-format fallback: the strategy picks **one** cache type and
 ### Configuration & tile contract
 
 - **`InferenceConfig.embedding_strategy`** (implemented):
-  - **`cls_only`** (default): frozen full-model checkpoint via `_load_embed_model_frozen`, **`embed()`** + legacy **`*_embeddings.parquet`** cache only. **`embed_dense()`** must not be used in this mode (raises).
-  - **`dense`**: ViT with `get_intermediate_layers` via `_load_embed_model`, **`embed_dense()`** + **`*_embed_dense_{cls,patch}.parquet`** pair only. **`embed()`** raises in this mode.
+  - **`cls_patch`** (default): ViT with `get_intermediate_layers` via `_load_embed_model`, **`embed_dense()`** + **`*_embed_dense_{cls,patch}.parquet`** pair only. **`embed()`** raises in this mode.
+  - **`cls_only`**: frozen full-model checkpoint via `_load_embed_model_frozen`, **`embed()`** + legacy **`*_embeddings.parquet`** cache only. **`embed_dense()`** must not be used in this mode (raises).
 - **Cache selection:** `produce_tile_input` consults **only** the cache format matching `embedding_strategy` — **no** fallback from dense files to legacy parquet or vice versa. Operators choose strategy and directory layout accordingly.
 - **Parent size:** Dense inference expects the parent raster to split evenly into **`embed_model_chip_size`×`embed_model_chip_size`** windows (default **224**). A **2×2** grid (**448×448** parent) is the primary case; other counts (e.g. 1×1 or 3×3) work if height/width are integer multiples of 224.
-- **`geo_chip_size` / `embed_model_chip_size`:** For **`dense`**, set **`geo_chip_size == embed_model_chip_size == 224`** so each 224 crop is not rescaled before the FM. **`cls_only`** keeps the existing **48** (or other) chip + bicubic resize behavior.
+- **`geo_chip_size` / `embed_model_chip_size`:** For **`cls_patch`**, set **`geo_chip_size == embed_model_chip_size == 224`** so each 224 crop is not rescaled before the FM. **`cls_only`** keeps the existing **48** (or other) chip + bicubic resize behavior.
 - **SAM2 / masking:** Same caveat as today: **`mode == "embeddings"`** skips inline SAM2 on pixels; dense cached runs need a **separate masking pass** if masks are required.
 
 ### Future: pooling & aggregation (design only)
@@ -111,7 +111,7 @@ Downstream we may not want **784** independent positives per parent tile.
 
 ## Implementation checklist
 
-- [x] **`InferenceConfig.embedding_strategy`:** `cls_only` | `dense`; selects FM loader (`_load_embed_model_frozen` vs `_load_embed_model`), `embed` vs `embed_dense`, and cache format.
+- [x] **`InferenceConfig.embedding_strategy`:** `cls_only` | `cls_patch`; selects FM loader (`_load_embed_model_frozen` vs `_load_embed_model`), `embed` vs `embed_dense`, and cache format.
 - [x] **`produce_tile_input`:** strategy-specific cache only; dense path loads pair → `merge_cls_patch_for_probe` + `build_patch_cell_geometries` → `mode="embeddings"`.
 - [x] **`predict_on_tile_pixels`:** dense branch splits parent raster into `k_h×k_w` windows of size `embed_model_chip_size` (default 224), `embed_dense`, then probe on patch rows.
 - [x] **`dense_embedding_cache.build_patch_cell_geometries`:** lon/lat grid per 224 window, row order aligned with `merge_cls_patch_for_probe`.
