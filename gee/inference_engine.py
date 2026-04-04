@@ -55,8 +55,19 @@ PathLike = Union[str, Path]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Frozen full-model pickle for ``embedding_strategy='cls_only'``
+# (:meth:`InferenceEngine._load_embed_model_frozen`).
 SSL4EO_PATH = str(
     (REPO_ROOT / "models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt").resolve()
+)
+
+# ViT-S/16 state dict for ``embedding_strategy='cls_patch'``
+# (:meth:`InferenceEngine._load_embed_model` / :meth:`InferenceEngine.embed_dense`).
+SSL4EO_CLS_PATCH_WEIGHTS_PATH = str(
+    (
+        REPO_ROOT
+        / "models/SSL4EO/pretrained/ssl4eo_vit_small_patch16_weights.pth"
+    ).resolve()
 )
 
 SAM2_PATH = str((REPO_ROOT / "models/sam2").resolve())
@@ -77,7 +88,7 @@ class InferenceConfig:
     )
     pred_threshold: float = 0.5
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
-    embed_model_path: Optional[str] = SSL4EO_PATH
+    embed_model_path: Optional[str] = SSL4EO_CLS_PATCH_WEIGHTS_PATH
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
@@ -90,7 +101,7 @@ class InferenceConfig:
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
     inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
-    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
+    stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
 
@@ -329,7 +340,7 @@ class InferenceEngine:
         embed_model = embed_model.to(self.device)
         embed_model.eval()
         return embed_model
-        
+
     def _make_embedding_cache_path(self, tile: TileType) -> Optional[Path]:
         """Return Path to an embedding cache file; None if disabled."""
         emb_cache_dir = getattr(self.config, "embeddings_cache_dir", None)
