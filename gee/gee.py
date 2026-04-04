@@ -120,11 +120,11 @@ class InferenceConfig:
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
-    geo_chip_size: Optional[int] = 48
+    geo_chip_size: Optional[int] = 224
     #: ``cls_only``: frozen FM + :meth:`InferenceEngine.embed` + legacy
     #: ``*_embeddings.parquet``. ``dense``: ViT + :meth:`InferenceEngine.embed_dense`
     #: + ``*_embed_dense_{cls,patch}.parquet`` pair. No cross-format cache fallback.
-    embedding_strategy: Literal["cls_only", "dense"] = "cls_only"
+    embedding_strategy: Literal["cls_only", "dense"] = "dense"
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
@@ -757,9 +757,7 @@ class InferenceEngine:
         spatial_list = []
         batch_size = self.config.embedding_batch_size
         batch_iter = range(0, len(tensor), batch_size)
-        if tile is None:
-            batch_iter = tqdm(batch_iter, desc="Embedding batches")
-            
+
         with torch.no_grad():
             for i in batch_iter:
                 batch = tensor[i:i+batch_size].to(self.device)
