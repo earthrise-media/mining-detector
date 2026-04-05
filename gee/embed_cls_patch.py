@@ -76,7 +76,14 @@ def make_embedding_engine(
 
 
 def feature_column_names_cls_patch(output_dim: int) -> List[str]:
-    """Column names matching ``cls0..`` then ``spatial0..`` (probe training convention)."""
+    """Column names for :func:`cls_patch_feature_batch` row layout.
+
+    Order matches the concatenated vector **CLS token then patch token** (each length
+    ``output_dim``, e.g. 384 + 384 = 768 for ViT-S/16): ``cls0``…``cls{output_dim-1}``,
+    then ``spatial0``…``spatial{output_dim-1}``. Same convention as
+    :func:`dense_embedding_cache.merge_cls_patch_for_probe` and
+    :func:`model_library.MLP_with_targeted_dropout` (first half = CLS).
+    """
     return [f"cls{i}" for i in range(output_dim)] + [
         f"spatial{i}" for i in range(output_dim)
     ]
@@ -331,7 +338,10 @@ def cls_patch_feature_batch(
 
     Returns
     -------
-    (B, D) float (or uint8 if ``quantized``) feature matrix (cls + one spatial patch each).
+    (B, D) float (or uint8 if ``quantized``)
+        Each row is **concat(class token, selected patch token)** along the feature
+        axis, with ``D = 2 * dim`` and ``feature_col_names`` from
+        :func:`feature_column_names_cls_patch` (``cls*`` then ``spatial*``).
     """
     viewports_batch = np.asarray(viewports_bhwc, dtype=np.float32)
     if viewports_batch.ndim != 4:

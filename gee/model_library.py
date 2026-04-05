@@ -229,6 +229,55 @@ def MLP(
 
     return model
 
+def MLP_with_targeted_dropout(
+    input_dim: int = 768,  # Total dim (384 CLS + 384 Patch)
+    cls_input_dim: int = 384,
+    hidden_layers: tuple = (32,),
+    activation: str = "relu",
+    cls_dropout_rate: float = 0.3,
+    output_activation: str = "sigmoid"
+) -> tf.keras.Model:
+    """
+    MLP on concatenated ViT features with dropout applied only to the CLS half.
+
+    **Input layout** (must match training parquet / :func:`gee.embed_cls_patch.feature_column_names_cls_patch`):
+    indices ``0 : cls_input_dim`` = class token (``cls0`` … ``cls{cls_input_dim-1}``),
+    ``cls_input_dim :`` = one selected patch token (``spatial0`` …).
+
+    Expects ``input_dim == 2 * cls_input_dim`` (e.g. 768 = 384 + 384 for ViT-S/16).
+    """
+    if input_dim != 2 * cls_input_dim:
+        raise ValueError(
+            f"input_dim ({input_dim}) must equal 2 * cls_input_dim ({2 * cls_input_dim}) "
+            "for [CLS || patch] features from cls+patch embedding export"
+        )
+
+    # 1. Define Input
+    inputs = layers.Input(shape=(input_dim,))
+
+    # 2. Split the input into CLS and Patch tokens
+    d = cls_input_dim
+    cls_token = layers.Lambda(lambda x, d=d: x[:, :d])(inputs)
+    patch_token = layers.Lambda(lambda x, d=d: x[:, d:])(inputs)
+
+    # 3. Apply Dropout ONLY to the CLS token
+    if cls_dropout_rate > 0:
+        cls_token = layers.Dropout(cls_dropout_rate)(cls_token)
+
+    # 4. Concatenate them back together
+    x = layers.Concatenate()([cls_token, patch_token])
+
+    # 5. Hidden Layers
+    for units in hidden_layers:
+        x = layers.Dense(units, activation=activation)(x)
+
+    # 6. Output Layer
+    outputs = layers.Dense(1, activation=output_activation)(x)
+
+    # Create the model
+    model = keras.Model(inputs=inputs, outputs=outputs)
+    
+    return model
 
 def LogisticRegression(
     input_dim: int = 384,
