@@ -34,9 +34,7 @@ class DenseEmbedConfig:
         "../models/SSL4EO/pretrained/ssl4eo_vit_small_patch16_weights.pth"
     )
     train_n_views: int = 10
-    train_jitter: str = "seeded"
     eval_n_views: int = 1
-    eval_jitter: str = "deterministic"
     quantized: bool = False
     progress_every: int = 500
 
@@ -196,19 +194,21 @@ def quantize(
     return scaled.astype(np.uint8)
 
 
-def get_deterministic_jitter(
+def hash_jitter(
     path_key: str, view_index: int = 0, *, patch_ct: int
 ) -> Tuple[int, int]:
     """
-    Reproducible ViT patch grid indices (row, col) in [0, patch_ct).
+    Reproducible pseudo-random ViT patch grid indices (row, col) in [0, patch_ct).
 
-    Includes ``view_index`` in the hash so ``n_views > 1`` with jitter='deterministic'
-    yields distinct windows per view (path alone would repeat the same offset).
+    Hashes ``{path_key}|view{view_index}``. The full string (including
+    ``view_index``) is mixed into the entire MD5 digest, so every output bit
+    depends on both. Row/col use the first and last 8 hex digits (first and last
+    32 bits of the digest) as two well-separated chunks.
     """
     key = f"{path_key}|view{view_index}"
     hash_hex = hashlib.md5(key.encode()).hexdigest()
     grid_row = int(hash_hex[:8], 16) % patch_ct
-    grid_col = int(hash_hex[8:16], 16) % patch_ct
+    grid_col = int(hash_hex[-8:], 16) % patch_ct
     return grid_row, grid_col
 
 
@@ -274,24 +274,17 @@ def iter_viewports_for_chip(
     path_key: str,
     *,
     n_views: int,
-    jitter: str,
     viewport: int,
     patch_px: int,
     patch_ct: int,
 ) -> Generator[Tuple[int, np.ndarray, Tuple[int, int]], None, None]:
     """Yield (view_index, viewport_hwc, patch_loc) for one on-disk super-chip.
 
-    ``path_key`` is hashed for reproducible jitter (use the chip path string).
+    Patch (row, col) comes from :func:`hash_jitter` — reproducible from
+    ``path_key`` and ``view_index`` (use a stable chip path string).
     """
     for view_index in range(n_views):
-        if jitter == "deterministic":
-            patch_loc = get_deterministic_jitter(
-                path_key, view_index=view_index, patch_ct=patch_ct
-            )
-        elif jitter == "seeded":
-            patch_loc = get_seeded_random_jitter(path_key, view_index, patch_ct=patch_ct)
-        else:
-            raise ValueError(f"jitter must be 'deterministic' or 'seeded', got {jitter!r}")
+        patch_loc = hash_jitter(path_key, view_index=view_index, patch_ct=patch_ct)
         viewport_hwc = extract_jittered_viewport(
             super_chip, patch_loc, viewport=viewport, patch_px=patch_px
         )
@@ -392,9 +385,7 @@ def collect_cls_patch_embedding_table(
     source_files: Optional[Iterable[Union[str, Path]]] = None,
     bands_to_use: Optional[Sequence[int]] = None,
     train_n_views: int = 5,
-    train_jitter: str = "seeded",
     eval_n_views: int = 1,
-    eval_jitter: str = "deterministic",
     quantized: bool = False,
     viewport: int = 224,
     patch_px: int = 16,
@@ -403,8 +394,9 @@ def collect_cls_patch_embedding_table(
 ) -> gpd.GeoDataFrame:
     """Stream super-chips from disk; batch all views per chip through the ViT once.
 
-    Eval splits usually have ``eval_n_views == 1`` (same as batch-1). Train uses
-    ``train_n_views`` jittered crops in a single ``embed_dense`` call per chip.
+    Train split uses ``train_n_views``; other splits use ``eval_n_views``. Viewports
+    use :func:`hash_jitter` (reproducible pseudo-random patch placement per
+    ``path_key`` + view index).
 
     ``InferenceConfig.embedding_batch_size`` should be >= ``train_n_views`` so the
     engine does not split one chip's views across multiple GPU sub-batches.
@@ -428,11 +420,7 @@ def collect_cls_patch_embedding_table(
     ) in enumerate(chip_stream):
         if progress_every and (chip_index + 1) % progress_every == 0:
             print(f"Embedded {chip_index + 1} chips (latest split={split_name!r})...")
-        n_views, jitter_mode = (
-            (train_n_views, train_jitter)
-            if split_name == "train"
-            else (eval_n_views, eval_jitter)
-        )
+        n_views = train_n_views if split_name == "train" else eval_n_views
         viewport_rasters: List[np.ndarray] = []
         view_indices: List[int] = []
         jitter_patch_locations: List[Tuple[int, int]] = []
@@ -440,7 +428,6 @@ def collect_cls_patch_embedding_table(
             super_chip,
             chip_path_posix,
             n_views=n_views,
-            jitter=jitter_mode,
             viewport=viewport,
             patch_px=patch_px,
             patch_ct=patch_ct,
