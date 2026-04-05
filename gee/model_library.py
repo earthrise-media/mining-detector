@@ -1,6 +1,14 @@
 # A collection of models explored, Aug / Sept 2025
 
 import tensorflow as tf
+
+try:
+    from .tf_darwin import apply_darwin_tf_compat
+except ImportError:
+    from tf_darwin import apply_darwin_tf_compat
+
+apply_darwin_tf_compat()
+
 from tensorflow import keras
 from tensorflow.keras import layers, models, regularizers
 from tensorflow.keras.applications import ResNet50

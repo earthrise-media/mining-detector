@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
-import platform
 import queue
 import threading
 from typing import (
@@ -31,6 +30,14 @@ import pandas as pd
 import rasterio
 import scipy.ndimage as ndi
 import tensorflow as tf
+
+try:
+    from .tf_darwin import apply_darwin_tf_compat
+except ImportError:
+    from tf_darwin import apply_darwin_tf_compat
+
+apply_darwin_tf_compat()
+
 import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
@@ -76,9 +83,6 @@ DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
 
 DEFAULT_SAM2_HYDRA_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
 
-if platform.system() == "Darwin":
-    tf.config.run_functions_eagerly(True)
-    tf.data.experimental.enable_debug_mode()
 
 @dataclass
 class InferenceConfig:
