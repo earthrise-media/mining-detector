@@ -4,7 +4,7 @@ Training-time export of ViT cls + one selected spatial patch per viewport.
 Streams on-disk GeoTIFF super-chips, batches jittered views through
 :class:`gee.InferenceEngine.embed_dense`, and builds a GeoDataFrame suitable
 for Parquet (e.g. probe training). Inference tile caches use
-:mod:`dense_embedding_cache` separately; this module does not replace that.
+:mod:`dense_embedding_cache` separately.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class DenseEmbedConfig:
         "../models/SSL4EO/pretrained/ssl4eo_vit_small_patch16_weights.pth"
     )
     train_n_views: int = 10
-    eval_n_views: int = 1
+    eval_n_views: int = 5
     quantized: bool = False
     progress_every: int = 500
 
@@ -377,6 +377,7 @@ def _resolve_feature_col_names(
 
 
 def collect_cls_patch_embedding_table(
+    cfg: DenseEmbedConfig,
     data_dir: Union[str, Path],
     engine: Any,
     *,
@@ -384,22 +385,16 @@ def collect_cls_patch_embedding_table(
     splits: Optional[Sequence[str]] = None,
     source_files: Optional[Iterable[Union[str, Path]]] = None,
     bands_to_use: Optional[Sequence[int]] = None,
-    train_n_views: int = 5,
-    eval_n_views: int = 1,
-    quantized: bool = False,
-    viewport: int = 224,
-    patch_px: int = 16,
-    patch_ct: int = 14,
-    progress_every: int = 500,
 ) -> gpd.GeoDataFrame:
     """Stream super-chips from disk; batch all views per chip through the ViT once.
 
-    Train split uses ``train_n_views``; other splits use ``eval_n_views``. Viewports
-    use :func:`hash_jitter` (reproducible pseudo-random patch placement per
-    ``path_key`` + view index).
+    Hyperparameters (views, viewport geometry, quantization, progress cadence) come
+    from ``cfg``. Train split uses ``cfg.train_n_views``; other splits use
+    ``cfg.eval_n_views``. Viewports use :func:`hash_jitter`.
 
-    ``InferenceConfig.embedding_batch_size`` should be >= ``train_n_views`` so the
-    engine does not split one chip's views across multiple GPU sub-batches.
+    ``cfg.embedding_batch_size`` (via :class:`gee.InferenceConfig`) should be
+    >= ``cfg.train_n_views`` so the engine does not split one chip's views across
+    GPU sub-batches.
 
     If ``feature_col_names`` is None, names are inferred from ``engine`` (cls* then spatial*).
     """
@@ -418,9 +413,11 @@ def collect_cls_patch_embedding_table(
         chip_path_posix,
         chip_center_geom,
     ) in enumerate(chip_stream):
-        if progress_every and (chip_index + 1) % progress_every == 0:
+        if cfg.progress_every and (chip_index + 1) % cfg.progress_every == 0:
             print(f"Embedded {chip_index + 1} chips (latest split={split_name!r})...")
-        n_views = train_n_views if split_name == "train" else eval_n_views
+        n_views = (
+            cfg.train_n_views if split_name == "train" else cfg.eval_n_views
+        )
         viewport_rasters: List[np.ndarray] = []
         view_indices: List[int] = []
         jitter_patch_locations: List[Tuple[int, int]] = []
@@ -428,9 +425,9 @@ def collect_cls_patch_embedding_table(
             super_chip,
             chip_path_posix,
             n_views=n_views,
-            viewport=viewport,
-            patch_px=patch_px,
-            patch_ct=patch_ct,
+            viewport=cfg.viewport,
+            patch_px=cfg.patch_px,
+            patch_ct=cfg.patch_ct,
         ):
             viewport_rasters.append(viewport_hwc)
             view_indices.append(view_index)
@@ -445,8 +442,8 @@ def collect_cls_patch_embedding_table(
             chip_center_geom,
             patch_locs_batch,
             feature_col_names=names,
-            quantized=quantized,
-            patch_ct=patch_ct,
+            quantized=cfg.quantized,
+            patch_ct=cfg.patch_ct,
         )
         for view_row_index, view_index in enumerate(view_indices):
             row_dict = {
