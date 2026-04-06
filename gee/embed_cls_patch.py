@@ -33,8 +33,8 @@ class DenseEmbedConfig:
     embed_model_path: str = (
         "../models/SSL4EO/pretrained/ssl4eo_vit_small_patch16_weights.pth"
     )
-    train_n_views: int = 10
-    eval_n_views: int = 5
+    train_n_views: int = 8
+    eval_n_views: int = 8
     quantized: bool = False
     progress_every: int = 500
 
