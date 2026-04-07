@@ -46,7 +46,7 @@ For each **parent** footprint (e.g. one **DLTile** / same `tile.key` used in fil
 ### Code (draft)
 
 - `gee/dense_embedding_cache.py` — path helpers, `save_dense_embedding_parquets` / `load_dense_embedding_parquets`, `merge_cls_patch_for_probe`, `build_patch_cell_geometries`.
-- `gee/gee.py` — `InferenceConfig.embedding_strategy` (`cls_only` | `cls_patch`); FM loader selection; `split_parent_pixels_to_embed_windows`; `produce_tile_input` / `predict_on_tile_pixels` / `predict_on_tile` wired per strategy; `embed` vs `embed_dense` guarded by strategy; dense cache paths on `embed_dense` when caching enabled.
+- `gee/inference_engine.py` — `InferenceConfig.embedding_strategy` (`cls_only` | `cls_patch`); FM loader selection; `split_parent_pixels_to_embed_windows`; `produce_tile_input` / `predict_on_tile_pixels` / `predict_on_tile` wired per strategy; `embed` vs `embed_dense` guarded by strategy; dense cache paths on `embed_dense` when caching enabled.
 
 ## Operational notes
 

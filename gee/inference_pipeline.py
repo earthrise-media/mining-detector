@@ -1,5 +1,5 @@
 import argparse
-from dataclasses import fields
+from dataclasses import fields, MISSING
 from datetime import datetime
 import logging
 import logging.handlers
@@ -9,6 +9,7 @@ from pathlib import Path
 import geopandas as gpd
 
 import gee
+from inference_engine import InferenceConfig, InferenceEngine, MaskConfig
 import tile_utils
 
 def valid_date(s: str) -> str:
@@ -29,8 +30,8 @@ def get_logger(logpath: Path, maxBytes=1e6,
     return logger
 
 def main(data_config: gee.DataConfig,
-         inference_config: gee.InferenceConfig,
-         mask_config: gee.MaskConfig,
+         inference_config: InferenceConfig,
+         mask_config: MaskConfig,
          cli_args: argparse.Namespace,
          logger: logging.Logger):
 
@@ -40,7 +41,7 @@ def main(data_config: gee.DataConfig,
         region, data_config.tilesize, data_config.pad)
     logger.info(f"Created {len(tiles)} tiles")
 
-    engine = gee.InferenceEngine(
+    engine = InferenceEngine(
         start_date=cli_args.start_date,
         end_date=cli_args.end_date,
         data_config=data_config,
@@ -56,10 +57,19 @@ def main(data_config: gee.DataConfig,
                 f"{inference_config.pred_threshold}")
 
 
+def _inference_config_field_defaults():
+    """Defaults for :class:`InferenceConfig` fields that have them (excludes ``model_path``)."""
+    return {
+        f.name: f.default
+        for f in fields(InferenceConfig)
+        if f.default is not MISSING
+    }
+
+
 if __name__ == '__main__':
     data_defaults = gee.DataConfig()
-    inference_defaults = gee.InferenceConfig()
-    mask_defaults = gee.MaskConfig()
+    inference_field_defaults = _inference_config_field_defaults()
+    mask_defaults = MaskConfig()
 
     parser = argparse.ArgumentParser(description="Run bulk ML inference.")
 
@@ -86,23 +96,26 @@ if __name__ == '__main__':
 
 
     # InferenceConfig args
-    parser.add_argument("--model_path", type=Path,
-                        default=inference_defaults.model_path,
-                        help="Path to saved Keras classifier (.h5)")
+    parser.add_argument(
+        "--model_path",
+        type=Path,
+        required=True,
+        help="Path to saved Keras classifier (.h5)",
+    )
     parser.add_argument("--pred_threshold", type=float,
-                        default=inference_defaults.pred_threshold,
+                        default=inference_field_defaults["pred_threshold"],
                         help="Prediction threshold for positive chips")
     parser.add_argument("--stride_ratio", type=int,
-                        default=inference_defaults.stride_ratio,
+                        default=inference_field_defaults["stride_ratio"],
                         help="Stride is computed as chip_size//stride_ratio")
     parser.add_argument("--max_concurrent_tiles", type=int,
-                        default=inference_defaults.max_concurrent_tiles,
+                        default=inference_field_defaults["max_concurrent_tiles"],
                         help="Maximum number of tiles to process concurrently")
     parser.add_argument("--tries", type=int,
-                        default=inference_defaults.tries,
+                        default=inference_field_defaults["tries"],
                         help="Number of retries per tile")
     parser.add_argument("--embed_model_name", type=str,
-                        default=inference_defaults.embed_model_name,
+                        default=inference_field_defaults["embed_model_name"],
                         help="Embedding model identifier")
     parser.add_argument(
         "--embed_model_path",
@@ -115,13 +128,13 @@ if __name__ == '__main__':
         ),
     )
     parser.add_argument("--embed_model_chip_size", type=int,
-                        default=inference_defaults.embed_model_chip_size,
+                        default=inference_field_defaults["embed_model_chip_size"],
                         help="Input size for embedding model")
     parser.add_argument("--embedding_batch_size", type=int,
-                        default=inference_defaults.embedding_batch_size,
+                        default=inference_field_defaults["embedding_batch_size"],
                         help="Batch size for embedding model inference")
     parser.add_argument("--geo_chip_size", type=int,
-                        default=inference_defaults.geo_chip_size,
+                        default=inference_field_defaults["geo_chip_size"],
                         help="Chip size in pixels for cls_only stride cutting, or "
                              "per-window size for cls_patch (typically 224; must match "
                              "embed_model_chip_size when --embedding_strategy cls_patch)")
@@ -129,7 +142,7 @@ if __name__ == '__main__':
         "--embedding_strategy",
         type=str,
         choices=["cls_only", "cls_patch", "none"],
-        default=inference_defaults.embedding_strategy,
+        default=inference_field_defaults["embedding_strategy"],
         help=(
             "cls_only: frozen FM, embed(), legacy *_embeddings.parquet. "
             "cls_patch: ViT intermediate layers, embed_dense(), *_embed_dense_*.parquet. "
@@ -137,18 +150,18 @@ if __name__ == '__main__':
         ),
     )
     parser.add_argument("--embeddings_cache_dir", type=str,
-                        default=inference_defaults.embeddings_cache_dir,
+                        default=inference_field_defaults["embeddings_cache_dir"],
                         help=("Optional directory to save/reload embeddings. "
                               "Tiles read from cache skip fetching pixels; "
                               "with --run_sam2, inline SAM2 does not run for "
                               "those tiles (use standalone SAM2 masking if needed)."))
     parser.add_argument("--run_sam2", action="store_true",
-                        default=inference_defaults.run_sam2,
+                        default=inference_field_defaults["run_sam2"],
                         help="Enable SAM2 segmentation after model predictions")
     parser.add_argument(
         "--inference_output_base",
         type=str,
-        default=str(inference_defaults.inference_output_base),
+        default=str(inference_field_defaults["inference_output_base"]),
         help=(
             "Base directory for prediction GeoJSON outputs "
             "(default: <repo>/data/outputs; subfolder per model version)"
@@ -202,14 +215,14 @@ if __name__ == '__main__':
     data_config = gee.DataConfig(**config_dict)
 
     config_dict = {
-        f.name: getattr(args, f.name, None) for f in fields(gee.InferenceConfig)
+        f.name: getattr(args, f.name, None) for f in fields(InferenceConfig)
     }
-    inference_config = gee.InferenceConfig(**config_dict)
+    inference_config = InferenceConfig(**config_dict)
 
     config_dict = {
-        f.name: getattr(args, f.name, None) for f in fields(gee.MaskConfig)
+        f.name: getattr(args, f.name, None) for f in fields(MaskConfig)
     }
-    mask_config = gee.MaskConfig(**config_dict)
+    mask_config = MaskConfig(**config_dict)
 
     logpath = args.logdir / f"gee_{args.region_path.name}.log"
     logger = get_logger(logpath)

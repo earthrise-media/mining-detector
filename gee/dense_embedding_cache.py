@@ -1,5 +1,5 @@
 """
-Parquet cache for :meth:`gee.InferenceEngine.embed_dense` outputs.
+Parquet cache for :meth:`inference_engine.InferenceEngine.embed_dense` outputs.
 
 Two files per parent tile (see ``docs/design/planning.md``):
   - *_embed_dense_cls.parquet   — one row per 224 window, cls + geometry

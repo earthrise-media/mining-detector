@@ -2,7 +2,7 @@
 Training-time export of ViT cls + one selected spatial patch per viewport.
 
 Streams on-disk GeoTIFF super-chips, batches jittered views through
-:class:`gee.InferenceEngine.embed_dense`, and builds a GeoDataFrame suitable
+:class:`~inference_engine.InferenceEngine.embed_dense`, and builds a GeoDataFrame suitable
 for Parquet (e.g. probe training). Inference tile caches use
 :mod:`dense_embedding_cache` separately.
 """
@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterable, List, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
+import gee
 import numpy as np
 import pandas as pd
 import rasterio
@@ -57,9 +58,7 @@ def make_embedding_engine(
 
     Dummy dates satisfy the constructor; GEE extraction is not used on this path.
     """
-    import gee
-
-    inference_config = gee.InferenceConfig(
+    inference_config = InferenceConfig(
         embedding_strategy="cls_patch",
         embedding_batch_size=cfg.embedding_batch_size,
         embed_model_name=cfg.embed_model_name,
@@ -67,7 +66,7 @@ def make_embedding_engine(
         embed_model_chip_size=cfg.viewport,
         geo_chip_size=cfg.viewport,
     )
-    return gee.InferenceEngine(
+    return InferenceEngine(
         gee_dummy_start_date,
         gee_dummy_end_date,
         gee.DataConfig(),
@@ -394,7 +393,7 @@ def collect_cls_patch_embedding_table(
     from ``cfg``. Train split uses ``cfg.train_n_views``; other splits use
     ``cfg.eval_n_views``. Viewports use :func:`hash_jitter`.
 
-    ``cfg.embedding_batch_size`` (via :class:`gee.InferenceConfig`) should be
+    ``cfg.embedding_batch_size`` (via :class:`InferenceConfig`) should be
     >= ``cfg.train_n_views`` so the engine does not split one chip's views across
     GPU sub-batches.
 

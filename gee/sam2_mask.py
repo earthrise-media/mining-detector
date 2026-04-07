@@ -6,8 +6,9 @@ import re
 
 import geopandas as gpd
 
-import gee  
-from sam2_build_cog import main as run_cogging 
+import gee
+from inference_engine import MaskConfig, SAM2_Masker
+from sam2_build_cog import main as run_cogging
 
 
 def valid_date(s: str) -> str:
@@ -29,13 +30,13 @@ def main(args):
     }
     data_config = gee.DataConfig(**data_config_dict)
 
-    mask_defaults = gee.MaskConfig()
+    mask_defaults = MaskConfig()
 
     mask_config_dict = {
         f.name: getattr(args, f.name, getattr(mask_defaults, f.name))
-        for f in fields(gee.MaskConfig)
+        for f in fields(MaskConfig)
     }
-    mask_config = gee.MaskConfig(**mask_config_dict)
+    mask_config = MaskConfig(**mask_config_dict)
 
     # Redirect mask_dir to subfolder per detections file
     detections_stem = detections_path.stem
@@ -46,7 +47,7 @@ def main(args):
 
     dets = gpd.read_file(detections_path)
     data_extractor = gee.GEE_Data_Extractor(start_date, end_date, data_config)
-    masker = gee.SAM2_Masker(data_extractor, mask_config)
+    masker = SAM2_Masker(data_extractor, mask_config)
     masker.bulk_mask_polygons(dets)
 
     if args.cog:
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run SAM2 segmentation on detection polygons"
     )
-    mask_defaults = gee.MaskConfig()
+    mask_defaults = MaskConfig()
 
     # ----------------------------
     # Required detections file

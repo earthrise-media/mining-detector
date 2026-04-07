@@ -342,13 +342,3 @@ class GEE_Data_Extractor:
             arr = src.read().astype(np.float32)  # (B,H,W)
             arr = np.moveaxis(arr, 0, -1)  # back to (H,W,B)
         return arr
-
-
-from inference_engine import (
-    InferenceConfig,
-    InferenceEngine,
-    MaskConfig,
-    SAM2_Masker,
-    resolve_default_embed_model_path,
-    split_parent_pixels_to_embed_windows,
-)
