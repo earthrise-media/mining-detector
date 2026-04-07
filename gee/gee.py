@@ -21,14 +21,33 @@ _ee_initialized = False
 
 
 def _ensure_earth_engine_initialized() -> None:
-    """Lazily initialize the Earth Engine client (first GEE_Data_Extractor use)."""
+    """Lazily initialize the Earth Engine client (first GEE_Data_Extractor use).
+
+    If ``GOOGLE_APPLICATION_CREDENTIALS`` is set to a path of a service account JSON
+    file, uses :class:`google.oauth2.service_account.Credentials` with the Earth Engine
+    scope. Otherwise uses the default client (e.g. user ``earthengine authenticate``).
+    """
     global _ee_initialized
     if _ee_initialized:
         return
-    ee.Initialize(
-        opt_url="https://earthengine-highvolume.googleapis.com",
-        project=EE_PROJECT,
-    )
+    key_path = (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+    init_kw: Dict[str, Any] = {
+        "opt_url": "https://earthengine-highvolume.googleapis.com",
+        "project": EE_PROJECT,
+    }
+    if key_path:
+        if not os.path.isfile(key_path):
+            raise FileNotFoundError(
+                f"GOOGLE_APPLICATION_CREDENTIALS={key_path!r} is not a readable file"
+            )
+        from google.oauth2 import service_account
+
+        ee_scopes = ["https://www.googleapis.com/auth/earthengine"]
+        credentials = service_account.Credentials.from_service_account_file(
+            key_path, scopes=ee_scopes
+        )
+        init_kw["credentials"] = credentials
+    ee.Initialize(**init_kw)
     _ee_initialized = True
 
 
