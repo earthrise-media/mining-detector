@@ -167,6 +167,22 @@ if __name__ == '__main__':
             "(default: <repo>/data/outputs; subfolder per model version)"
         ),
     )
+    parser.add_argument(
+        "--post_probe_pool_size",
+        type=int,
+        default=inference_field_defaults["post_probe_pool_size"],
+        help=(
+            "cls_patch only: pool probe probabilities over a k×k ViT patch grid "
+            "neighborhood per 224 window (1 = disabled, legacy behavior)."
+        ),
+    )
+    parser.add_argument(
+        "--post_probe_pool_method",
+        type=str,
+        choices=["mean", "max", "median"],
+        default=inference_field_defaults["post_probe_pool_method"],
+        help="cls_patch only: reduction when post_probe_pool_size > 1 (default: mean).",
+    )
 
     # MaskConfig args
     parser.add_argument("--prior_sigma", type=float,

@@ -132,6 +132,11 @@ class InferenceConfig:
     stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
+    #: Post-probe spatial pooling in ViT patch grid (``cls_patch`` only). ``1`` is a
+    #: no-op and matches legacy outputs (no ``pooled_confidence`` column).
+    post_probe_pool_size: int = 1
+    #: ``mean``, ``max``, or ``median`` over the ``post_probe_pool_size`` neighborhood.
+    post_probe_pool_method: Literal["mean", "max", "median"] = "mean"
 
     def __post_init__(self):
         if self.model_path is not None:
@@ -153,6 +158,18 @@ class InferenceConfig:
             self.embeddings_cache_dir.mkdir(parents=True, exist_ok=True)
 
         self.inference_output_base = Path(self.inference_output_base)
+
+        if self.post_probe_pool_size < 1:
+            raise ValueError(
+                f"post_probe_pool_size must be >= 1, got {self.post_probe_pool_size}"
+            )
+        _m = str(self.post_probe_pool_method).lower()
+        if _m not in {"mean", "max", "median"}:
+            raise ValueError(
+                "post_probe_pool_method must be 'mean', 'max', or 'median'; "
+                f"got {self.post_probe_pool_method!r}"
+            )
+        self.post_probe_pool_method = _m  # type: ignore[assignment]
 
     def _validate_embedding_config(self):
         if self.embedding_strategy == "none":
@@ -274,6 +291,70 @@ def split_parent_pixels_to_embed_windows(
     stacked = np.stack(chips, axis=0)
     gdf = gpd.GeoDataFrame(geometry=polys, crs="EPSG:4326")
     return stacked, gdf
+
+
+def apply_patch_grid_pooling(
+    probs: np.ndarray,
+    meta: pd.DataFrame,
+    pool_size: int,
+    method: str,
+) -> np.ndarray:
+    """
+    For each ViT patch cell, pool probe probabilities over a ``pool_size×pool_size``
+    neighborhood in **patch index space** (per 224 window), using partial windows
+    at edges. ``meta`` row order must match ``probs`` (as from
+    :func:`dense_embedding_cache.merge_cls_patch_for_probe`).
+    """
+    if pool_size < 1:
+        raise ValueError(f"pool_size must be >= 1, got {pool_size}")
+    if len(probs) != len(meta):
+        raise ValueError(
+            f"probs length {len(probs)} != meta rows {len(meta)}"
+        )
+    if pool_size == 1:
+        return probs.astype(np.float32, copy=True)
+
+    method_l = method.lower()
+    if method_l not in {"mean", "max", "median"}:
+        raise ValueError(
+            f"pool method must be mean, max, or median; got {method!r}"
+        )
+
+    n_win = int(meta["quadrant"].max()) + 1
+    h = int(meta["patch_row"].max()) + 1
+    w = int(meta["patch_col"].max()) + 1
+    expected = n_win * h * w
+    if len(probs) != expected:
+        raise ValueError(
+            f"prob length {len(probs)} != n_win*h*w ({n_win}*{h}*{w})"
+        )
+
+    grid = np.zeros((n_win, h, w), dtype=np.float64)
+    for i in range(len(probs)):
+        q = int(meta["quadrant"].iloc[i])
+        r = int(meta["patch_row"].iloc[i])
+        c = int(meta["patch_col"].iloc[i])
+        grid[q, r, c] = probs[i]
+
+    out = np.empty(len(probs), dtype=np.float64)
+    for i in range(len(probs)):
+        q = int(meta["quadrant"].iloc[i])
+        r = int(meta["patch_row"].iloc[i])
+        c = int(meta["patch_col"].iloc[i])
+        r0 = max(0, r - (pool_size - 1) // 2)
+        r1 = min(h, r + pool_size // 2 + 1)
+        c0 = max(0, c - (pool_size - 1) // 2)
+        c1 = min(w, c + pool_size // 2 + 1)
+        block = grid[q, r0:r1, c0:c1]
+        if method_l == "mean":
+            out[i] = float(block.mean())
+        elif method_l == "max":
+            out[i] = float(block.max())
+        else:
+            out[i] = float(np.median(block))
+
+    return out.astype(np.float32)
+
 
 class InferenceEngine:
     """Handles tile inference, retries, and aggregation."""
@@ -613,23 +694,27 @@ class InferenceEngine:
         with self._tf_model_lock:
             return self.model.predict(x, verbose=0)
 
-    def _preds_to_gdf(self, preds: np.ndarray,
-                      chip_geoms: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        """Convert model preds -> preds_gdf"""
+    @staticmethod
+    def _probs_from_predictions(preds: np.ndarray) -> np.ndarray:
+        """Positive-class probability per row (matches :meth:`_preds_to_gdf`)."""
         if preds.ndim == 2:
             if preds.shape[1] == 1:
-                # sigmoid binary classifier
-                mean_preds = preds.squeeze()
-            elif preds.shape[1] == 2:
-                # softmax binary classifier
-                mean_preds = preds[:, 1]
-            else:
-                # ensemble of M>2 sigmoid models 
-                mean_preds = np.mean(preds, axis=1)
-                # (Note: M=2 ensemble would be misconstrued as softmax binary)
-        else:
-            # already shape (N,)
-            mean_preds = preds
+                return np.asarray(preds.squeeze(), dtype=np.float64)
+            if preds.shape[1] == 2:
+                return np.asarray(preds[:, 1], dtype=np.float64)
+            return np.asarray(np.mean(preds, axis=1), dtype=np.float64)
+        return np.asarray(preds, dtype=np.float64)
+
+    def _preds_to_gdf(
+        self,
+        preds: np.ndarray,
+        chip_geoms: gpd.GeoDataFrame,
+        *,
+        patch_grid_meta: Optional[pd.DataFrame] = None,
+        pooled_probs: Optional[np.ndarray] = None,
+    ) -> gpd.GeoDataFrame:
+        """Convert model preds -> preds_gdf (optionally with dense grid metadata)."""
+        mean_preds = self._probs_from_predictions(preds)
 
         idx = np.where(mean_preds > self.config.pred_threshold)[0]
         if len(idx) == 0:
@@ -638,9 +723,24 @@ class InferenceEngine:
 
         preds_gdf = gpd.GeoDataFrame(
             geometry=chip_geoms.loc[idx, "geometry"].reset_index(drop=True),
-            crs="EPSG:4326"
+            crs="EPSG:4326",
         )
         preds_gdf["confidence"] = mean_preds[idx]
+        if pooled_probs is not None:
+            preds_gdf["pooled_confidence"] = pooled_probs[idx]
+
+        if patch_grid_meta is not None:
+            meta_take = patch_grid_meta.iloc[idx].reset_index(drop=True)
+            for col in (
+                "parent_key",
+                "quadrant",
+                "patch_row",
+                "patch_col",
+                "window_id",
+            ):
+                if col in meta_take.columns:
+                    preds_gdf[col] = meta_take[col].values
+
         if preds.ndim == 2 and preds.shape[1] > 2:
             preds_gdf["preds"] = [str(list(v)) for v in preds[idx]]
 
@@ -664,7 +764,8 @@ class InferenceEngine:
         """
         Producer work for a single tile:
         - ``embedding_strategy == 'cls_patch'``: try dense cls/patch Parquet pair;
-          on hit return patch-level ``embeddings`` and patch cell ``chip_geoms``.
+          on hit return patch-level ``embeddings``, patch cell ``chip_geoms``, and
+          ``patch_grid_meta`` (parent key, window id, patch row/col per row).
         - ``embedding_strategy == 'cls_only'``: try legacy ``*_embeddings.parquet``.
         - ``embedding_strategy == 'none'``: skip embedding caches; fetch pixels only.
         - Otherwise fetch pixels -> ``{'mode':'pixels', ...}``.
@@ -682,7 +783,7 @@ class InferenceEngine:
                 try:
                     loaded = load_dense_embedding_parquets(dense_paths)
                     if loaded is not None:
-                        features, _meta = merge_cls_patch_for_probe(loaded)
+                        features, meta = merge_cls_patch_for_probe(loaded)
                         grid_side = loaded["spatial"].shape[1]
                         patch_geoms = build_patch_cell_geometries(
                             loaded["chip_geoms"], grid_side
@@ -691,6 +792,7 @@ class InferenceEngine:
                             "mode": "embeddings",
                             "embeddings": features,
                             "chip_geoms": patch_geoms,
+                            "patch_grid_meta": meta,
                             "tile": tile,
                         }
                 except Exception as e:
@@ -801,11 +903,11 @@ class InferenceEngine:
                 "parent_key": tile.key,
                 "window_ids": [f"{tile.key}_q{i}" for i in range(nwin)],
             }
-            features, _ = merge_cls_patch_for_probe(loaded)
+            features, meta = merge_cls_patch_for_probe(loaded)
             grid_side = dense_out["spatial"].shape[1]
             patch_geoms = build_patch_cell_geometries(window_geoms, grid_side)
             preds_gdf, failed_tile = self.predict_on_tile_embeddings(
-                features, patch_geoms, tile
+                features, patch_geoms, tile, patch_grid_meta=meta
             )
             if failed_tile is not None:
                 return gpd.GeoDataFrame(), failed_tile
@@ -820,11 +922,31 @@ class InferenceEngine:
         self,
         embeddings: np.ndarray,
         chip_geoms: gpd.GeoDataFrame,
-        tile: TileType) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
+        tile: TileType,
+        patch_grid_meta: Optional[pd.DataFrame] = None,
+    ) -> tuple[gpd.GeoDataFrame, Optional[TileType]]:
         """Run the TF classifier on already-available embeddings."""
         try:
             preds = self._model_infer(embeddings)
-            preds_gdf = self._preds_to_gdf(preds, chip_geoms)
+            pooled_probs: Optional[np.ndarray] = None
+            if (
+                patch_grid_meta is not None
+                and self.config.embedding_strategy == "cls_patch"
+                and self.config.post_probe_pool_size > 1
+            ):
+                mean_flat = self._probs_from_predictions(preds)
+                pooled_probs = apply_patch_grid_pooling(
+                    mean_flat,
+                    patch_grid_meta.reset_index(drop=True),
+                    self.config.post_probe_pool_size,
+                    self.config.post_probe_pool_method,
+                )
+            preds_gdf = self._preds_to_gdf(
+                preds,
+                chip_geoms,
+                patch_grid_meta=patch_grid_meta,
+                pooled_probs=pooled_probs,
+            )
             return preds_gdf, None
         except Exception as e:
             tile_key = getattr(tile, "key", "unknown")
@@ -849,8 +971,13 @@ class InferenceEngine:
                     embeddings = item["embeddings"]
                     chip_geoms = item["chip_geoms"]
                     tile_local = item["tile"]
+                    patch_grid_meta = item.get("patch_grid_meta")
                     preds = self.predict_on_tile_embeddings(
-                        embeddings, chip_geoms, tile_local)
+                        embeddings,
+                        chip_geoms,
+                        tile_local,
+                        patch_grid_meta=patch_grid_meta,
+                    )
                 elif mode == "pixels":
                     pixels = item["pixels"]
                     tile_local = item["tile"]
@@ -985,13 +1112,13 @@ class InferenceEngine:
                 if dense_paths is not None:
                     loaded = load_dense_embedding_parquets(dense_paths)
                     if loaded is not None:
-                        features, _ = merge_cls_patch_for_probe(loaded)
+                        features, meta = merge_cls_patch_for_probe(loaded)
                         grid_side = loaded["spatial"].shape[1]
                         patch_geoms = build_patch_cell_geometries(
                             loaded["chip_geoms"], grid_side
                         )
                         preds_gdf, _ = self.predict_on_tile_embeddings(
-                            features, patch_geoms, tile
+                            features, patch_geoms, tile, patch_grid_meta=meta
                         )
                         return preds_gdf
             elif self.config.embedding_strategy == "cls_only":
