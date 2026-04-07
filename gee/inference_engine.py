@@ -457,10 +457,6 @@ class InferenceEngine:
         geo_chip_size = self.config.geo_chip_size
 
         tensor = torch.from_numpy(chips).permute(0, 3, 1, 2)  # NHWC → NCHW
-        if geo_chip_size != model_chip_size:
-            tensor = F.interpolate(
-                tensor, size=(model_chip_size, model_chip_size),
-                mode='bicubic', align_corners=False)
 
         embeddings_list = []
         batch_size = self.config.embedding_batch_size
@@ -473,6 +469,13 @@ class InferenceEngine:
             for i in batch_iter:
                 batch = tensor[i:i+batch_size].to(
                     self.device, dtype=torch.float32)
+                if geo_chip_size != model_chip_size:
+                    batch = F.interpolate(
+                        batch,
+                        size=(model_chip_size, model_chip_size),
+                        mode='bicubic',
+                        align_corners=False,
+                    )
                 out = self.embed_model(batch)
                 if isinstance(out, dict):
                     out = out[list(out.keys())[0]]
