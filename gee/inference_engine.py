@@ -84,6 +84,27 @@ DEFAULT_INFERENCE_OUTPUT_BASE = str((REPO_ROOT / "data/outputs").resolve())
 DEFAULT_SAM2_HYDRA_CONFIG = "configs/sam2.1/sam2.1_hiera_s.yaml"
 
 
+def resolve_default_embed_model_path(
+    embed_model_name: Optional[str],
+    embedding_strategy: Literal["cls_only", "cls_patch"],
+) -> str:
+    """Default foundation-model weights for known (name, strategy) pairs.
+
+    ``embed_model_path=None`` on :class:`InferenceConfig` is resolved via this
+    helper (not called for ``embedding_strategy=='none'``). Other names require
+    an explicit path.
+    """
+    if embed_model_name != "ssl4eo_vit_s16":
+        raise ValueError(
+            "InferenceConfig.embed_model_path must be set when "
+            f"embed_model_name is not 'ssl4eo_vit_s16' (got {embed_model_name!r}, "
+            f"embedding_strategy={embedding_strategy!r})"
+        )
+    if embedding_strategy == "cls_only":
+        return SSL4EO_PATH
+    return SSL4EO_CLS_PATCH_WEIGHTS_PATH
+
+
 @dataclass
 class InferenceConfig:
     # Path to Keras classifier (.h5). Loaded inside :class:`InferenceEngine`.
@@ -92,15 +113,18 @@ class InferenceConfig:
     )
     pred_threshold: float = 0.5
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
-    embed_model_path: Optional[str] = SSL4EO_CLS_PATCH_WEIGHTS_PATH
+    #: If ``None``, resolved from :func:`resolve_default_embed_model_path` for
+    #: ``ssl4eo_vit_s16``; must be set explicitly for other foundation models.
+    embed_model_path: Optional[str] = None
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
     geo_chip_size: Optional[int] = 224
     #: ``cls_only``: frozen FM + :meth:`InferenceEngine.embed` + legacy
     #: ``*_embeddings.parquet``. ``cls_patch``: ViT + :meth:`InferenceEngine.embed_dense`
-    #: + ``*_embed_dense_{cls,patch}.parquet`` pair. No cross-format cache fallback.
-    embedding_strategy: Literal["cls_only", "cls_patch"] = "cls_patch"
+    #: + ``*_embed_dense_{cls,patch}.parquet`` pair. ``none``: Keras classifier only on
+    #: pixel chips (no FM, no embedding cache reads). No cross-format cache fallback.
+    embedding_strategy: Literal["cls_only", "cls_patch", "none"] = "cls_patch"
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
@@ -111,20 +135,33 @@ class InferenceConfig:
 
     def __post_init__(self):
         self.model_path = Path(self.model_path)
+
+        if self.embedding_strategy == "none":
+            self.embed_model_path = ""
+        elif self.embed_model_path is None:
+            self.embed_model_path = resolve_default_embed_model_path(
+                self.embed_model_name, self.embedding_strategy
+            )
+        else:
+            self.embed_model_path = str(self.embed_model_path)
+
         self._validate_embedding_config()
-        
+
         if self.embeddings_cache_dir:
             self.embeddings_cache_dir = Path(self.embeddings_cache_dir)
             self.embeddings_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        if not self.embed_model_path:
-            self.embed_model_path = ""
-
         self.inference_output_base = Path(self.inference_output_base)
 
     def _validate_embedding_config(self):
-        if not self.embed_model_name or not self.embed_model_path:
+        if self.embedding_strategy == "none":
             return
+        if not self.embed_model_name or not self.embed_model_path:
+            raise ValueError(
+                "embed_model_name and embed_model_path (or a default for "
+                "'ssl4eo_vit_s16') are required when "
+                f"embedding_strategy={self.embedding_strategy!r}"
+            )
 
         required = {
             "embed_model_chip_size": self.embed_model_chip_size,
@@ -274,8 +311,10 @@ class InferenceEngine:
         if config.embed_model_path:
             if config.embedding_strategy == "cls_patch":
                 self.embed_model = self._load_embed_model()
-            else:
+            elif config.embedding_strategy == "cls_only":
                 self.embed_model = self._load_embed_model_frozen()
+            else:
+                self.embed_model = None
         else:
             self.embed_model = None
 
@@ -378,6 +417,10 @@ class InferenceEngine:
         chip_geoms: gpd.GeoDataFrame,
         tile: Optional[TileType] = None) -> np.ndarray:
         """Embed chips via a foundation model, with optional caching."""
+        if self.config.embedding_strategy == "none":
+            raise ValueError(
+                "embed() is not used when embedding_strategy='none'"
+            )
         if self.config.embedding_strategy != "cls_only":
             raise ValueError(
                 "embed() requires embedding_strategy='cls_only'; "
@@ -452,6 +495,10 @@ class InferenceEngine:
         - 'cls': Global embeddings (N, Dim)
         - 'spatial': Patch embeddings in a grid (N, H, W, Dim) with H=W=sqrt(n_patches)
         """
+        if self.config.embedding_strategy == "none":
+            raise ValueError(
+                "embed_dense() is not used when embedding_strategy='none'"
+            )
         if self.config.embedding_strategy != "cls_patch":
             raise ValueError(
                 "embed_dense() requires embedding_strategy='cls_patch' "
@@ -604,6 +651,7 @@ class InferenceEngine:
         - ``embedding_strategy == 'cls_patch'``: try dense cls/patch Parquet pair;
           on hit return patch-level ``embeddings`` and patch cell ``chip_geoms``.
         - ``embedding_strategy == 'cls_only'``: try legacy ``*_embeddings.parquet``.
+        - ``embedding_strategy == 'none'``: skip embedding caches; fetch pixels only.
         - Otherwise fetch pixels -> ``{'mode':'pixels', ...}``.
 
         Note: When mode is ``embeddings``, the consumer runs classification only
@@ -635,7 +683,7 @@ class InferenceEngine:
                         f"Failed to load dense embedding cache for {tile.key}: {e}. "
                         "Will fetch pixels."
                     )
-        else:
+        elif self.config.embedding_strategy == "cls_only":
             emb_path = self._make_embedding_cache_path(tile)
             if emb_path and emb_path.exists():
                 try:
@@ -653,7 +701,8 @@ class InferenceEngine:
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to load embedding for {tile.key}: {e}. "
-                        f"Will fetch pixels.")
+                        f"Will fetch pixels."
+                    )
 
         pixels = self.data_extractor.get_tile_data(tile)
         return {"mode": "pixels", "pixels": pixels, "tile": tile}
@@ -929,7 +978,7 @@ class InferenceEngine:
                             features, patch_geoms, tile
                         )
                         return preds_gdf
-            else:
+            elif self.config.embedding_strategy == "cls_only":
                 emb_path = self._make_embedding_cache_path(tile)
                 if emb_path.exists():
                     gdf = gpd.read_parquet(emb_path)

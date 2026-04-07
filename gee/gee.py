@@ -349,5 +349,6 @@ from inference_engine import (
     InferenceEngine,
     MaskConfig,
     SAM2_Masker,
+    resolve_default_embed_model_path,
     split_parent_pixels_to_embed_windows,
 )

@@ -104,10 +104,16 @@ if __name__ == '__main__':
     parser.add_argument("--embed_model_name", type=str,
                         default=inference_defaults.embed_model_name,
                         help="Embedding model identifier")
-    parser.add_argument("--embed_model_path", type=str,
-                        default=inference_defaults.embed_model_path,
-                        help=("Path to optional pretrained foundation model; "
-                              "set '' to disable"))
+    parser.add_argument(
+        "--embed_model_path",
+        type=str,
+        default=None,
+        help=(
+            "Foundation model weights; if omitted, default path for "
+            "embed_model_name=ssl4eo_vit_s16 depends on --embedding_strategy "
+            "(cls_only vs cls_patch). Not used when --embedding_strategy none."
+        ),
+    )
     parser.add_argument("--embed_model_chip_size", type=int,
                         default=inference_defaults.embed_model_chip_size,
                         help="Input size for embedding model")
@@ -122,11 +128,12 @@ if __name__ == '__main__':
     parser.add_argument(
         "--embedding_strategy",
         type=str,
-        choices=["cls_only", "cls_patch"],
+        choices=["cls_only", "cls_patch", "none"],
         default=inference_defaults.embedding_strategy,
         help=(
             "cls_only: frozen FM, embed(), legacy *_embeddings.parquet. "
-            "cls_patch: ViT intermediate layers, embed_dense(), *_embed_dense_*.parquet."
+            "cls_patch: ViT intermediate layers, embed_dense(), *_embed_dense_*.parquet. "
+            "none: Keras model on pixel chips only (no foundation model)."
         ),
     )
     parser.add_argument("--embeddings_cache_dir", type=str,
@@ -197,7 +204,6 @@ if __name__ == '__main__':
     config_dict = {
         f.name: getattr(args, f.name, None) for f in fields(gee.InferenceConfig)
     }
-    config_dict["embed_model_path"] = str(args.embed_model_path) if args.embed_model_path else ""
     inference_config = gee.InferenceConfig(**config_dict)
 
     config_dict = {
