@@ -48,6 +48,7 @@ from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 from dense_embedding_cache import (
     DenseCachePaths,
     build_patch_cell_geometries,
+    cls_column_names,
     load_dense_embedding_parquets,
     make_dense_cache_paths,
     merge_cls_patch_for_probe,
@@ -103,6 +104,12 @@ def resolve_default_embed_model_path(
     if embedding_strategy == "cls_only":
         return SSL4EO_PATH
     return SSL4EO_CLS_PATCH_WEIGHTS_PATH
+
+
+def _cls_only_parquet_embedding_matrix(gdf: gpd.GeoDataFrame) -> np.ndarray:
+    """Rows of ``*_embeddings.parquet`` as float32; ``dim`` = count of ``cls{n}`` columns."""
+    dim = sum(1 for c in gdf.columns if c.startswith("cls") and c[3:].isdigit())
+    return gdf[cls_column_names(dim)].to_numpy(dtype=np.float32)
 
 
 @dataclass
@@ -526,10 +533,7 @@ class InferenceEngine:
         if emb_path is not None and emb_path.exists():
             try:
                 gdf = gpd.read_parquet(emb_path)
-                embeddings = gdf.drop(
-                    columns="geometry",
-                    errors='ignore').to_numpy(dtype=np.float32)
-                return embeddings
+                return _cls_only_parquet_embedding_matrix(gdf)
             except Exception as e:
                 self.logger.warning(
                     f"Failed to load cached embeddings for {tile.key}: {e}")
@@ -568,9 +572,9 @@ class InferenceEngine:
             try:
                 gdf = gpd.GeoDataFrame(
                     embeddings,
-                    columns=[f"f{i}" for i in range(embeddings.shape[1])],
+                    columns=cls_column_names(embeddings.shape[1]),
                     geometry=chip_geoms["geometry"],
-                    crs="EPSG:4326" 
+                    crs="EPSG:4326",
                 )
                 gdf.to_parquet(emb_path, index=False)
             except Exception as e:
@@ -699,11 +703,13 @@ class InferenceEngine:
         """Positive-class probability per row (matches :meth:`_preds_to_gdf`)."""
         if preds.ndim == 2:
             if preds.shape[1] == 1:
-                return np.asarray(preds.squeeze(), dtype=np.float64)
+                # Use [:, 0] not squeeze(): for batch size 1, squeeze() becomes 0-d
+                # and mean_preds[idx] raises "too many indices for array".
+                return np.asarray(preds[:, 0], dtype=np.float64)
             if preds.shape[1] == 2:
                 return np.asarray(preds[:, 1], dtype=np.float64)
             return np.asarray(np.mean(preds, axis=1), dtype=np.float64)
-        return np.asarray(preds, dtype=np.float64)
+        return np.asarray(np.atleast_1d(preds), dtype=np.float64)
 
     def _preds_to_gdf(
         self,
@@ -806,9 +812,7 @@ class InferenceEngine:
                 try:
                     embeddings_gdf = gpd.read_parquet(emb_path)
                     chip_geoms = embeddings_gdf[["geometry"]].copy()
-                    embeddings = embeddings_gdf.drop(
-                        columns="geometry",
-                        errors="ignore").to_numpy(dtype=np.float32)
+                    embeddings = _cls_only_parquet_embedding_matrix(embeddings_gdf)
                     return {
                         "mode": "embeddings",
                         "embeddings": embeddings,
@@ -1126,9 +1130,7 @@ class InferenceEngine:
                 if emb_path.exists():
                     gdf = gpd.read_parquet(emb_path)
                     chip_geoms = gdf[["geometry"]].copy()
-                    embeddings = gdf.drop(
-                        columns="geometry",
-                        errors="ignore").to_numpy(dtype=np.float32)
+                    embeddings = _cls_only_parquet_embedding_matrix(gdf)
                     preds_gdf, _ = self.predict_on_tile_embeddings(
                         embeddings, chip_geoms, tile)
                     return preds_gdf
