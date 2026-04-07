@@ -1,9 +1,17 @@
 """
-Training-time export of ViT cls + one selected spatial patch per viewport.
+Training-time export of ViT cls + spatial patch tokens per viewport.
+
+- **Single-patch export:** :func:`collect_cls_patch_embedding_table` — one cls∥spatial
+  row per jittered view (center patch only).
+- **Pool-neighborhood export:** :func:`collect_cls_patch_pool_neighborhood_embedding_table`
+  — pass **`post_probe_pool_size`** (same meaning as :attr:`inference_engine.InferenceConfig.post_probe_pool_size`,
+  odd values only: 1, 3, 5, …). For each view, up to ``post_probe_pool_size ** 2`` rows
+  (cls∥spatial per ViT patch in that square around the jitter center). Rows with
+  ``pool_anchor=True`` are the labeled center patch; align **``post_probe_pool_size``**
+  with inference for validation metrics.
 
 Streams on-disk GeoTIFF super-chips, batches jittered views through
-:class:`~inference_engine.InferenceEngine.embed_dense`, and builds a GeoDataFrame suitable
-for Parquet (e.g. probe training). Inference tile caches use
+:class:`~inference_engine.InferenceEngine.embed_dense`. Inference tile caches use
 :mod:`dense_embedding_cache` separately.
 """
 
@@ -11,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from itertools import product
 from pathlib import Path
 from typing import Any, Generator, Iterable, List, Optional, Sequence, Tuple, Union
 
@@ -20,6 +29,8 @@ import numpy as np
 import pandas as pd
 import rasterio
 from shapely.geometry import Point
+
+from inference_engine import InferenceConfig, InferenceEngine
 
 
 @dataclass
@@ -292,6 +303,117 @@ def iter_viewports_for_chip(
         yield view_index, viewport_hwc, patch_loc
 
 
+def neighbor_offsets_in_grid(*, radius: int) -> List[Tuple[int, int]]:
+    """Return ``(dr, dc)`` offsets for a square of side ``2 * radius + 1`` around center."""
+    if radius < 0:
+        raise ValueError(f"neighbor radius must be >= 0, got {radius}")
+    return list(product(range(-radius, radius + 1), repeat=2))
+
+
+def neighbor_radius_from_post_probe_pool_size(post_probe_pool_size: int) -> int:
+    """Convert odd ``post_probe_pool_size`` (inference-style) to offset radius for export."""
+    if post_probe_pool_size < 1:
+        raise ValueError(
+            f"post_probe_pool_size must be >= 1, got {post_probe_pool_size}"
+        )
+    if post_probe_pool_size % 2 == 0:
+        raise ValueError(
+            "post_probe_pool_size must be odd for symmetric neighborhood export "
+            "(1×1, 3×3, 5×5, … — same odd sizes as meaningful centered pooling in "
+            f"inference). Got {post_probe_pool_size}."
+        )
+    return (post_probe_pool_size - 1) // 2
+
+
+def cls_patch_neighborhood_feature_rows(
+    emb_dict: dict,
+    patch_locs_batch: np.ndarray,
+    view_indices: Sequence[int],
+    *,
+    patch_ct: int,
+    post_probe_pool_size: int,
+    feature_col_names: Sequence[str],
+    quantized: bool,
+    label: int,
+    split_name: str,
+    path: str,
+    geometry: Any,
+) -> List[dict]:
+    """
+    Build flat feature rows for a batch of ``embed_dense`` outputs.
+
+    For each batch index (view), for each in-bounds ``(dr, dc)`` in the
+    ``post_probe_pool_size``×``post_probe_pool_size`` square centered on the jitter
+    patch (odd ``post_probe_pool_size`` only), emit one dict with cls∥spatial for
+    ``(center_row + dr, center_col + dc)`` and ``pool_anchor=(dr==dc==0)``.
+
+    ``pool_anchor=True`` marks the jitter center patch for that view — the row
+    that corresponds to deployment ``confidence`` / pooling attribution for that
+    labeled point; neighbor rows supply the surrounding cells for pooled metrics.
+    """
+    neighbor_radius = neighbor_radius_from_post_probe_pool_size(post_probe_pool_size)
+    cls_tok = np.asarray(emb_dict["cls"], dtype=np.float32)
+    spatial = np.asarray(emb_dict["spatial"], dtype=np.float32)
+    if cls_tok.ndim != 2 or spatial.ndim != 4:
+        raise ValueError(
+            f"expected cls (B,D) and spatial (B,H,W,D); got cls {cls_tok.shape}, "
+            f"spatial {spatial.shape}"
+        )
+    bsz, gh, gw, _ = spatial.shape
+    if gh != patch_ct or gw != patch_ct:
+        raise ValueError(
+            f"spatial grid {gh}x{gw} != patch_ct {patch_ct}x{patch_ct}"
+        )
+    patch_locs = np.asarray(patch_locs_batch, dtype=np.intp)
+    if patch_locs.shape != (bsz, 2):
+        raise ValueError(
+            f"patch_locs_batch shape {patch_locs.shape}, expected ({bsz}, 2)"
+        )
+    if len(view_indices) != bsz:
+        raise ValueError(
+            f"view_indices length {len(view_indices)} != batch size {bsz}"
+        )
+    dim = cls_tok.shape[1]
+    expected_w = len(feature_col_names)
+    if expected_w != 2 * dim:
+        raise ValueError(
+            f"feature_col_names length {expected_w} != 2 * cls dim ({2 * dim})"
+        )
+
+    offsets = neighbor_offsets_in_grid(radius=neighbor_radius)
+    out: List[dict] = []
+    for b in range(bsz):
+        cr, cc = int(patch_locs[b, 0]), int(patch_locs[b, 1])
+        cls_b = cls_tok[b]
+        vix = int(view_indices[b])
+        for dr, dc in offsets:
+            pr, pc = cr + dr, cc + dc
+            if pr < 0 or pc < 0 or pr >= patch_ct or pc >= patch_ct:
+                continue
+            spat = spatial[b, pr, pc, :]
+            vec = np.concatenate([cls_b, spat], axis=0)
+            if quantized:
+                vec = quantize(vec.reshape(1, -1)).reshape(-1).astype(np.float32)
+            row = {
+                "label": label,
+                "split": split_name,
+                "path": path,
+                "view": vix,
+                "geometry": geometry,
+                "neighbor_dr": dr,
+                "neighbor_dc": dc,
+                "patch_row": pr,
+                "patch_col": pc,
+                "patch_center_row": cr,
+                "patch_center_col": cc,
+                "pool_anchor": bool(dr == 0 and dc == 0),
+            }
+            for name, val in zip(feature_col_names, vec):
+                row[name] = float(val)
+            out.append(row)
+    return out
+
+
 def extract_target_patches(
     spatial_emb: np.ndarray, patch_locs: np.ndarray, *, patch_ct: int
 ) -> np.ndarray:
@@ -480,5 +602,120 @@ def collect_cls_patch_embedding_table(
             },
             geometry=gpd.GeoSeries([], crs="EPSG:4326"),
         )
+
+    return gpd.GeoDataFrame(output_rows, crs="EPSG:4326")
+
+
+def collect_cls_patch_pool_neighborhood_embedding_table(
+    cfg: DenseEmbedConfig,
+    data_dir: Union[str, Path],
+    engine: Any,
+    *,
+    post_probe_pool_size: int = 3,
+    feature_col_names: Optional[Sequence[str]] = None,
+    splits: Optional[Sequence[str]] = None,
+    source_files: Optional[Iterable[Union[str, Path]]] = None,
+    bands_to_use: Optional[Sequence[int]] = None,
+) -> gpd.GeoDataFrame:
+    """Like :func:`collect_cls_patch_embedding_table`, but export cls∥spatial for every
+    ViT patch in a ``post_probe_pool_size``×``post_probe_pool_size`` square around each
+    jitter center (partial at grid edges). **``post_probe_pool_size``** uses the same
+    convention as :attr:`inference_engine.InferenceConfig.post_probe_pool_size` but must
+    be **odd** (``1``, ``3``, ``5``, …).
+
+    Each jittered **view** is still one labeled point (same ``hash_jitter`` / viewport
+    crop as training export). Up to ``post_probe_pool_size ** 2`` rows per view.
+    Exactly one row per view has ``pool_anchor=True`` (the center patch).
+
+    Typical use: ``splits=('val', 'test')`` and ``cfg.eval_n_views`` only.
+
+    ``cfg.embedding_batch_size`` should be >= number of views per chip (same as the
+    single-patch collector).
+    """
+    names = _resolve_feature_col_names(engine, feature_col_names)
+    output_rows: List[dict] = []
+    chip_stream = load_dataset(
+        data_dir,
+        splits=splits,
+        source_files=source_files,
+        bands_to_use=bands_to_use,
+    )
+    for chip_index, (
+        super_chip,
+        label,
+        split_name,
+        chip_path_posix,
+        chip_center_geom,
+    ) in enumerate(chip_stream):
+        if cfg.progress_every and (chip_index + 1) % cfg.progress_every == 0:
+            print(
+                f"Pool-neighborhood embed: {chip_index + 1} chips "
+                f"(latest split={split_name!r})..."
+            )
+        n_views = (
+            cfg.train_n_views if split_name == "train" else cfg.eval_n_views
+        )
+        viewport_rasters: List[np.ndarray] = []
+        view_indices: List[int] = []
+        jitter_patch_locations: List[Tuple[int, int]] = []
+        for view_index, viewport_hwc, patch_loc in iter_viewports_for_chip(
+            super_chip,
+            chip_path_posix,
+            n_views=n_views,
+            viewport=cfg.viewport,
+            patch_px=cfg.patch_px,
+            patch_ct=cfg.patch_ct,
+        ):
+            viewport_rasters.append(viewport_hwc)
+            view_indices.append(view_index)
+            jitter_patch_locations.append(patch_loc)
+        if not viewport_rasters:
+            continue
+        viewports_batch = np.stack(viewport_rasters, axis=0).astype(np.float32)
+        patch_locs_batch = np.array(jitter_patch_locations, dtype=np.intp)
+        chip_geoms = gpd.GeoDataFrame(
+            geometry=[chip_center_geom] * len(viewport_rasters),
+            crs="EPSG:4326",
+        )
+        emb_dict = engine.embed_dense(viewports_batch, chip_geoms, tile=None)
+        output_rows.extend(
+            cls_patch_neighborhood_feature_rows(
+                emb_dict,
+                patch_locs_batch,
+                view_indices,
+                patch_ct=cfg.patch_ct,
+                post_probe_pool_size=post_probe_pool_size,
+                feature_col_names=names,
+                quantized=cfg.quantized,
+                label=label,
+                split_name=split_name,
+                path=chip_path_posix,
+                geometry=chip_center_geom,
+            )
+        )
+
+    if not output_rows:
+        allowed_repr = (
+            None if source_files is None else {Path(s).stem for s in source_files}
+        )
+        print(
+            f"Warning: no pool-neighborhood rows under {Path(data_dir).resolve()!r} "
+            f"splits={splits!r} (source filter={allowed_repr!r})."
+        )
+        empty = {
+            "label": pd.Series([], dtype=np.int64),
+            "split": pd.Series([], dtype=object),
+            "path": pd.Series([], dtype=object),
+            "view": pd.Series([], dtype=np.int64),
+            "neighbor_dr": pd.Series([], dtype=np.int64),
+            "neighbor_dc": pd.Series([], dtype=np.int64),
+            "patch_row": pd.Series([], dtype=np.int64),
+            "patch_col": pd.Series([], dtype=np.int64),
+            "patch_center_row": pd.Series([], dtype=np.int64),
+            "patch_center_col": pd.Series([], dtype=np.int64),
+            "pool_anchor": pd.Series([], dtype=bool),
+            **{c: pd.Series([], dtype=np.float32) for c in names},
+        }
+        return gpd.GeoDataFrame(empty, geometry=gpd.GeoSeries([], crs="EPSG:4326"))
 
     return gpd.GeoDataFrame(output_rows, crs="EPSG:4326")
