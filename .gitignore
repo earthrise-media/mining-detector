@@ -3,6 +3,8 @@
 .ipynb_checkpoints
 __pycache__/
 logs/
+docs/design/*.html
+docs/design/*_files/
 data/training_data
 data/outputs/old
 data/old
