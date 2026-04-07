@@ -107,10 +107,10 @@ def resolve_default_embed_model_path(
 
 @dataclass
 class InferenceConfig:
-    # Path to Keras classifier (.h5). Loaded inside :class:`InferenceEngine`.
-    model_path: PathLike = (
-        "../models/48px_v0.X-SSL4EO-MLPensemble_2025-10-21.h5"
-    )
+    # Path to Keras classifier (.h5). Optional for embedding-only runs; required
+    # for ``bulk_predict``, ``predict_on_tile*`` classification, and
+    # ``embedding_strategy='none'`` pixel inference.
+    model_path: Optional[PathLike] = None
     pred_threshold: float = 0.5
     embed_model_name: Optional[str] = "ssl4eo_vit_s16"
     #: If ``None``, resolved from :func:`resolve_default_embed_model_path` for
@@ -134,7 +134,8 @@ class InferenceConfig:
     max_concurrent_tiles: int = 500
 
     def __post_init__(self):
-        self.model_path = Path(self.model_path)
+        if self.model_path is not None:
+            self.model_path = Path(self.model_path)
 
         if self.embedding_strategy == "none":
             self.embed_model_path = ""
@@ -293,10 +294,10 @@ class InferenceEngine:
         self.config = config
         self.logger = logger or logging.getLogger()
 
-        if not config.model_path:
-            raise ValueError("InferenceConfig.model_path must be set to a Keras .h5 file")
-        self.model = tf.keras.models.load_model(
-            str(config.model_path), compile=False)
+        self.model = None
+        if config.model_path:
+            self.model = tf.keras.models.load_model(
+                str(config.model_path), compile=False)
 
         # Add a lock to serialize model access (in-process)
         self._tf_model_lock = threading.Lock()
@@ -324,6 +325,15 @@ class InferenceEngine:
             self.masker = SAM2_Masker(self.data_extractor, mask_config)
         else:
             self.masker = None
+
+    def _ensure_keras_model(self) -> None:
+        """Raise if the Keras classifier was not loaded (``model_path`` unset)."""
+        if self.model is None:
+            raise ValueError(
+                "InferenceConfig.model_path must be set to a Keras .h5 file for "
+                "this operation (classification / bulk_predict). "
+                "Embedding-only use (embed / embed_dense) does not require it."
+            )
 
     def predictions_geojson_path(self, region_name: str) -> Path:
         """Path for bulk-inference positive-chip GeoJSON under ``inference_output_base``.
@@ -584,6 +594,7 @@ class InferenceEngine:
     def _resolve_chip_params(self):
         """Return (chip_size, stride) based on model/config."""
         if self.config.geo_chip_size is None:
+            self._ensure_keras_model()
             input_shape = self.model.layers[0].input_shape
             if isinstance(input_shape, list):  # ensemble of models
                 input_shape = input_shape[0]
@@ -595,6 +606,7 @@ class InferenceEngine:
 
     def _model_infer(self, x):
         """Thread-safe wrapper around model.predict for inference."""
+        self._ensure_keras_model()
         with self._tf_model_lock:
             return self.model.predict(x, verbose=0)
 
@@ -882,6 +894,7 @@ class InferenceEngine:
         :meth:`predictions_geojson_path` (after each batch merge).
 
         """
+        self._ensure_keras_model()
         outpath = self.predictions_geojson_path(region_name)
 
         predictions = gpd.GeoDataFrame({

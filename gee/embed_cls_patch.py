@@ -53,6 +53,8 @@ def make_embedding_engine(
 ) -> Any:
     """Build an ``InferenceEngine`` for local ViT embedding only.
 
+    No Keras ``model_path`` is required; only ``embed_dense`` is used.
+
     Dummy dates satisfy the constructor; GEE extraction is not used on this path.
     """
     import gee
