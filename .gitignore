@@ -15,6 +15,7 @@ data/boundaries/illegality/source_data
 figures
 models/old
 gee/*scratch*.ipynb
+gee/pooling-scratch.py
 *.qml
 *.~lock.*
 *.gpkg-shm
