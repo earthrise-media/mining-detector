@@ -139,11 +139,6 @@ class InferenceConfig:
     stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
-    #: Post-probe spatial pooling in ViT patch grid (``cls_patch`` only). ``1`` is a
-    #: no-op and matches legacy outputs (no ``pooled_confidence`` column).
-    post_probe_pool_size: int = 1
-    #: ``mean``, ``max``, or ``median`` over the ``post_probe_pool_size`` neighborhood.
-    post_probe_pool_method: Literal["mean", "max", "median"] = "mean"
 
     def __post_init__(self):
         if self.model_path is not None:
@@ -165,18 +160,6 @@ class InferenceConfig:
             self.embeddings_cache_dir.mkdir(parents=True, exist_ok=True)
 
         self.inference_output_base = Path(self.inference_output_base)
-
-        if self.post_probe_pool_size < 1:
-            raise ValueError(
-                f"post_probe_pool_size must be >= 1, got {self.post_probe_pool_size}"
-            )
-        _m = str(self.post_probe_pool_method).lower()
-        if _m not in {"mean", "max", "median"}:
-            raise ValueError(
-                "post_probe_pool_method must be 'mean', 'max', or 'median'; "
-                f"got {self.post_probe_pool_method!r}"
-            )
-        self.post_probe_pool_method = _m  # type: ignore[assignment]
 
     def _validate_embedding_config(self):
         if self.embedding_strategy == "none":
@@ -298,69 +281,6 @@ def split_parent_pixels_to_embed_windows(
     stacked = np.stack(chips, axis=0)
     gdf = gpd.GeoDataFrame(geometry=polys, crs="EPSG:4326")
     return stacked, gdf
-
-
-def apply_patch_grid_pooling(
-    probs: np.ndarray,
-    meta: pd.DataFrame,
-    pool_size: int,
-    method: str,
-) -> np.ndarray:
-    """
-    For each ViT patch cell, pool probe probabilities over a ``pool_size×pool_size``
-    neighborhood in **patch index space** (per 224 window), using partial windows
-    at edges. ``meta`` row order must match ``probs`` (as from
-    :func:`dense_embedding_cache.merge_cls_patch_for_probe`).
-    """
-    if pool_size < 1:
-        raise ValueError(f"pool_size must be >= 1, got {pool_size}")
-    if len(probs) != len(meta):
-        raise ValueError(
-            f"probs length {len(probs)} != meta rows {len(meta)}"
-        )
-    if pool_size == 1:
-        return probs.astype(np.float32, copy=True)
-
-    method_l = method.lower()
-    if method_l not in {"mean", "max", "median"}:
-        raise ValueError(
-            f"pool method must be mean, max, or median; got {method!r}"
-        )
-
-    n_win = int(meta["quadrant"].max()) + 1
-    h = int(meta["patch_row"].max()) + 1
-    w = int(meta["patch_col"].max()) + 1
-    expected = n_win * h * w
-    if len(probs) != expected:
-        raise ValueError(
-            f"prob length {len(probs)} != n_win*h*w ({n_win}*{h}*{w})"
-        )
-
-    grid = np.zeros((n_win, h, w), dtype=np.float64)
-    for i in range(len(probs)):
-        q = int(meta["quadrant"].iloc[i])
-        r = int(meta["patch_row"].iloc[i])
-        c = int(meta["patch_col"].iloc[i])
-        grid[q, r, c] = probs[i]
-
-    out = np.empty(len(probs), dtype=np.float64)
-    for i in range(len(probs)):
-        q = int(meta["quadrant"].iloc[i])
-        r = int(meta["patch_row"].iloc[i])
-        c = int(meta["patch_col"].iloc[i])
-        r0 = max(0, r - (pool_size - 1) // 2)
-        r1 = min(h, r + pool_size // 2 + 1)
-        c0 = max(0, c - (pool_size - 1) // 2)
-        c1 = min(w, c + pool_size // 2 + 1)
-        block = grid[q, r0:r1, c0:c1]
-        if method_l == "mean":
-            out[i] = float(block.mean())
-        elif method_l == "max":
-            out[i] = float(block.max())
-        else:
-            out[i] = float(np.median(block))
-
-    return out.astype(np.float32)
 
 
 class InferenceEngine:
@@ -717,7 +637,6 @@ class InferenceEngine:
         chip_geoms: gpd.GeoDataFrame,
         *,
         patch_grid_meta: Optional[pd.DataFrame] = None,
-        pooled_probs: Optional[np.ndarray] = None,
     ) -> gpd.GeoDataFrame:
         """Convert model preds -> preds_gdf (optionally with dense grid metadata)."""
         mean_preds = self._probs_from_predictions(preds)
@@ -732,8 +651,6 @@ class InferenceEngine:
             crs="EPSG:4326",
         )
         preds_gdf["confidence"] = mean_preds[idx]
-        if pooled_probs is not None:
-            preds_gdf["pooled_confidence"] = pooled_probs[idx]
 
         if patch_grid_meta is not None:
             meta_take = patch_grid_meta.iloc[idx].reset_index(drop=True)
@@ -932,24 +849,10 @@ class InferenceEngine:
         """Run the TF classifier on already-available embeddings."""
         try:
             preds = self._model_infer(embeddings)
-            pooled_probs: Optional[np.ndarray] = None
-            if (
-                patch_grid_meta is not None
-                and self.config.embedding_strategy == "cls_patch"
-                and self.config.post_probe_pool_size > 1
-            ):
-                mean_flat = self._probs_from_predictions(preds)
-                pooled_probs = apply_patch_grid_pooling(
-                    mean_flat,
-                    patch_grid_meta.reset_index(drop=True),
-                    self.config.post_probe_pool_size,
-                    self.config.post_probe_pool_method,
-                )
             preds_gdf = self._preds_to_gdf(
                 preds,
                 chip_geoms,
                 patch_grid_meta=patch_grid_meta,
-                pooled_probs=pooled_probs,
             )
             return preds_gdf, None
         except Exception as e:

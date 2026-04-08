@@ -3,7 +3,7 @@
 **Recorded:** 2026-04-02 (design session; implementation draft in repo follows this note.)  
 **Updated:** 2026-04-02 — inference wiring (448→4×224→patch geometries into existing `predict_on_tile_embeddings` path) and pooling notes.  
 **Updated:** 2026-04-02 — `InferenceConfig.embedding_strategy`: either `cls_only` or `cls_patch`; cache and FM loader/embed path are **not** mixed (see below).  
-**Updated:** 2026-04-07 — **post-probe pooling** implemented in `inference_engine.py` (see § Post-probe score pooling).
+**Updated:** 2026-04-08 — **post-probe pooling** removed from the checked-in tree (local archive: `gee/pooling-scratch.py`, gitignored).
 
 ## Context
 
@@ -65,7 +65,7 @@ Today the consumer already supports `mode == "embeddings"`: it calls `predict_on
 
 1. Build **`features`** of shape `(N_patches, 2·Dim)` via `merge_cls_patch_for_probe` (or equivalent in-process), where `N_patches = N_windows · H · W` (e.g. 4·14·14).
 2. Build **`chip_geoms`** as a `GeoDataFrame` with **one polygon (or point) per patch cell**, CRS EPSG:4326, **same row order** as `features`.
-3. Pass those into **`predict_on_tile_embeddings`** unchanged (optionally with **`patch_grid_meta`** for pooling and provenance). Output GeoJSON is **dense positives** at patch scale, with optional **pooled** scores (see § Post-probe score pooling).
+3. Pass those into **`predict_on_tile_embeddings`** unchanged (optionally with **`patch_grid_meta`** for provenance). Output GeoJSON is **dense positives** at patch scale (per-cell **`confidence`**; see § Post-probe score pooling for removed pooling experiment).
 
 No change is required to the **TF model** interface: it still sees a single 2D batch. The **geometry** column semantics change from “one chip per 48×48 stride” to “one cell per ViT patch,” which is intentional for this paradigm.
 
@@ -88,7 +88,7 @@ There is **no** cross-format fallback: the strategy picks **one** cache type and
 - **Inputs:** For each 224 window, an axis-aligned **polygon** in EPSG:4326 (from `chip_geoms` / cls parquet), and integers **`H, W`** (e.g. 14×14), **`model_input_px`** = 224.
 - **Method (simple, matches “recompute later”):** Interpolate along the window’s min/max lon and lat to form a **regular geographic grid** of `H×W` smaller rectangles (each covers one ViT patch in lon/lat space). This is the usual “divide the window bbox into a grid” approach; it aligns with **bicubic-resampled** pixels feeding the ViT at first order, not a full geodesic equal-area projection.
 - **Output:** `GeoDataFrame` with `H·W` rows per window, concatenated in **stable order** (`quadrant`, `patch_row`, `patch_col`) to match `merge_cls_patch_for_probe`.
-- **Metadata on positive outputs (cls_patch):** `parent_key`, `window_id`, `patch_row`, `patch_col`, `quadrant` are written to the prediction GeoJSON for rows above `pred_threshold`, aligned with post-probe pooling and deployment-style eval.
+- **Metadata on positive outputs (cls_patch):** `parent_key`, `window_id`, `patch_row`, `patch_col`, `quadrant` are written to the prediction GeoJSON for rows above `pred_threshold`.
 
 ### Configuration & tile contract
 
@@ -100,28 +100,12 @@ There is **no** cross-format fallback: the strategy picks **one** cache type and
 - **`geo_chip_size` / `embed_model_chip_size`:** For **`cls_patch`**, set **`geo_chip_size == embed_model_chip_size == 224`** so each 224 crop is not rescaled before the FM. **`cls_only`** keeps the existing **48** (or other) chip + bicubic resize behavior.
 - **SAM2 / masking:** Same caveat as today: **`mode == "embeddings"`** skips inline SAM2 on pixels; dense cached runs need a **separate masking pass** if masks are required.
 
-### Post-probe score pooling (implemented)
+### Post-probe score pooling (removed from repo)
 
-We keep **per-patch cell geometries** unchanged. Pooling applies **after** the Keras probe, on **scalar positive-class probabilities**, in **ViT patch index space** within each **224×224 window** (not geographic meters). That avoids representation-level pooling (which can mislabel tight “near-mine” negatives if embeddings are averaged) while still smoothing decisions for map products.
+We briefly implemented post-probe spatial pooling (after the Keras probe, on scalar probabilities in ViT patch index space, optional **`pooled_confidence`** on GeoJSON outputs) plus a pool-neighborhood Parquet export for probe validation. That experiment is **not** in checked-in code anymore.
 
-**Design choices**
-
-| Topic | Decision |
-|--------|-----------|
-| **When** | After `model.predict` on cls∥patch features; function `apply_patch_grid_pooling` in `gee/inference_engine.py`. |
-| **Grid** | Separate **H×W** grid per 224 window (`quadrant`); no mixing across windows or parents. Row order matches `merge_cls_patch_for_probe`. |
-| **Neighborhood** | `post_probe_pool_size` = k → k×k block centered on each `(patch_row, patch_col)`. **Partial neighborhoods** at window edges (use all in-bounds cells; no padding). |
-| **Index math** | `r0 = max(0, r - (k-1)//2)`, `r1 = min(H, r + k//2 + 1)` (same for columns). k=1 is a no-op. |
-| **Reduction** | `post_probe_pool_method`: **`mean`** (default), **`max`**, or **`median`** over the k×k block. |
-| **Columns** | **`confidence`** = raw probe probability for that cell (unchanged). Still used for **`pred_threshold`** filtering and SAM2. When k>1, **`pooled_confidence`** = pooled value for the **same** cell (center-cell attribution; same geometry). |
-| **Metadata** | `patch_grid_meta` from `merge_cls_patch_for_probe` is threaded through dense cache + live `embed_dense` paths; positives carry `parent_key`, `quadrant`, `window_id`, `patch_row`, `patch_col`. |
-| **Config / CLI** | `InferenceConfig.post_probe_pool_size` (default **1** = legacy, no `pooled_confidence` column), `post_probe_pool_method`. `inference_pipeline.py`: `--post_probe_pool_size`, `--post_probe_pool_method`. |
-| **Scope** | **`cls_patch` only**; `cls_only` and stride-chip paths do not pass grid meta and behave as before. |
-
-**Still future / not implemented**
-
-- **Pre-probe pooling (representation):** Pool embeddings before the probe (different training target unless the probe is retrained).
-- **Coarser export units:** e.g. one row per non-overlapping k×k **block** with union geometry, or **per_window** / **per_parent** aggregation to reduce row counts below patch-native GeoJSON.
+- **Local reference:** `gee/pooling-scratch.py` (gitignored) holds copies of the dense pooling math, neighborhood-offset helpers, and sparse `df_pool` eval utilities; restore from git history if you need the full `embed_cls_patch` collector again.
+- **Still future / not in tree:** pre-probe (representation) pooling; coarser export units; any revised pooling workflow for sub-patch-scale structure.
 
 ---
 
@@ -131,6 +115,6 @@ We keep **per-patch cell geometries** unchanged. Pooling applies **after** the K
 - [x] **`produce_tile_input`:** strategy-specific cache only; dense path loads pair → `merge_cls_patch_for_probe` + `build_patch_cell_geometries` → `mode="embeddings"`.
 - [x] **`predict_on_tile_pixels`:** dense branch splits parent raster into `k_h×k_w` windows of size `embed_model_chip_size` (default 224), `embed_dense`, then probe on patch rows.
 - [x] **`dense_embedding_cache.build_patch_cell_geometries`:** lon/lat grid per 224 window, row order aligned with `merge_cls_patch_for_probe`.
-- [x] **Post-probe pooling:** `post_probe_pool_size` / `post_probe_pool_method`; `pooled_confidence` + grid metadata on dense outputs (see § Post-probe score pooling).
+- [ ] **Post-probe pooling:** removed from tree; see § Post-probe score pooling and local `pooling-scratch.py`.
 - [ ] Tests or **smoke notebook** on one tile: cache round-trip → many patch preds → GeoJSON sanity.
 - Optional **manifest** (`done.json`) per parent after successful Parquet write.
