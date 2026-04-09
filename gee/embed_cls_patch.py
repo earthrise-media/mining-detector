@@ -416,8 +416,6 @@ def collect_cls_patch_embedding_table(
         chip_path_posix,
         chip_center_geom,
     ) in enumerate(chip_stream):
-        if cfg.progress_every and (chip_index + 1) % cfg.progress_every == 0:
-            print(f"Embedded {chip_index + 1} chips (latest split={split_name!r})...")
         n_views = (
             cfg.train_n_views if split_name == "train" else cfg.eval_n_views
         )
@@ -462,6 +460,12 @@ def collect_cls_patch_embedding_table(
             ):
                 row_dict[column_name] = value
             output_rows.append(row_dict)
+
+        if cfg.progress_every and (chip_index + 1) % cfg.progress_every == 0:
+            print(
+                f"Embedded {chip_index + 1} chips, {len(output_rows)} embedding rows "
+                f"({n_views} views/chip on latest split={split_name!r})..."
+            )
 
     if not output_rows:
         allowed_repr = (
