@@ -1,7 +1,7 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260331"
+DATA_UPDATED_AT = "20260409"
 
 MINING_DIFFERENCES_FILES = {
     202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
@@ -18,6 +18,12 @@ MINING_DIFFERENCES_FILES = {
 
 MINING_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_FILES.keys())
 first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
+
+MINING_DIFFERENCES_RASTER_FILES = {
+    202504: "data/outputs/rasters/mining_mask_2025-10-01_2025-12-31_epsg4326.tif",
+    202503: "data/outputs/rasters/mining_mask_2025-07-01_2025-09-30_epsg4326.tif",
+}
+MINING_RASTER_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_RASTER_FILES.keys())
 
 def generate_mining_simplified_filename(year_quarter):
     return f"{WEBSITE_OUTPUTS_FOLDER}/mining_{year_quarter}_simplified.geojson"
