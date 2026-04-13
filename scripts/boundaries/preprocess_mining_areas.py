@@ -18,24 +18,32 @@ Preprocess mining areas for the website:
 #     "geopandas",
 #     "numpy",
 #     "pandas",
+#     "rasterio",
 # ]
 # ///
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import rasterio
 from constants import (
     COMBINED_MINING_FILE,
     ILLEGALITY_AREAS_GEOJSON,
     ILLEGALITY_DATA_UPDATED_AT,
     MINING_DIFFERENCES_FILES,
+    MINING_DIFFERENCES_RASTER_FILES,
+    MINING_RASTER_YEARS_QUARTERS,
     MINING_YEARS_QUARTERS,
     generate_mining_simplified_filename,
 )
+from rasterio.features import shapes
 from shapely import set_precision
+from shapely.geometry import shape
 
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 INDIGENOUS_TERRITORIES_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories.geojson"
@@ -44,6 +52,44 @@ NATIONAL_ADMIN_GEOJSON = "data/boundaries/national_admin/out/national_admin.geoj
 SUBNATIONAL_ADMIN_GEOJSON = (
     "data/boundaries/subnational_admin/out/admin_areas_display.geojson"
 )
+
+
+def raster_to_gdf(raster_path, value_filter=1):
+    print(f"Converting {raster_path} to gdf...")
+    try:
+        with rasterio.open(raster_path) as src:
+            print("Opened. Bands available:", src.count)
+            print("Reported shape:", src.height, src.width)
+            print("Reported dtype:", src.dtypes)
+            print("Block shapes:", src.block_shapes)
+
+            nodata = src.nodata
+            geoms = []
+            values = []
+
+            for _, window in src.block_windows(1):
+                block = src.read(1, window=window)
+
+                # Skip blocks that are entirely nodata or have no matching pixels
+                if nodata is not None and np.all(block == nodata):
+                    continue
+                mask = block == value_filter
+                if not mask.any():
+                    continue
+
+                block_transform = src.window_transform(window)
+                for geom, val in shapes(block, mask=mask, transform=block_transform):
+                    if val == value_filter:
+                        geoms.append(shape(geom))
+                        values.append(val)
+
+            gdf = gpd.GeoDataFrame({"value": values}, geometry=geoms, crs=src.crs)
+            # gdf = gdf.dissolve(by="value").explode(index_parts=False).reset_index(drop=True)
+
+        return gdf
+    except Exception as e:
+        print(f"ERROR in raster_to_gdf: {type(e).__name__}: {e}")
+        raise  # re-raise so it still propagates
 
 
 def simplify_gdf(gdf):
@@ -403,16 +449,40 @@ if __name__ == "__main__":
     ensure_output_path_exists(COMBINED_MINING_FILE)
     combined_mining_gdf.to_file(COMBINED_MINING_FILE, driver="GeoJSON")
 
+    all_mining_raster_gdfs = []
+    start = time.time()
+
+    def process_raster(year):
+        print(f"Processing raster for: {year}")
+        gdf = raster_to_gdf(MINING_DIFFERENCES_RASTER_FILES[year], value_filter=1)
+        gdf["year"] = year  # add year column
+        # simplify
+        gdf = simplify_gdf(gdf)
+        return gdf
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        all_mining_raster_gdfs = list(pool.map(process_raster, MINING_RASTER_YEARS_QUARTERS))
+    print(f"Raster conversion took {time.time() - start:.1f}s")
+
+    # now we will compute the difference between these mining areas,
+    # quarter by quarter, oldest to newest
+    result_gdfs = [all_mining_raster_gdfs[0]]
+    for i in range(1, len(all_mining_raster_gdfs)):
+        current = all_mining_raster_gdfs[i]
+        previous = all_mining_raster_gdfs[i - 1]
+
+        diff = gpd.overlay(current, previous[["geometry"]], how="difference")
+        diff = diff[~diff.is_empty].reset_index(drop=True)
+        result_gdfs.append(diff)
+
+    mining_gdf = gpd.pd.concat(result_gdfs, ignore_index=True)
+    # need to calculate area as it is not present in original raster files
+    mining_gdf = calculate_area_using_utm(mining_gdf, "Mined area (ha)", "hectares")
+
     # for illegality, use a cutoff date, which is when illegality data was produced
-    mining_gdf_for_illegality = gpd.pd.concat(
-        [x[1] for x in all_mining_gdfs if x[0] <= ILLEGALITY_DATA_UPDATED_AT],
-        ignore_index=True,
-    )
+    mining_gdf_for_illegality = mining_gdf[mining_gdf.year <= ILLEGALITY_DATA_UPDATED_AT]
     # take the rest of the mining data and store in variable
-    mining_gdf_rest = gpd.pd.concat(
-        [x[1] for x in all_mining_gdfs if x[0] > ILLEGALITY_DATA_UPDATED_AT],
-        ignore_index=True,
-    )
+    mining_gdf_rest = mining_gdf[mining_gdf.year > ILLEGALITY_DATA_UPDATED_AT]
 
     # overlay illegality data
     mining_gdf_with_illegality = overlay_max_category(
@@ -576,9 +646,14 @@ if __name__ == "__main__":
         )
         # save as a simple json, no geometry data
         gdf_merged_dict = gdf_merged.copy()
-        gdf_merged_dict["bbox"] = gdf_merged_dict.geometry.apply(lambda g: list(g.bounds))  # add bbox column
+        gdf_merged_dict["bbox"] = gdf_merged_dict.geometry.apply(
+            lambda g: list(g.bounds)
+        )  # add bbox column
         gdf_merged_dict = gdf_merged_dict.drop(columns="geometry")
-        gdf_merged_dict.to_json(dataset["file"].replace(".geojson", "_impacts_unfiltered_dict.json"), orient="records")
+        gdf_merged_dict.to_json(
+            dataset["file"].replace(".geojson", "_impacts_unfiltered_dict.json"),
+            orient="records",
+        )
 
         # merge with yearly and save to csv for reference
         ref = gdf_merged.merge(
