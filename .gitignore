@@ -27,7 +27,7 @@ scripts/boundaries/copy_to_site_local.sh
 data/boundaries/**/*.pmtiles*
 data/outputs/website/**/*.pmtiles*
 models/sam2/
-models/SSL4EO/
+models/SSL4EO*
 data/training_patches*
 venv/
 checkpoints/
