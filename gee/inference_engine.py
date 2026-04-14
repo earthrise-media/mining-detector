@@ -126,17 +126,17 @@ class InferenceConfig:
     # The next 3 parameters are required if using an embedding model
     embed_model_chip_size: Optional[int] = 224
     embedding_batch_size: Optional[int] = 32
-    geo_chip_size: Optional[int] = 224
+    geo_chip_size: Optional[int] = 48
     #: ``cls_only``: frozen FM + :meth:`InferenceEngine.embed` + legacy
     #: ``*_embeddings.parquet``. ``cls_patch``: ViT + :meth:`InferenceEngine.embed_dense`
     #: + ``*_embed_dense_{cls,patch}.parquet`` pair. ``none``: Keras classifier only on
     #: pixel chips (no FM, no embedding cache reads). No cross-format cache fallback.
-    embedding_strategy: Literal["cls_only", "cls_patch", "none"] = "cls_patch"
+    embedding_strategy: Literal["cls_only", "cls_patch", "none"] = "none"
     embeddings_cache_dir: Optional[PathLike] = None
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
     inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
-    stride_ratio: int = 1  # stride is computed as chip_size // stride_ratio.
+    stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
 
