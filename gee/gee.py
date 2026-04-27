@@ -167,14 +167,33 @@ class GEE_Data_Extractor:
         start, end = self.start_date, self.end_date
         tif_name = f"{collection}_{tile.key}_{start}_{end}.tif"
 
+        tif_path = None
         if image_cache_dir:
             tif_path = image_cache_dir / tif_name
             if tif_path.exists():
                 try:
-                    return self.load_tile(tif_path)
+                    pixels = self.load_tile(tif_path)
+                    self.logger.info(
+                        "cache_hit tile=%s path=%s shape=%s dtype=%s",
+                        tile.key,
+                        tif_path,
+                        tuple(pixels.shape),
+                        pixels.dtype,
+                    )
+                    return pixels
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to load cached tile {tile.key}: {e}")
+                        "cache_load_failed tile=%s path=%s error=%s",
+                        tile.key,
+                        tif_path,
+                        e,
+                    )
+            else:
+                self.logger.info(
+                    "cache_miss tile=%s path=%s reason=file_not_found",
+                    tile.key,
+                    tif_path,
+                )
 
         tile_geom = ee.Geometry.Rectangle(tile.geometry.bounds)
         out_size = tile.tilesize + 2 * tile.pad
@@ -184,6 +203,14 @@ class GEE_Data_Extractor:
             height=out_size
         )
 
+        self.logger.info(
+            "ee_compute_pixels tile=%s collection=%s start=%s end=%s out_size=%s",
+            tile.key,
+            collection,
+            start,
+            end,
+            out_size,
+        )
         pixels = ee.data.computePixels(
             {
                 "bandIds": self.config.bands,
