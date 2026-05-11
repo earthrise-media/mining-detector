@@ -55,8 +55,8 @@ PathLike = Union[str, Path]
 
 @dataclass
 class DataConfig:
-    tilesize: int = 576
-    pad: int = 0
+    tilesize: int = 528
+    pad: int = 24
     collection: str = "S2L1C"
     bands: Optional[List[str]] = None
     clear_threshold: float = 0.6
