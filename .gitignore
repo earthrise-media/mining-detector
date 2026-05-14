@@ -12,10 +12,12 @@ data/boundaries/protected_areas_and_indigenous_territories/source_data
 data/boundaries/subnational_admin/source_data
 data/boundaries/national_admin/source_data
 data/boundaries/illegality/source_data
+data/sampling_locations/*scratch
+data/outputs/*scratch
 figures
 models/old
-gee/*scratch*.ipynb
-gee/pooling-scratch.py
+core/*scratch*.ipynb
+core/pooling-scratch.py
 *.qml
 *.~lock.*
 *.gpkg-shm
