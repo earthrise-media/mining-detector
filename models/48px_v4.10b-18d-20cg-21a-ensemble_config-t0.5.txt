@@ -1,0 +1,86 @@
+Training dataset: training_patches2026-05-04T09:47Avg precisions: {'val': 0.9886188412870127, 'test1': 0.971100267672903, 'test2': 0.9954668353556728}
+
+Classification Reports at 0.5
+{
+    "val": {
+        "No Mine": {
+            "precision": 0.990174672489083,
+            "recall": 0.9977997799779978,
+            "f1-score": 0.993972602739726,
+            "support": 1818.0
+        },
+        "Mine": {
+            "precision": 0.9829787234042553,
+            "recall": 0.927710843373494,
+            "f1-score": 0.9545454545454546,
+            "support": 249.0
+        },
+        "accuracy": 0.9893565553942912,
+        "macro avg": {
+            "precision": 0.9865766979466691,
+            "recall": 0.9627553116757459,
+            "f1-score": 0.9742590286425903,
+            "support": 2067.0
+        },
+        "weighted avg": {
+            "precision": 0.9893078165035377,
+            "recall": 0.9893565553942912,
+            "f1-score": 0.9892230333636381,
+            "support": 2067.0
+        }
+    },
+    "test1": {
+        "No Mine": {
+            "precision": 0.9270588235294117,
+            "recall": 0.9949494949494949,
+            "f1-score": 0.9598051157125457,
+            "support": 792.0
+        },
+        "Mine": {
+            "precision": 0.967741935483871,
+            "recall": 0.6593406593406593,
+            "f1-score": 0.7843137254901961,
+            "support": 182.0
+        },
+        "accuracy": 0.9322381930184805,
+        "macro avg": {
+            "precision": 0.9474003795066414,
+            "recall": 0.8271450771450771,
+            "f1-score": 0.8720594206013709,
+            "support": 974.0
+        },
+        "weighted avg": {
+            "precision": 0.9346608013278835,
+            "recall": 0.9322381930184805,
+            "f1-score": 0.9270130900241806,
+            "support": 974.0
+        }
+    },
+    "test2": {
+        "No Mine": {
+            "precision": 0.9911242603550295,
+            "recall": 0.9955423476968797,
+            "f1-score": 0.9933283914010378,
+            "support": 673.0
+        },
+        "Mine": {
+            "precision": 0.9765625,
+            "recall": 0.9541984732824428,
+            "f1-score": 0.9652509652509652,
+            "support": 131.0
+        },
+        "accuracy": 0.9888059701492538,
+        "macro avg": {
+            "precision": 0.9838433801775148,
+            "recall": 0.9748704104896613,
+            "f1-score": 0.9792896783260014,
+            "support": 804.0
+        },
+        "weighted avg": {
+            "precision": 0.9887516352225558,
+            "recall": 0.9888059701492538,
+            "f1-score": 0.9887535868915109,
+            "support": 804.0
+        }
+    }
+}
