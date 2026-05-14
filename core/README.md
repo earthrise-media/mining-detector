@@ -20,17 +20,15 @@ source venv/bin/activate
 pip install -r requirements.txt  # May require tweaking - only critical version numbers are pinned.
 ```
 
-2025 models are built on the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12) foundation model. The model is also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. To run the most recent models you will need to download this checkpoint to `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt`. 
-
-Run scripts from the `gee/` folder; CLI paths are interpreted relative to the current working directory unless you pass absolutes.
+Run scripts from the `core/` folder; CLI paths are interpreted relative to the current working directory unless you pass absolutes.
 
 ### Model training workflow
 
 * `collect_sampling_locations.ipynb`: Merge selected training data files in ```sampling_data/```.
 * `get_training_data.ipynb`: Download the training data.
 * `cloud_mask_filter.ipynb`: Optional review of cloud masking. We keep some clouds and cloud masked images in the negative training set.
-* `embed.ipynb`: Run foundation model inference and train a classification head.
-  - `train_model.ipynb`: Alternatively, train a neural network from scratch. A few options can be loaded from model_library.py 
+* `train_model.ipynb`: Train a neural network model. A few basic architectures can be loaded from model_library.py.
+  - `embed.ipynb`: Alternately, run foundation model inference and train a classification head.
 * `ensemble.ipynb`: Merge trained models into a single ensemble model.
 * `inference.ipynb`: Run a model on a test area.
 * `inference_pipeline.py`: For large-scale inference.
@@ -44,12 +42,10 @@ cd gee
 python inference_pipeline.py \
     --model ../models/48px_v0.X-SSL4EO-MLPensemble_2025-10-21.h5 \
     --region_path ../data/boundaries/Amazon_ACA/Amazon_ACA_6.geojson \
-    --pred_threshold 0.85 \
+    --pred_threshold 0.5 \
     --start_date 2025-07-01 \
     --end_date 2025-09-30
 ```
-
-On an A2 GPU-equipped virtual machine on Google Cloud Platform (GCP), this runs in a little over 24 hours. 
 
 ### Post-processing and masking
 
@@ -76,7 +72,6 @@ gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_mo
 
 By default the `sam2` repository is expected to be found in `models/`, but the path can also be set at run time. 
 
-SAM2 masking can be run in-line with inference (setting run_sam2 -> True) or after inference (from `gee/`): 
 ```
 python sam2_mask.py \
     ../data/outputs/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin-2018-2025Q3cumulative-clean.geojson \
@@ -84,3 +79,9 @@ python sam2_mask.py \
     --end_date 2025-09-30 \
     --cog
 ```
+
+### Embedding-based models
+
+As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. You would use `embed.ipynb` in place of `train_model.ipynb` and otherwise follow the same workflow.
+
+Our foundation model of choice was the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12), also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. The code looks for this checkpoint at `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt`. 
