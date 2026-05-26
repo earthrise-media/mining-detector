@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import List, Literal, Optional, Tuple, Union, ClassVar, Dict, Any
 
@@ -18,10 +19,16 @@ TileType = Union[DLTile, CenteredTile]
 
 EE_PROJECT = os.environ.get("EE_PROJECT", "earthindex")
 _ee_initialized = False
+_EE_INIT_LOCK = threading.Lock()
 
 
 def _ensure_earth_engine_initialized() -> None:
     """Lazily initialize the Earth Engine client (first GEE_Data_Extractor use).
+
+    Thread-safe singleton: ``ee.Initialize`` runs at most once per process, even
+    under concurrent first-time calls. This matters because ``ee.Initialize``
+    internally fetches ``/algorithms`` and racing duplicate inits contribute to
+    429 rate-limit responses.
 
     If ``GOOGLE_APPLICATION_CREDENTIALS`` is set to a path of a service account JSON
     file, uses :class:`google.oauth2.service_account.Credentials` with the Earth Engine
@@ -30,25 +37,28 @@ def _ensure_earth_engine_initialized() -> None:
     global _ee_initialized
     if _ee_initialized:
         return
-    key_path = (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
-    init_kw: Dict[str, Any] = {
-        "opt_url": "https://earthengine-highvolume.googleapis.com",
-        "project": EE_PROJECT,
-    }
-    if key_path:
-        if not os.path.isfile(key_path):
-            raise FileNotFoundError(
-                f"GOOGLE_APPLICATION_CREDENTIALS={key_path!r} is not a readable file"
-            )
-        from google.oauth2 import service_account
+    with _EE_INIT_LOCK:
+        if _ee_initialized:
+            return
+        key_path = (os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+        init_kw: Dict[str, Any] = {
+            "opt_url": "https://earthengine-highvolume.googleapis.com",
+            "project": EE_PROJECT,
+        }
+        if key_path:
+            if not os.path.isfile(key_path):
+                raise FileNotFoundError(
+                    f"GOOGLE_APPLICATION_CREDENTIALS={key_path!r} is not a readable file"
+                )
+            from google.oauth2 import service_account
 
-        ee_scopes = ["https://www.googleapis.com/auth/earthengine"]
-        credentials = service_account.Credentials.from_service_account_file(
-            key_path, scopes=ee_scopes
-        )
-        init_kw["credentials"] = credentials
-    ee.Initialize(**init_kw)
-    _ee_initialized = True
+            ee_scopes = ["https://www.googleapis.com/auth/earthengine"]
+            credentials = service_account.Credentials.from_service_account_file(
+                key_path, scopes=ee_scopes
+            )
+            init_kw["credentials"] = credentials
+        ee.Initialize(**init_kw)
+        _ee_initialized = True
 
 
 PathLike = Union[str, Path]
