@@ -49,15 +49,15 @@ python inference_pipeline.py \
 
 ### Post-processing and masking
 
-Post-processing is in a state of flux as of spring 2026. NDVI masking is disabled, but the existing script should be useable to impose higher thresholds and aggregate patches to polygons: 
+Patch detections can be filtered with a dual confidence threshold that depends on spatial isolation (distance to the k-th nearest neighbor among patches above `t_main`):
 
 ```
 python postprocess.py \
-    ../data/outputs/48px_v0.X-SSL4EO-MLPensemble/Amazon_ACA_*_48px_v0.X-SSL4EO-MLPensemble_0.85_2025-07-01_2025-09-30.geojson \
-    --threshold 0.925 \
-    --low_area_conf_threshold 0.975 \
-    --outpath amazon_basin_48px_v0.X-SL4EO-MLP0.85_2025-07-01_2025-09-30post.geojson \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2024-01-01_2024-12-31.geojson \
+    --t-main 0.43 --k 5 --D 3 --t-iso 0.75
 ```
+
+Defaults match the above. Output is written next to the input as `<stem>_t0.43_d5_3km_t0.75.geojson` unless `--outpath` is set. Isolated patches (`kth_neighbor_km` > `D`) must also meet `--t-iso`; clustered patches need only `--t-main`. Add `--dissolve` to also write merged polygons as `<stem>_t0.43_d5_3km_t0.75-dissolved.geojson`.
 
 Masking of the mine scars is now handled by a fine-tuned SAM2 segmentation model, which requires additional set-up. 
 ```

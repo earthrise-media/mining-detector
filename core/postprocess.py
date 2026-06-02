@@ -1,31 +1,118 @@
 #!/usr/bin/env python3
 """
-postprocess.py — buffered dissolve, NDVI masking, and confidence filtering
+postprocess.py — dual-threshold filtering of patch detections by spatial isolation.
+
+Applies a main confidence threshold (t_main), computes each patch's distance to its
+k-th nearest neighbor among surviving patches, then requires a stricter threshold
+(t_iso) for isolated patches (distance > D km).
 """
 
+from __future__ import annotations
+
 import argparse
-from dataclasses import fields
 import warnings
 from pathlib import Path
-import re
 
 import geopandas as gpd
-import pandas as pd
+import numpy as np
+from sklearn.neighbors import NearestNeighbors
 
-import gee
+KTH_NEIGHBOR_FIELD = "kth_neighbor_km"
+DEFAULT_CONFIDENCE_FIELD = "confidence"
+DISSOLVE_CRS = "EPSG:4326"  # buffer_deg is in decimal degrees (~1 m at equator for 1e-5)
 
-def valid_date(s: str) -> str:
-    """Validate date string in YYYY-MM-DD format and return it unchanged."""
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-        return s
-    raise argparse.ArgumentTypeError(f"Not a valid date: '{s}'.")
+
+def centroids_xy_m(gdf: gpd.GeoDataFrame) -> np.ndarray:
+    """Patch centroids as (n, 2) coordinates in meters (projected CRS)."""
+    g = gdf.copy()
+    if g.crs is None:
+        g = g.set_crs("EPSG:4326")
+    try:
+        g = g.to_crs(g.estimate_utm_crs())
+    except Exception:
+        g = g.to_crs("EPSG:3857")
+    c = g.geometry.centroid
+    return np.column_stack([c.x.to_numpy(dtype=np.float64), c.y.to_numpy(dtype=np.float64)])
+
+
+def kth_neighbor_km_on_catalog(coords_m: np.ndarray, k: int) -> np.ndarray:
+    """Distance (km) from each point to its k-th nearest *other* point in coords_m."""
+    n = len(coords_m)
+    out = np.full(n, np.nan, dtype=np.float64)
+    if n <= k:
+        return out
+    nn = NearestNeighbors(n_neighbors=k + 1, algorithm="kd_tree")
+    nn.fit(coords_m)
+    dists_m, _ = nn.kneighbors(coords_m)
+    out[:] = dists_m[:, k] / 1000.0
+    return out
+
+
+def keep_dual_threshold(
+    confidence: np.ndarray,
+    kth_neighbor_km: np.ndarray,
+    *,
+    t_main: float,
+    t_iso: float,
+    isolation_km: float,
+) -> np.ndarray:
+    """
+    Return boolean mask of patches to keep.
+
+    Positive if confidence >= t_main; isolated patches (kth_neighbor_km > isolation_km,
+    or non-finite distance) also require confidence >= t_iso.
+    """
+    is_isolated = np.isfinite(kth_neighbor_km) & (kth_neighbor_km > isolation_km)
+    if np.any(~np.isfinite(kth_neighbor_km)):
+        is_isolated = is_isolated | ~np.isfinite(kth_neighbor_km)
+    above_main = confidence >= t_main
+    above_iso = confidence >= t_iso
+    return np.where(is_isolated, above_main & above_iso, above_main)
+
+
+def _fmt_param(value: float) -> str:
+    return f"{value:g}"
+
+
+def default_outpath(
+    inpath: Path,
+    *,
+    t_main: float,
+    k: int,
+    isolation_km: float,
+    t_iso: float,
+) -> Path:
+    """Output path: <stem>_t{t_main}_d{k}_{D}km_t{t_iso}.geojson (notebook convention)."""
+    stem = inpath.stem
+    tag = (
+        f"_t{_fmt_param(t_main)}_d{k}_{_fmt_param(isolation_km)}km"
+        f"_t{_fmt_param(t_iso)}"
+    )
+    return inpath.parent / f"{stem}{tag}.geojson"
+
+
+def dissolved_outpath(patches_outpath: Path) -> Path:
+    """Patch output path with -dissolved before the extension."""
+    return patches_outpath.with_name(f"{patches_outpath.stem}-dissolved{patches_outpath.suffix}")
+
 
 def dissolve_patches(
-    gdf: gpd.GeoDataFrame, buffer_deg: float = 0.00001,
-    conf_field: str = "confidence") -> gpd.GeoDataFrame:
-    """Buffered dissolve of detection patches; aggregates confidence as mean."""
+    gdf: gpd.GeoDataFrame,
+    buffer_deg: float = 0.00001,
+    conf_field: str = DEFAULT_CONFIDENCE_FIELD,
+) -> gpd.GeoDataFrame:
+    """
+    Buffered dissolve of detection patches; aggregates confidence as mean.
+
+    Reprojects to EPSG:4326 before buffering: ``buffer_deg`` is in decimal degrees
+    (repo convention for inference GeoJSON).
+    """
     gdf = gdf.copy()
-    
+    if gdf.crs is None:
+        gdf = gdf.set_crs(DISSOLVE_CRS)
+    else:
+        gdf = gdf.to_crs(DISSOLVE_CRS)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         dissolved_geom = gdf.buffer(buffer_deg, join_style=2).union_all()
@@ -38,130 +125,158 @@ def dissolve_patches(
     dissolved[conf_field] = mean_conf.reindex(dissolved.index)
 
     dissolved.set_crs(gdf.crs, inplace=True)
-    print(f'Dissolved {len(gdf)} to {len(dissolved)} polygons.')
+    print(f"Dissolved {len(gdf)} patches to {len(dissolved)} polygons.")
     return dissolved
 
-def filter_small_polygons(
-    gdf, low_area_size=30.0, low_area_conf_threshold=0.975,
-    conf_field="confidence", area_field="Polygon area (ha)"):
-    """Filter polygons by dynamic confidence threshold depending on size."""
-    mask = ((gdf[area_field] < low_area_size) &
-                (gdf[conf_field] < low_area_conf_threshold))
-    return gdf.loc[~mask].copy()
 
-def main(args):
-    "Postprocess polygons: dissolve, NDVI mask, and confidence filtering."
-    gdfs = [gpd.read_file(p).to_crs("EPSG:4326") for p in args.geojson_paths]
-    print(f"{sum(len(g) for g in gdfs)} polygons from {len(gdfs)} files.")
-    gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs="EPSG:4326")
+def dual_threshold_filter(
+    gdf: gpd.GeoDataFrame,
+    *,
+    t_main: float,
+    t_iso: float,
+    k: int,
+    isolation_km: float,
+    confidence_field: str = DEFAULT_CONFIDENCE_FIELD,
+) -> gpd.GeoDataFrame:
+    """
+    Filter detections with the dual-threshold rule.
 
-    if args.threshold is not None:
-        gdf = gdf[gdf["confidence"] >= args.threshold].copy()
-
-    if args.dissolve:
-        gdf = dissolve_patches(gdf)
-
-    if args.ndvi_threshold is not None:
-        extractor = gee.GEE_Data_Extractor(
-            args.start_date, 
-            args.end_date,
-            args.config
+    1. Keep patches with confidence >= t_main (neighbor catalog).
+    2. Compute k-th nearest-neighbor distance on that catalog.
+    3. Drop isolated catalog patches (distance > isolation_km) below t_iso.
+    """
+    if confidence_field not in gdf.columns:
+        raise KeyError(
+            f"Input needs {confidence_field!r}; columns: {list(gdf.columns)}"
         )
-        masker = gee.Masker(extractor, ndvi_threshold=args.ndvi_threshold)
-        gdf = masker.ndvi_mask_polygons(gdf)
 
-    if args.low_area_conf_threshold is not None:
-        if not 'Polygon area (ha)' in gdf.columns:
-            gdf['Polygon area (ha)'] = gdf.to_crs('epsg:3857').area / 1e4
-        gdf = filter_small_polygons(
-            gdf, low_area_size=args.low_area_size,
-            low_area_conf_threshold=args.low_area_conf_threshold)
-    
-    outpath = Path(args.outpath)
+    confidence = gdf[confidence_field].to_numpy(dtype=np.float64)
+    at_main = gdf.loc[confidence >= t_main].copy()
+    if len(at_main) == 0:
+        out = at_main.copy()
+        out[KTH_NEIGHBOR_FIELD] = np.array([], dtype=np.float64)
+        return out
+
+    coords_m = centroids_xy_m(at_main)
+    at_main[KTH_NEIGHBOR_FIELD] = kth_neighbor_km_on_catalog(coords_m, k=k)
+
+    keep = keep_dual_threshold(
+        at_main[confidence_field].to_numpy(dtype=np.float64),
+        at_main[KTH_NEIGHBOR_FIELD].to_numpy(dtype=np.float64),
+        t_main=t_main,
+        t_iso=t_iso,
+        isolation_km=isolation_km,
+    )
+    return at_main.loc[keep].copy()
+
+
+def main(args: argparse.Namespace) -> None:
+    inpath = Path(args.geojson_path)
+    gdf = gpd.read_file(inpath)
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:4326")
+
+    n_in = len(gdf)
+    filtered = dual_threshold_filter(
+        gdf,
+        t_main=args.t_main,
+        t_iso=args.t_iso,
+        k=args.k,
+        isolation_km=args.D,
+        confidence_field=args.confidence_field,
+    )
+
+    outpath = Path(args.outpath) if args.outpath else default_outpath(
+        inpath,
+        t_main=args.t_main,
+        k=args.k,
+        isolation_km=args.D,
+        t_iso=args.t_iso,
+    )
     outpath.parent.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(outpath, driver="GeoJSON", index=False)
-    print(f"Wrote {len(gdf)} polygons to {outpath}")
+    filtered.to_file(outpath, driver="GeoJSON", index=False)
+
+    n_at_main = int((gdf[args.confidence_field] >= args.t_main).sum())
+    n_iso = int(
+        (filtered[KTH_NEIGHBOR_FIELD] > args.D).sum()
+        if len(filtered) and KTH_NEIGHBOR_FIELD in filtered.columns
+        else 0
+    )
+    msg = (
+        f"Read {n_in} patches from {inpath.name}; "
+        f"{n_at_main} at t_main={args.t_main:g}; "
+        f"wrote {len(filtered)} ({n_iso} isolated with d > {args.D:g} km) "
+        f"to {outpath}"
+    )
+    if args.dissolve:
+        dissolved_path = dissolved_outpath(outpath)
+        dissolved = dissolve_patches(
+            filtered, conf_field=args.confidence_field
+        )
+        dissolved.to_file(dissolved_path, driver="GeoJSON", index=False)
+        msg += f"; dissolved -> {dissolved_path}"
+    print(msg)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=("Postprocess polygons: dissolve, NDVI mask, and "
-            "confidence filtering."))
-
-    # Required args
-    parser.add_argument(
-        "geojson_paths", nargs="+",
-        help="Input GeoJSON files to concatenate.",
+        description=(
+            "Dual-threshold post-processing: filter patch detections by confidence "
+            "and spatial isolation (k-th nearest neighbor distance)."
+        ),
     )
     parser.add_argument(
-        "--outpath", required=True,
-        help="Output GeoJSON file path.",
-    )
-
-    # Postprocessing options
-    parser.add_argument(
-        "--threshold", type=float, default=None,
-        help="Overall confidence threshold applied before dissolving.",
+        "geojson_path",
+        help="Input GeoJSON with patch detections and a confidence field.",
     )
     parser.add_argument(
-        "--dissolve", action="store_true",
-        help="Run buffered dissolve (dissolve_patches). Default is False.",
+        "--outpath",
+        default=None,
+        help=(
+            "Output GeoJSON path. Default: input stem + "
+            "_t{t_main}_d{k}_{D}km_t{t_iso}.geojson"
+        ),
     )
     parser.add_argument(
-        "--ndvi_threshold", type=float, default=None,
-        help="NDVI threshold for masking (omit to skip NDVI masking).",
+        "--t-main",
+        dest="t_main",
+        type=float,
+        default=0.43,
+        help="Main confidence threshold (default: 0.43).",
     )
     parser.add_argument(
-        "--start_date", type=valid_date,
-        help="Start date in YYYY-MM-DD format")
-    parser.add_argument(
-        "--end_date", type=valid_date,
-        help="End date in YYYY-MM-DD format")
-    parser.add_argument("--low_area_size",
-        type=float, default=30.0,
-        help="Area (ha) below which to apply stricter confidence filtering.",
+        "--t-iso",
+        dest="t_iso",
+        type=float,
+        default=0.75,
+        help="Stricter threshold for isolated patches (default: 0.75).",
     )
     parser.add_argument(
-        "--low_area_conf_threshold", type=float, default=None,
-        help="Confidence threshold for small polygons (< low_area_size).",
+        "-k",
+        "--k",
+        type=int,
+        default=5,
+        help="Neighbor rank for isolation distance, e.g. 5 = 5th NN (default: 5).",
+    )
+    parser.add_argument(
+        "-D",
+        "--D",
+        type=float,
+        default=3.0,
+        help="Isolation cutoff in km; patches with k-th NN distance > D use t_iso.",
+    )
+    parser.add_argument(
+        "--confidence-field",
+        default=DEFAULT_CONFIDENCE_FIELD,
+        help=f"Confidence column name (default: {DEFAULT_CONFIDENCE_FIELD}).",
+    )
+    parser.add_argument(
+        "--dissolve",
+        action="store_true",
+        help=(
+            "Also write a buffered-dissolve polygon layer as "
+            "<patch-outstem>-dissolved.geojson"
+        ),
     )
 
-    # DataConfig args
-    data_defaults = gee.DataConfig()
-
-    parser.add_argument("--tilesize", type=int,
-                        default=data_defaults.tilesize,
-                        help="Tile width in pixels for requests to GEE")
-    parser.add_argument("--pad", type=int,
-                        default=data_defaults.pad,
-                        help="Number of pixels to pad each tile")
-    parser.add_argument("--collection", type=str,
-                        default=data_defaults.collection,
-                        choices=gee.DataConfig.available_collections(),
-                        help="Satellite image collection")
-    parser.add_argument("--clear_threshold", type=float,
-                        default=data_defaults.clear_threshold,
-                        help="Clear sky (cloud absence) threshold")
-    parser.add_argument("--max_workers", type=int,
-                        default=data_defaults.max_workers,
-                        help="Maximum concurrent GEE requests")
-    parser.add_argument("--image_cache_dir", type=str,
-                        default=data_defaults.image_cache_dir,
-                        help="Optional directory to save/reload image rasters")
-
-    args = parser.parse_args()
-
-    if args.ndvi_threshold is not None:
-        if args.start_date is None or args.end_date is None:
-            parser.error("--start_date and --end_date are required "
-                         "when --ndvi_threshold is provided.")
-            
-    config_dict = {
-        f.name: getattr(args, f.name, None) for f in fields(gee.DataConfig)
-    }
-    config_dict.update({
-        'bands': list(data_defaults._NDVI_BANDS.values())
-    })
-    
-    args.config = gee.DataConfig(**config_dict)
-    main(args)
-
+    main(parser.parse_args())
