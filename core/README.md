@@ -52,21 +52,22 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
 
 ### Model inference
 
-Q3 2025 model inference example on the Amazon_6 subregion:  
+2025 model inference example: 
 ```
 tmux new
-cd gee
+cd core
 python inference_pipeline.py \
-    --model ../models/48px_v0.X-SSL4EO-MLPensemble_2025-10-21.h5 \
-    --region_path ../data/boundaries/Amazon_ACA/Amazon_ACA_6.geojson \
-    --pred_threshold 0.5 \
-    --start_date 2025-07-01 \
-    --end_date 2025-09-30
+    --model ../models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5 \
+    --region_path ../data/boundaries/Amazon_ACA.geojson \
+    --start_date 2025-01-01 --end_date 2025-12-31 \
+    --image_cache_dir /mnt/tempdisk/amw_image_cache2025_552-12/ \
+    --pred_threshold 0.4 \
+    --tries 3
 ```
 
-### Post-processing and masking
+### Post-processing
 
-Patch detections can be filtered with a dual confidence threshold that depends on spatial isolation (distance to the k-th nearest neighbor among patches above `t_main`):
+Patch detections can be filtered with a dual confidence threshold, with higher confidence required of isolated candidate detections (distance to the k-th nearest neighbor above a cutoff, by default 3 km). The folds into the analysis a rough spatial prior, that patches with mine scars tend to cluster. 
 
 ```
 python postprocess.py \
@@ -74,7 +75,9 @@ python postprocess.py \
     --t-main 0.43 --k 5 --D 3 --t-iso 0.75
 ```
 
-Defaults match the above. Output is written next to the input as `<stem>_t0.43_d5_3km_t0.75.geojson` unless `--outpath` is set. Isolated patches (`kth_neighbor_km` > `D`) must also meet `--t-iso`; clustered patches need only `--t-main`. Add `--dissolve` to also write merged polygons as `<stem>_t0.43_d5_3km_t0.75-dissolved.geojson`.
+Defaults match the above. Add `--dissolve` to also write merged polygons.
+
+### Masking
 
 Masking of the mine scars is now handled by a fine-tuned SAM2 segmentation model, which requires additional set-up. 
 ```
@@ -91,9 +94,9 @@ By default the `sam2` repository is expected to be found in `models/`, but the p
 
 ```
 python sam2_mask.py \
-    ../data/outputs/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin-2018-2025Q3cumulative-clean.geojson \
-    --start_date 2025-07-01 \
-    --end_date 2025-09-30 \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31_t0.43_d5_3km_t0.75-dissolved.geojson \
+    --start_date 2025-01-01 \
+    --end_date 2025-12-31 \
     --cog
 ```
 
