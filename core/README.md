@@ -3,15 +3,32 @@ Data generation and model inference run from code in this folder.
 
 ### Setup
 
-1. **Google Cloud CLI**: This repo uses Application Default Credentials (ADC). 
-   Install the [gcloud CLI](https://cloud.google.com/sdk/docs/install) for your OS.
-   
-2. **Authentication**: Run the following commands in your terminal:
+Earth Engine access requires a Google Cloud project and credentials. In each shell session (or in your shell profile):
+
+```bash
+export EE_PROJECT=YOUR_PROJECT_ID
+```
+
+1. **Google Cloud CLI** (optional for service-account auth): Install the [gcloud CLI](https://cloud.google.com/sdk/docs/install) if you use user credentials below.
+
+2. **Authentication** — pick one:
+
+   **Option A — user credentials (Application Default Credentials)**  
+   Interactive login; good for local development:
+
    ```bash
    gcloud auth login
    gcloud auth application-default login
-   export EE_PROJECT=YOUR_PROJECT_ID  # Your Google Cloud project, required even if no data egress charges applied. (Check this: Google has announced coming charges.)
    ```
+
+   **Option B — service account key file**  
+   Point `GOOGLE_APPLICATION_CREDENTIALS` at a JSON key before running scripts. When this variable is set, `gee.py` uses the service account instead of ADC:
+
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS=/home/<user>/.amw-gee-data-pull-key.json
+   ```
+
+   For long jobs (e.g. `tmux` inference), export both variables in that session before starting.
    
 Various iterations of the code have worked with Pythons 3.9-3.11. 
 ```
