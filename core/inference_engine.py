@@ -28,6 +28,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+import rasterio.features
 import scipy.ndimage as ndi
 import tensorflow as tf
 
