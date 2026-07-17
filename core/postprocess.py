@@ -82,11 +82,11 @@ def default_outpath(
     isolation_km: float,
     t_iso: float,
 ) -> Path:
-    """Output path: <stem>_t{t_main}_d{k}_{D}km_t{t_iso}.geojson (notebook convention)."""
+    """Output path: <stem>_t{t_main}_d{k}_{D}km_t-iso{t_iso}.geojson (notebook convention)."""
     stem = inpath.stem
     tag = (
         f"_t{_fmt_param(t_main)}_d{k}_{_fmt_param(isolation_km)}km"
-        f"_t{_fmt_param(t_iso)}"
+        f"_t-iso{_fmt_param(t_iso)}"
     )
     return inpath.parent / f"{stem}{tag}.geojson"
 
