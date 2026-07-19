@@ -19,13 +19,13 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Set before importing GDAL so VRT Python pixel functions and threading are enabled.
+import rasterio
+
 # Cap threads at 4: the VRT read through the Python pixel function is effectively
 # single-threaded, so extra warp threads add little benefit.
+# GDAL_VRT_ENABLE_PYTHON is required when gdalwarp evaluates the derived VRT.
 os.environ.setdefault("GDAL_NUM_THREADS", "4")
 os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
-
-from osgeo import gdal
 
 
 def run(cmd):
@@ -36,12 +36,10 @@ def run(cmd):
 def main(base_mask_path: str, update_path: str, output_path: str) -> None:
     nodata_val = 2
 
-    # --- Resolution and grid from base_mask.tif ---
-    ds = gdal.Open(base_mask_path)
-    gt = ds.GetGeoTransform()
-    xres = abs(gt[1])
-    yres = abs(gt[5])
-    ds = None
+    # --- Resolution and grid from base_mask.tif (rasterio; matches GDAL geotransform) ---
+    with rasterio.open(base_mask_path) as ds:
+        xres = abs(ds.transform.a)
+        yres = abs(ds.transform.e)
     print(f"Output resolution (from base_mask): {xres}, {yres}")
 
     with tempfile.TemporaryDirectory(prefix="combine_masks_") as tmpdir:
