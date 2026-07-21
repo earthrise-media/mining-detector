@@ -437,7 +437,6 @@ if __name__ == "__main__":
         gdf_simplified = simplify_gdf(current_gdf)
 
         # cleanup and save
-        gdf_simplified = gdf_simplified.drop(columns=["Polygon area (ha)"])
         output_file = generate_mining_simplified_filename(current_year)
         ensure_output_path_exists(output_file)
         gdf_simplified.to_file(output_file, driver="GeoJSON")
