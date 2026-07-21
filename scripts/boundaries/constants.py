@@ -1,7 +1,7 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260409"
+DATA_UPDATED_AT = "20260720"
 
 MINING_DIFFERENCES_FILES = {
     202504: f"{OUTPUTS_FOLDER}/48px_v0.X-SSL4EO-MLPensemble/cumulative/amazon_basin_48px_v0.X-SSL4EO-MLPensemble2025Q4diff-clean-gt11ha.geojson",
@@ -19,9 +19,18 @@ MINING_DIFFERENCES_FILES = {
 MINING_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_FILES.keys())
 first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
 
+# downloaded from https://source.coop/earthgenome/amazon-mining-watch/current/sam2_mining_scar_masks
 MINING_DIFFERENCES_RASTER_FILES = {
-    202504: "data/outputs/rasters/mining_mask_2025-10-01_2025-12-31_epsg4326.tif",
-    202503: "data/outputs/rasters/mining_mask_2025-07-01_2025-09-30_epsg4326.tif",
+    202504: "data/outputs/rasters/mining_mask_Q425_full.tif",
+    202503: "data/outputs/rasters/mining_mask_Q325_full.tif",
+    202502: "data/outputs/rasters/mining_mask_Q225_full.tif",
+    202400: "data/outputs/rasters/mining_mask_2024-01-01_2024-12-31_epsg4326.tif",
+    202300: "data/outputs/rasters/mining_mask_2023-01-01_2023-12-31_epsg4326.tif",
+    202200: "data/outputs/rasters/mining_mask_2022-01-01_2022-12-31_epsg4326.tif",
+    202100: "data/outputs/rasters/mining_mask_2021-01-01_2021-12-31_epsg4326.tif",
+    202000: "data/outputs/rasters/mining_mask_2020-01-01_2020-12-31_epsg4326.tif",
+    201900: "data/outputs/rasters/mining_mask_2019-01-01_2019-12-31_epsg4326.tif",
+    201800: "data/outputs/rasters/mining_mask_2018-01-01_2018-12-31_epsg4326.tif",
 }
 MINING_RASTER_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_RASTER_FILES.keys())
 

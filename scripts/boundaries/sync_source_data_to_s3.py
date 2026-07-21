@@ -12,8 +12,8 @@
 
 # You can run this script with uv if you prefer,
 # see https://docs.astral.sh/uv/guides/scripts/.
-# To run: `uv run scripts/sync_data_to_s3.py` (upload only)
-#     or: `uv run scripts/sync_data_to_s3.py --download` (bidirectional sync)
+# To run: `uv run scripts/boundaries/sync_source_data_to_s3.py` (upload only)
+#     or: `uv run scripts/boundaries/sync_source_data_to_s3.py --download` (bidirectional sync)
 
 # /// script
 # requires-python = ">=3.12"
@@ -38,6 +38,7 @@ S3_PREFIX = "mining-detector-repo-backups"
 SYNC_PAIRS = [
     ("./data/boundaries", f"{S3_PREFIX}/data/boundaries"),
     ("./data/outputs/website", f"{S3_PREFIX}/data/outputs/website"),
+    ("./data/outputs/rasters", f"{S3_PREFIX}/data/outputs/rasters"),
 ]
 
 EXCLUDE_NAMES = {".DS_Store"}
