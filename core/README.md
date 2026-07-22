@@ -1,4 +1,3 @@
-
 Data generation and model inference run from code in this folder. 
 
 ### Setup
@@ -45,14 +44,16 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
 * `get_training_data.ipynb`: Download the training data.
 * `cloud_mask_filter.ipynb`: Optional review of cloud masking. We keep some clouds and cloud masked images in the negative training set.
 * `train_model.ipynb`: Train a neural network model. A few basic architectures can be loaded from model_library.py.
-  - `embed.ipynb`: Alternately, run foundation model inference and train a classification head.
+  - Alternate foundation-model track (two steps): `embed.ipynb` (extract embeddings), then `train_probe.ipynb` (train a classification head on those embeddings).
 * `ensemble.ipynb`: Merge trained models into a single ensemble model.
+* `model_evaluation.ipynb`: Extra evaluation protocols (dual-threshold, `t_iso` sweeps, cumulative ∩ chips) beyond the metrics in `train_model.ipynb`.
 * `inference.ipynb`: Run a model on a test area.
 * `inference_pipeline.py`: For large-scale inference.
 
 ### Model inference
 
-2025 model inference example: 
+Large jobs are typically run on a VM with a local Sentinel-2 image cache. Example Amazon ACA year (CNN ensemble):
+
 ```
 tmux new
 cd core
@@ -65,21 +66,71 @@ python inference_pipeline.py \
     --tries 3
 ```
 
+Andes supplemental regions use the same CNN ensemble at a lower raw threshold (`0.2`):
+
+```
+python inference_pipeline.py \
+    --model ../models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5 \
+    --region_path ../data/boundaries/andes_supplemental.geojson \
+    --start_date 2025-01-01 --end_date 2025-12-31 \
+    --image_cache_dir /mnt/tempdisk/amw_image_cache2025_552-12/ \
+    --pred_threshold 0.2 \
+    --tries 3
+```
+
+If Amazon was split across multiple jobs/sections, concatenate on your local machine:
+
+```
+# from repo root
+python scripts/concatenate.py path/to/part_a.geojson path/to/part_b.geojson \
+    --outpath data/outputs/.../Amazon_ACA_....geojson
+```
+
 ### Post-processing
 
-Patch detections can be filtered with a dual confidence threshold, with higher confidence required of isolated candidate detections (distance to the k-th nearest neighbor above a cutoff, by default 3 km). The folds into the analysis a rough spatial prior, that patches with mine scars tend to cluster. 
+Patch detections can be filtered with a dual confidence threshold, with higher confidence required of isolated candidate detections (distance to the k-th nearest neighbor above a cutoff, by default 3 km). This folds into the analysis a rough spatial prior, that patches with mine scars tend to cluster.
+
+CLI defaults match the **relaxed** single-period postprocess (`t_main=0.43`, `t_iso=0.75`, `k=5`, `D=3`):
 
 ```
 python postprocess.py \
-    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2024-01-01_2024-12-31.geojson \
-    --t-main 0.43 --k 5 --D 3 --t-iso 0.75
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson
 ```
 
-Defaults match the above. Add `--dissolve` to also write merged polygons.
+For the **stringent** settings used in website cumulatives, pass explicit thresholds:
+
+```
+python postprocess.py \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson \
+    --t-main 0.55 --k 5 --D 3 --t-iso 0.8
+```
+
+Add `--dissolve` to also write merged polygons.
+
+Clip Andes supplemental detections to the supplemental boundary (writes a `*-filt.geojson` sibling):
+
+```
+# from repo root
+python scripts/geo_filter.py \
+    data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/andes_supplemental_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.20_2025-01-01_2025-12-31.geojson \
+    data/boundaries/andes_supplemental.geojson
+```
+
+### Cumulatives and diffs
+
+Build year-end / quarterly cumulatives and period diffs in `cumulatives_and_diffs.ipynb` (Amazon postprocessed at the stringent dual threshold, unioned with Andes supplemental). Rules and published path layout are summarized in `data/outputs/MANIFEST.yaml` under `cumulative_rules` and `products`.
+
+Typical local folder layout under `data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/`:
+
+* `raw_detections/`
+* `postprocessed_t0.43_d5_3km_t-iso0.75/`
+* `postprocessed_t0.55_d5_3km_t-iso0.8/`
+* `cumulative_t0.55_d5_3km_t-iso0.8/` (includes a `diffs/` subfolder)
 
 ### Masking
 
-Masking of the mine scars is now handled by a fine-tuned SAM2 segmentation model, which requires additional set-up. 
+Masking of the mine scars is handled by a fine-tuned SAM2 segmentation model, which requires additional set-up.
+
 ```
 # From repo root with venv activated
 cd models/
@@ -87,21 +138,72 @@ git clone https://github.com/facebookresearch/sam2.git
 cd sam2/
 pip install -e .
 ./checkpoints/download_ckpts.sh
-gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_model_96_px_final.pth .   # 176MB file, expected cost is pennies 
+gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_model_96_px_final.pth .   # 176MB file, expected cost is pennies
 ```
 
-By default the `sam2` repository is expected to be found in `models/`, but the path can also be set at run time. 
+By default `sam2_mask.py` expects the `sam2` checkout under `models/sam2` (re-run `pip install -e .` after moving the folder there). The path can also be set at run time.
+
+Run SAM2 on cumulative / diff polygons (example: 2025 window on the through-2025 cumulative):
 
 ```
 python sam2_mask.py \
-    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31_t0.43_d5_3km_t0.75-dissolved.geojson \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative_t0.55_d5_3km_t-iso0.8/diffs/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-2025.geojson \
     --start_date 2025-01-01 \
     --end_date 2025-12-31 \
     --cog
 ```
 
+Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. Build a `*_full` mask by OR-merging the prior full-year (or prior full) mask with that quarter’s incremental mask via `sam2_combine_masks.py`. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
+
+```
+export PYTHONSO=/usr/lib/x86_64-linux-gnu/libpython3.9.so.1.0
+python sam2_combine_masks.py \
+    mining_mask_2024-01-01_2024-12-31_epsg4326.tif \
+    mining_mask_2025-01-01_2025-03-31diff_epsg4326.tif \
+    mining_mask_2025Q1_full_epsg4326.tif
+```
+
+### Publishing outputs
+
+Artifacts are **not** checked into git. Keep `data/outputs/MANIFEST.yaml` current as the in-repo catalog of what lives where.
+
+**Internal mirror** (`gs://amw-dev/outputs/`), from the model output directory:
+
+```
+# Detection folders (layout matches MANIFEST path_map / gcs keys)
+gsutil -m rsync -r cumulative_t0.55_d5_3km_t-iso0.8 \
+    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative_t0.55_d5_3km_t-iso0.8/
+gsutil -m rsync -r postprocessed_t0.43_d5_3km_t-iso0.75 \
+    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.43_d5_3km_t-iso0.75/
+gsutil -m rsync -r postprocessed_t0.55_d5_3km_t-iso0.8 \
+    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.55_d5_3km_t-iso0.8/
+gsutil -m rsync -r raw_detections \
+    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/
+```
+
+SAM2 COGs (example sync from local `data/outputs/sam2/` naming):
+
+```
+for f in Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-* ; do
+  gsutil -m rsync -r "$f/cog_outputs/" "gs://amw-dev/outputs/sam2/$f/cog_outputs/"
+done
+```
+
+Also upload combined quarterly full masks (e.g. `mining_mask_Q325_full.tif`) under the model’s `mining_scar_masks/` prefix on GCS.
+
+**Public** ([Source Cooperative](https://source.coop/earthgenome/amazon-mining-watch)): paste temporary AWS-compatible credentials into the shell, then:
+
+```
+aws s3 ls s3://earthgenome/amazon-mining-watch/
+aws s3 cp --recursive cumulative_detections/ s3://earthgenome/amazon-mining-watch/cumulative_detections/
+# optional: refresh the product README on the bucket
+aws s3 cp /path/to/README-source.coop.md s3://earthgenome/amazon-mining-watch/README.md
+```
+
+After publishing, update `data/outputs/MANIFEST.yaml` (`updated` date, periods, and any new path notes).
+
 ### Embedding-based models
 
-As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. You would use `embed.ipynb` in place of `train_model.ipynb` and otherwise follow the same workflow.
+As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. Use `embed.ipynb` then `train_probe.ipynb` in place of `train_model.ipynb`, and otherwise follow the same workflow.
 
 Our foundation model of choice was the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12), also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. The code looks for this checkpoint at `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt`. 
