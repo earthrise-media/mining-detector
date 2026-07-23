@@ -42,6 +42,7 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
 
 * `collect_sampling_locations.ipynb`: Merge selected training data files in ```sampling_data/```.
 * `get_training_data.ipynb`: Download the training data.
+  - For Earth Genome only: May 2026 modeling patches are at `gs://amw-dev/training_patches2026-05-04T09:47_48px/`.
 * `cloud_mask_filter.ipynb`: Optional review of cloud masking. We keep some clouds and cloud masked images in the negative training set.
 * `train_model.ipynb`: Train a neural network model. A few basic architectures can be loaded from model_library.py.
   - Alternate foundation-model track (two steps): `embed.ipynb` (extract embeddings), then `train_probe.ipynb` (train a classification head on those embeddings).
@@ -52,7 +53,12 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
 
 ### Model inference
 
-Large jobs are typically run on a VM with a local Sentinel-2 image cache. Example Amazon ACA year (CNN ensemble):
+Large jobs are typically run on a VM with a local Sentinel-2 image cache.
+
+* For 2026 runs we used two GCP `n2-32-standard` machines, running multiple processes simultaneously on each.
+* Earth Genome: cached imagery for 2018 through 2026Q2 can be pulled from `gs://amw-dev/`.
+
+Example Amazon ACA year (CNN ensemble):
 
 ```
 tmux new
@@ -143,7 +149,7 @@ gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_mo
 
 By default `sam2_mask.py` expects the `sam2` checkout under `models/sam2` (re-run `pip install -e .` after moving the folder there). The path can also be set at run time.
 
-Run SAM2 on cumulative / diff polygons (example: 2025 window on the through-2025 cumulative):
+Run SAM2 masks on **full-year detections** and on **quarterly diffs** (not on quarter-only cumulatives alone). Example: 2025 imagery window on the through-2025 cumulative / year-end product:
 
 ```
 python sam2_mask.py \
@@ -153,7 +159,7 @@ python sam2_mask.py \
     --cog
 ```
 
-Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. Build a `*_full` mask by OR-merging the prior full-year (or prior full) mask with that quarter’s incremental mask via `sam2_combine_masks.py`. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
+Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. After masking the quarterly diffs, **accumulate** each quarter’s diff mask onto the prior full-year (or prior `*_full`) mask with `sam2_combine_masks.py` (OR merge) to produce that quarter’s `*_full` mask. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
 
 ```
 export PYTHONSO=/usr/lib/x86_64-linux-gnu/libpython3.9.so.1.0
@@ -189,13 +195,29 @@ for f in Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_
 done
 ```
 
-Also upload combined quarterly full masks (e.g. `mining_mask_Q325_full.tif`) under the model’s `mining_scar_masks/` prefix on GCS.
+Also upload yearly and combined quarterly full masks (e.g. `mining_mask_Q325_full.tif`) under the model’s `mining_scar_masks/` prefix on GCS.
 
-**Public** ([Source Cooperative](https://source.coop/earthgenome/amazon-mining-watch)): paste temporary AWS-compatible credentials into the shell, then:
+**Public** ([Source Cooperative](https://source.coop/earthgenome/amazon-mining-watch)): paste temporary AWS-compatible credentials into the shell, then upload these product trees (local folder → bucket key):
 
 ```
 aws s3 ls s3://earthgenome/amazon-mining-watch/
-aws s3 cp --recursive cumulative_detections/ s3://earthgenome/amazon-mining-watch/cumulative_detections/
+
+# Cumulatives (+ diffs/) → cumulative_detections/
+aws s3 cp --recursive cumulative_t0.55_d5_3km_t-iso0.8/ \
+    s3://earthgenome/amazon-mining-watch/cumulative_detections/
+
+# Single-period detections → single_periods/
+aws s3 cp --recursive raw_detections/ \
+    s3://earthgenome/amazon-mining-watch/single_periods/raw_detections/
+aws s3 cp --recursive postprocessed_t0.43_d5_3km_t-iso0.75/ \
+    s3://earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75/
+aws s3 cp --recursive postprocessed_t0.55_d5_3km_t-iso0.8/ \
+    s3://earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8/
+
+# SAM2 scar masks
+aws s3 cp --recursive mining_scar_masks/ \
+    s3://earthgenome/amazon-mining-watch/mining_scar_masks/
+
 # optional: refresh the product README on the bucket
 aws s3 cp /path/to/README-source.coop.md s3://earthgenome/amazon-mining-watch/README.md
 ```
