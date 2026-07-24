@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "geo_holdout_napo-caqueta",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "id": null, "Zona": null }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ -79.110975082709075, -1.455025325980078 ], [ -76.175435797560425, 3.018114472271137 ], [ -70.301636316702911, -1.049070797628472 ], [ -73.346296337123746, -5.471397105245108 ], [ -79.110975082709075, -1.455025325980078 ] ] ] ] } }
+]
+}

@@ -1,0 +1,8 @@
+{
+"type": "FeatureCollection",
+"name": "test_region_pará",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -55.085644544550739, -8.344524256854692 ], [ -54.819226087519489, -8.344524256854692 ], [ -54.819226087519489, -8.078173104668602 ], [ -55.085644544550739, -8.078173104668602 ], [ -55.085644544550739, -8.344524256854692 ] ] ] } }
+]
+}

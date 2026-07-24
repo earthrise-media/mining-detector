@@ -14,7 +14,9 @@ def dissolve(path, threshold, column, buffer_width):
     dissolved = df.geometry.buffer(buffer_width, join_style=2).unary_union
     df = gpd.GeoDataFrame(geometry=[dissolved]).explode().reset_index(drop=True)
     df.geometry = df.geometry.buffer(-buffer_width, join_style=2)
-    outpath = path.split('.geojson')[0] + f'-dissolved-{threshold}.geojson'
+    base = path.split('.geojson')[0]
+    suffix = f'-dissolved-{threshold}' if threshold is not None else '-dissolved'
+    outpath = base + suffix + '.geojson'
     df.to_file(outpath)
 
 if __name__ == '__main__':

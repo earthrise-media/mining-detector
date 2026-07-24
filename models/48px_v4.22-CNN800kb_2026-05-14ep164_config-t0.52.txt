@@ -1,0 +1,59 @@
+Training dataset: training_patches2026-05-14T13:35Avg precisions: {'val': 0.9845088346476082, 'test2': 0.9876339669586521}
+
+Classification Reports at 0.52
+{
+    "val": {
+        "No Mine": {
+            "precision": 0.9917853231106243,
+            "recall": 0.9961496149614961,
+            "f1-score": 0.9939626783754116,
+            "support": 1818.0
+        },
+        "Mine": {
+            "precision": 0.970954356846473,
+            "recall": 0.9397590361445783,
+            "f1-score": 0.9551020408163265,
+            "support": 249.0
+        },
+        "accuracy": 0.9893565553942912,
+        "macro avg": {
+            "precision": 0.9813698399785487,
+            "recall": 0.9679543255530372,
+            "f1-score": 0.974532359595869,
+            "support": 2067.0
+        },
+        "weighted avg": {
+            "precision": 0.9892759323995581,
+            "recall": 0.9893565553942912,
+            "f1-score": 0.9892813533864362,
+            "support": 2067.0
+        }
+    },
+    "test2": {
+        "No Mine": {
+            "precision": 0.9896296296296296,
+            "recall": 0.9925705794947994,
+            "f1-score": 0.9910979228486647,
+            "support": 673.0
+        },
+        "Mine": {
+            "precision": 0.9612403100775194,
+            "recall": 0.9465648854961832,
+            "f1-score": 0.9538461538461539,
+            "support": 131.0
+        },
+        "accuracy": 0.9850746268656716,
+        "macro avg": {
+            "precision": 0.9754349698535745,
+            "recall": 0.9695677324954913,
+            "f1-score": 0.9724720383474093,
+            "support": 804.0
+        },
+        "weighted avg": {
+            "precision": 0.9850040066677809,
+            "recall": 0.9850746268656716,
+            "f1-score": 0.9850282938196486,
+            "support": 804.0
+        }
+    }
+}
