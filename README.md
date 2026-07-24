@@ -132,15 +132,15 @@ On that product:
 
 **Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites *we* labeled; there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
 
-Architectures we tested before settling on the production ensemble included ~100k-parameter CNNs (the 2024 design), ~800k-parameter CNNs, ResNet-18, and probes on SSL4EO ViT embeddings (class-token only, with 48×48→224×224 rescaling; and CLS + patch-token features at two spatial scales). **Ensembling** proved essential for reducing noise across base architectures.
+Architectures we tested before settling on the production ensemble included ~100k-parameter CNNs (the 2024 design), ~800k-parameter CNNs, ResNet-18, and probes on SSL4EO ViT embeddings (class-token only, with 48×48→224×224 rescaling; and CLS + patch-token features at two spatial scales). Ensembling proved essential for reducing noise across base architectures.
 
 ### Postprocessing
 
-After inference we apply a dual confidence threshold based on a simple spatial prior: patches with mine scars tend to cluster. Candidate patches must meet a main confidence cutoff; **isolated** patches (far from other candidates) must meet a higher cutoff. That two-tier rule removes scattershot noise and preserves more true mines than imposing a uniformly strict cutoff.
+After inference we apply a dual confidence threshold based on a simple spatial prior: patches with mine scars tend to cluster. Candidate patches must meet a main confidence cutoff; isolated patches (far from other candidates) must meet a higher cutoff. That two-tier rule removes scattershot noise and preserves more true mines than imposing a uniformly strict cutoff.
 
 ### Cumulative detections
 
-In recent years Amazon Mining Watch has emphasized **cumulative** detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. Because both true coverage and errors accumulate year on year, we use **stricter** confidence settings for cumulatives than for single-period maps: product folder [`postprocessed_t0.55_d5_3km_t-iso0.8/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) (`t_main = 0.55`, `t_iso = 0.8`). Metrics on that operating point (as of the July 2026 rebuild):
+In recent years Amazon Mining Watch has emphasized cumulative detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. Because both true coverage and errors accumulate year on year, we use stricter confidence settings for cumulatives than for single-period maps: product folder [`postprocessed_t0.55_d5_3km_t-iso0.8/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) (`t_main = 0.55`, `t_iso = 0.8`). Metrics on that operating point (as of the July 2026 rebuild):
 
 * Venezuela holdout: no-mine recall **1.0**, mine recall **0.720**
 * Combined evaluation set: no-mine recall **0.9997**, mine recall **0.809**
@@ -161,9 +161,9 @@ Historical result tables and maps from earlier model generations are retained in
 
 ### July 2026 data products
 
-Bulk outputs are **not** stored in this git repository (they are multi-gigabyte). Public copies live on [Source Cooperative — earthgenome/amazon-mining-watch](https://source.coop/earthgenome/amazon-mining-watch). An in-repo catalog of product layout, thresholds, and mirror paths can be found at [`data/outputs/MANIFEST.yaml`](data/outputs/MANIFEST.yaml).
+Bulk outputs are not stored in this git repository. (They are multiple gigabytes.) Public copies live on [Source Cooperative — earthgenome/amazon-mining-watch](https://source.coop/earthgenome/amazon-mining-watch). An in-repo catalog of product layout, thresholds, and mirror paths can be found at [`data/outputs/MANIFEST.yaml`](data/outputs/MANIFEST.yaml).
 
-Browse folders on the product page ([source.coop](https://source.coop/earthgenome/amazon-mining-watch)); download individual files via `https://data.source.coop/earthgenome/amazon-mining-watch/<path/to/file>` (object keys only—no trailing slash).
+Browse folders and download via the product page ([source.coop](https://source.coop/earthgenome/amazon-mining-watch)). Programmatic download of individual files is available via `https://data.source.coop/earthgenome/amazon-mining-watch/<path/to/file>`.
 
 | Product | What it is | Browse on Source Cooperative |
 | --- | --- | --- |
