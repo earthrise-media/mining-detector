@@ -1,7 +1,7 @@
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260721"
+DATA_UPDATED_AT = "20260722"
 
 MINING_DIFFERENCES_FILES = {
     202602: f"{OUTPUTS_FOLDER}/cumulative_detections/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-Q226-diff.geojson",
@@ -28,6 +28,7 @@ MINING_DIFFERENCES_RASTER_FILES = {
     202504: "data/outputs/rasters/mining_mask_Q425_full.tif",
     202503: "data/outputs/rasters/mining_mask_Q325_full.tif",
     202502: "data/outputs/rasters/mining_mask_Q225_full.tif",
+    202501: "data/outputs/rasters/mining_mask_Q125_full.tif",
     202400: "data/outputs/rasters/mining_mask_2024-01-01_2024-12-31_epsg4326.tif",
     202300: "data/outputs/rasters/mining_mask_2023-01-01_2023-12-31_epsg4326.tif",
     202200: "data/outputs/rasters/mining_mask_2022-01-01_2022-12-31_epsg4326.tif",
