@@ -24,11 +24,11 @@ In July 2026 we published a full rebuild of Amazon Mining Watch models and data:
 
 * **Models rebuilt from the ground up.** The production detector is again an ensemble of convolutional networks trained from scratch on Sentinel-2 patches. Details are in the [Methodology](#methodology).
 
-* **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This is an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are in [`data/training_gallery/`](data/training_gallery/).
+* **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This marks an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are in [`data/training_gallery/`](data/training_gallery/).
 
-* **New output data, 2018–present.** Detections have been recomputed for years 2018-2025 and quarters starting from Q1, 2025.  This provides a consistent time series from the beginning of monitoring and removes the earlier break where older years and newer years came from different model generations.
+* **New output data, 2018–present.** Detections have been recomputed yearly for  2018-2025 and quarterly starting in 2025.  The new data provides a consistent time series from the beginning of monitoring and removes the earlier break where older years and newer years came from different model generations.
 
-* **Improved handling of clouds.**  The new model gracefully suppresses cloud artefacts, important for monitoring on shorter time windows. Especially at the start of each year, no low-cloud satellite views are typically available for large parts of the Amazon basin.
+* **Improved handling of clouds.**  The new model gracefully suppresses cloud artefacts, important for monitoring on shorter time windows. Especially at the start of each year, low-cloud satellite views are typically unavailable over large parts of the Amazon basin.
 
 Published products and download links are summarized under [Results](#results).
 
@@ -112,7 +112,7 @@ The system was developed for the Amazon and has also been observed to transfer t
 
 ### Model
 
-The July 2026 production model is [`models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5`](models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5): an ensemble of six CNNs trained from scratch on 48×48×13 Sentinel-2 patches. Most members use a ~800k-parameter convolutional architecture (`CNN800k` in `core/model_library.py`); the ensemble also includes a smaller ~100k-parameter CNN in the lineage of the 2024 architecture. Member scores are averaged to produce the final confidence.
+The July 2026 production model is [`models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5`](models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5): an ensemble of six CNNs trained from scratch on 48×48×13 Sentinel-2 patches. Most members use a ~800k-parameter convolutional architecture (`CNN800k` in `core/model_library.py`); for balance, the ensemble also includes a smaller ~100k-parameter CNN in the lineage of the 2024 architecture. Member scores are averaged to produce the final confidence.
 
 ### Model training and evaluation
 
@@ -123,14 +123,14 @@ We report performance with two complementary rates:
 * **Mine recall** — of the sites we labeled as mines, what fraction does the system flag? (How completely do we catch known mines?)
 * **No-mine recall** — of the sites we labeled as *not* mines, what fraction does the system correctly leave alone? (How successfully do we reject non-mines?)
 
-For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed_t0.43_d5_3km_t-iso0.75/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of an F0.5 curve—favoring finding mines without letting false alarms dominate—and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
+For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed_t0.43_d5_3km_t-iso0.75/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of the F0.5 curve, and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
 
 On that product:
 
 * **Venezuela holdout:** 1,008 labeled patches (343 mines, 665 not-mines). The model correctly rejected **661 / 665** non-mines (no-mine recall **0.994**) and found **307 / 343** mines (mine recall **0.895**).
 * **Combined validation + geographic holdouts:** 723 mines and 3,156 not-mines. No-mine recall **0.998**; mine recall **0.924**. *(Some of this combined pool informed model or threshold selection; `geo_holdout_napo-caquetá.geojson` was later used when training two of the six ensemble members.)*
 
-**Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites *we* labeled; there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
+**Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites we labeled, and there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
 
 Architectures we tested before settling on the production ensemble included ~100k-parameter CNNs (the 2024 design), ~800k-parameter CNNs, ResNet-18, and probes on SSL4EO ViT embeddings (class-token only, with 48×48→224×224 rescaling; and CLS + patch-token features at two spatial scales). Ensembling proved essential for reducing noise across base architectures.
 
