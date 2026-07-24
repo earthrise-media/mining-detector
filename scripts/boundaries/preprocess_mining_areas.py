@@ -44,6 +44,7 @@ from constants import (
     MINING_RASTER_YEARS_QUARTERS,
     MINING_YEARS_QUARTERS,
     generate_mining_simplified_filename,
+    generate_vectorized_raster_filename,
 )
 from rasterio.features import shapes
 from shapely import set_precision
@@ -58,42 +59,21 @@ SUBNATIONAL_ADMIN_GEOJSON = (
 )
 
 
-def raster_to_gdf(raster_path, value_filter=1):
-    print(f"Converting {raster_path} to gdf...")
-    try:
-        with rasterio.open(raster_path) as src:
-            print("Opened. Bands available:", src.count)
-            print("Reported shape:", src.height, src.width)
-            print("Reported dtype:", src.dtypes)
-            print("Block shapes:", src.block_shapes)
-
-            nodata = src.nodata
-            geoms = []
-            values = []
-
-            for _, window in src.block_windows(1):
-                block = src.read(1, window=window)
-
-                # Skip blocks that are entirely nodata or have no matching pixels
-                if nodata is not None and np.all(block == nodata):
-                    continue
-                mask = block == value_filter
-                if not mask.any():
-                    continue
-
-                block_transform = src.window_transform(window)
-                for geom, val in shapes(block, mask=mask, transform=block_transform):
-                    if val == value_filter:
-                        geoms.append(shape(geom))
-                        values.append(val)
-
-            gdf = gpd.GeoDataFrame({"value": values}, geometry=geoms, crs=src.crs)
-            # gdf = gdf.dissolve(by="value").explode(index_parts=False).reset_index(drop=True)
-
-        return gdf
-    except Exception as e:
-        print(f"ERROR in raster_to_gdf: {type(e).__name__}: {e}")
-        raise  # re-raise so it still propagates
+def load_vectorized_raster(year):
+    """
+    Loads the pre-vectorized mining raster for a given year/quarter.
+    These are produced by convert_rasters_to_vector.py.
+    """
+    vector_file = generate_vectorized_raster_filename(year)
+    if not Path(vector_file).exists():
+        raise FileNotFoundError(
+            f"Missing vectorized raster: {vector_file}. "
+            "Run convert_rasters_to_vector.py first."
+        )
+    print(f"Loading {vector_file}")
+    gdf = gpd.read_file(vector_file)
+    gdf["year"] = year  # add year column
+    return gdf
 
 
 def simplify_gdf(gdf):
@@ -498,20 +478,12 @@ if __name__ == "__main__":
     ensure_output_path_exists(COMBINED_MINING_FILE)
     combined_mining_gdf.to_file(COMBINED_MINING_FILE, driver="GeoJSON")
 
-    all_mining_raster_gdfs = []
     start = time.time()
-
-    def process_raster(year):
-        print(f"Processing raster for: {year}")
-        gdf = raster_to_gdf(MINING_DIFFERENCES_RASTER_FILES[year], value_filter=1)
-        gdf["year"] = year  # add year column
-        # simplify
-        gdf = simplify_gdf(gdf)
-        return gdf
-
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        all_mining_raster_gdfs = list(pool.map(process_raster, MINING_RASTER_YEARS_QUARTERS))
-    print(f"Raster conversion took {time.time() - start:.1f}s")
+    # rasters are vectorized ahead of time by convert_rasters_to_vector.py
+    all_mining_raster_gdfs = [
+        load_vectorized_raster(year) for year in MINING_RASTER_YEARS_QUARTERS
+    ]
+    print(f"Loading vectorized rasters took {time.time() - start:.1f}s")
 
     # use the rasterized snapshots as they are: each one is the full mining extent
     # for that period. Differences between periods are derived later, at the

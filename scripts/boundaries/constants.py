@@ -1,7 +1,9 @@
+from pathlib import Path
+
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260722"
+DATA_UPDATED_AT = "20260724"
 
 MINING_DIFFERENCES_FILES = {
     202602: f"{OUTPUTS_FOLDER}/cumulative_detections/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-Q226-diff.geojson",
@@ -42,6 +44,9 @@ MINING_RASTER_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_RASTER_FILES.keys())
 def generate_mining_simplified_filename(year_quarter):
     return f"{WEBSITE_OUTPUTS_FOLDER}/mining_{year_quarter}_simplified.geojson"
 
+def generate_vectorized_raster_filename(year):
+    raster_path = Path(MINING_DIFFERENCES_RASTER_FILES[year])
+    return str(raster_path.parent / "vectorized" / f"{raster_path.stem}.geojson")
 
 MINING_SIMPLIFIED_FILES = [
     generate_mining_simplified_filename(yq) for yq in MINING_YEARS_QUARTERS

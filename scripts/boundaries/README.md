@@ -27,6 +27,7 @@ python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
 python scripts/boundaries/standardize_illegality_areas.py
 
+python scripts/boundaries/convert_rasters_to_vector.py
 python scripts/boundaries/preprocess_mining_areas.py
 python scripts/boundaries/convert_geojsons_to_pmtiles.py
 python scripts/boundaries/upload_data_to_s3.py
