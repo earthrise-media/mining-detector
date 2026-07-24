@@ -20,9 +20,9 @@ Notes on earlier model releases (November 2025 foundation-model experiments, Mar
 
 ## July 2026 updates
 
-In July 2026 we published a full rebuild of Amazon Mining Watch models and data:
+In July 2026 we published a full rebuild of Amazon Mining Watch models and data, to improve model sensitivity and to account for monitoring conditions on shorter time intervals (especially, increased cloud cover).
 
-* **Models rebuilt from the ground up.** The production detector is again an ensemble of convolutional networks trained from scratch on Sentinel-2 patches. Details are in the [Methodology](#methodology).
+* **Models rebuilt from the ground up.** The production detector is an ensemble of convolutional networks trained from scratch on Sentinel-2 image patches. Details are in the [Methodology](#methodology).
 
 * **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This marks an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are in [`data/training_gallery/`](data/training_gallery/).
 
@@ -59,7 +59,7 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Detection accuracy
 
-The Amazon basin is enormous: for each period the model scores on the order of a hundred million patches. By contrast, the labeled evaluation sets consists of thousand examples. Metrics on those labels are useful, but they are not a full census of performance across Amazonia. See [Model training and evaluation](#model-training-and-evaluation) for how we report **mine recall** (share of labeled mines found) and **no-mine recall** (share of labeled non-mines correctly rejected), and for the numbers attached to the recommended single-period and cumulative products.
+The Amazon basin is enormous: for each period the model scores on the order of a hundred million patches. By contrast, the labeled evaluation sets consists of thousand examples. Metrics on those labels are useful, but they are not a full census of performance across Amazonia. See [Model training and evaluation](#model-training-and-evaluation) for how we report **sensitivity** (share of labeled mines found) and **specificity** (share of labeled non-mines correctly rejected), and for the numbers attached to the recommended single-period and cumulative products.
 
 #### Area estimation
 
@@ -120,15 +120,15 @@ In addition to a validation split drawn from the labeled pool, we withheld coher
 
 We report performance with two complementary rates:
 
-* **Mine recall** — of the sites we labeled as mines, what fraction does the system flag? (How completely do we catch known mines?)
-* **No-mine recall** — of the sites we labeled as *not* mines, what fraction does the system correctly leave alone? (How successfully do we reject non-mines?)
+* **Sensitivity** (also called *recall*) — of the sites we labeled as mines, what fraction does the system flag? (How completely do we catch known mines?)
+* **Specificity** — of the sites we labeled as *not* mines, what fraction does the system correctly leave alone? (How successfully do we reject non-mines?)
 
 For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed_t0.43_d5_3km_t-iso0.75/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of the F0.5 curve, and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
 
 On that product:
 
-* **Venezuela holdout:** 1,008 labeled patches (343 mines, 665 not-mines). The model correctly rejected **661 / 665** non-mines (no-mine recall **0.994**) and found **307 / 343** mines (mine recall **0.895**).
-* **Combined validation + geographic holdouts:** 723 mines and 3,156 not-mines. No-mine recall **0.998**; mine recall **0.924**. *(Some of this combined pool informed model or threshold selection; `geo_holdout_napo-caquetá.geojson` was later used when training two of the six ensemble members.)*
+* **Venezuela holdout:** 1,008 labeled patches (343 mines, 665 not-mines). The model correctly rejected **661 / 665** non-mines (specificity **0.994**) and found **307 / 343** mines (sensitivity **0.895**).
+* **Combined validation + geographic holdouts:** 723 mines and 3,156 not-mines. Specificity **0.998**; sensitivity **0.924**. *(Some of this combined pool informed model or threshold selection; `geo_holdout_napo-caquetá.geojson` was later used when training two of the six ensemble members.)*
 
 **Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites we labeled, and there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
 
@@ -142,10 +142,10 @@ After inference we apply a dual confidence threshold based on a simple spatial p
 
 In recent years Amazon Mining Watch has emphasized cumulative detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. Because both true coverage and errors accumulate year on year, we use stricter confidence settings for cumulatives than for single-period maps: product folder [`postprocessed_t0.55_d5_3km_t-iso0.8/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) (`t_main = 0.55`, `t_iso = 0.8`). Metrics on that operating point (as of the July 2026 rebuild):
 
-* Venezuela holdout: no-mine recall **1.0**, mine recall **0.720**
-* Combined evaluation set: no-mine recall **0.9997**, mine recall **0.809**
+* Venezuela holdout: specificity **1.0**, sensitivity **0.720**
+* Combined evaluation set: specificity **0.9997**, sensitivity **0.809**
 
-As the cumulative layer grows through time, mine recall tends to rise and the false-alarm rate among detections tends to worsen somewhat, which is the reason for the stricter thresholds.
+As the cumulative layer grows through time, sensitivity tends to rise and the false-alarm rate among detections tends to worsen somewhat, which is the reason for the stricter thresholds.
 
 For the website we also fold in lower-threshold detections (`t_main = 0.2`) for a few small partner regions in Peru ([`data/boundaries/andes_supplemental.geojson`](data/boundaries/andes_supplemental.geojson)), where the goal is to capture very small-scale mining. We found that we could not train against those sites without driving up false detections elsewhere, indicating a practical lower size limit for a Sentinel-2–based system.
 
