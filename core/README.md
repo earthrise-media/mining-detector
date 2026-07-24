@@ -45,7 +45,7 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
   - For Earth Genome only: May 2026 modeling patches are at `gs://amw-dev/training_patches2026-05-04T09:47_48px/`.
 * `cloud_mask_filter.ipynb`: Optional review of cloud masking. We keep some clouds and cloud masked images in the negative training set.
 * `train_model.ipynb`: Train a neural network model. A few basic architectures can be loaded from model_library.py.
-  - Alternate foundation-model track (two steps): `embed.ipynb` (extract embeddings), then `train_probe.ipynb` (train a classification head on those embeddings).
+  - Alternate foundation-model track (two steps): `embed.ipynb` or `embed_cls_patch.ipynb` (extract embeddings), then `train_probe.ipynb` (train a classification head on those embeddings).
 * `ensemble.ipynb`: Merge trained models into a single ensemble model.
 * `model_evaluation.ipynb`: Extra evaluation protocols (dual-threshold, `t_iso` sweeps, cumulative ∩ chips) beyond the metrics in `train_model.ipynb`.
 * `inference.ipynb`: Run a model on a test area.
@@ -226,6 +226,13 @@ After publishing, update `data/outputs/MANIFEST.yaml` (`updated` date, periods, 
 
 ### Embedding-based models
 
-As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. Use `embed.ipynb` then `train_probe.ipynb` in place of `train_model.ipynb`, and otherwise follow the same workflow.
+As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. Use an embedding notebook then `train_probe.ipynb` in place of `train_model.ipynb`, and otherwise follow the same workflow.
 
-Our foundation model of choice was the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12), also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. The code looks for this checkpoint at `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt`. 
+Two embedding exports are supported (SSL4EO ViT-S/16):
+
+* **Class token only** — `embed.ipynb` (`embedding_strategy=cls_only`). Legacy path; one vector per chip from the ViT CLS token.
+* **CLS + ViT patch token** — `embed_cls_patch.ipynb` (backed by `embed_cls_patch.py`; `embedding_strategy=cls_patch`). Concatenates the CLS token with one selected spatial patch token (768-d for ViT-S/16). We experimented with this denser representation; it remains supported for training and for bulk inference via `--embedding_strategy cls_patch`.
+
+In `train_probe.ipynb`, point at the parquet from the chosen embed step and set `EMBEDDING_STRATEGY` to match (`cls_only` vs `cls_patch`). For `cls_patch`, the probe expects feature columns `cls*` then `spatial*` (see `model_library.MLP_with_targeted_dropout`).
+
+Our foundation model of choice was the [SSL4EO ViT DINO S/16](https://github.com/zhu-xlab/SSL4EO-S12), also available through TorchGeo and HuggingFace. We caution that filenames, and therefore potentially the model, have been updated since we downloaded the file `dino_vit_small_patch16_224.pt`. The code looks for this checkpoint at `models/SSL4EO/pretrained/dino_vit_small_patch16_224.pt`.
