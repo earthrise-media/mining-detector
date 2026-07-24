@@ -24,7 +24,7 @@ In July 2026 we published a full rebuild of Amazon Mining Watch models and data:
 
 * **Models rebuilt from the ground up.** The production detector is again an ensemble of convolutional networks trained from scratch on Sentinel-2 patches. Details are in the [Methodology](#methodology).
 
-* **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This is an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are shared in [this Google Drive folder](https://drive.google.com/drive/folders/11nVBwQv3YNfE92d6lq1ts-wzLDoQoVAb?usp=sharing).
+* **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This is an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are in [`data/training_gallery/`](data/training_gallery/).
 
 * **New output data, 2018–present.** Detections have been recomputed for years 2018-2025 and quarters starting from Q1, 2025.  This provides a consistent time series from the beginning of monitoring and removes the earlier break where older years and newer years came from different model generations.
 
