@@ -2,14 +2,17 @@
 # Canonical public copies live on Source Cooperative; this file is the in-repo
 # pointer so we do not check multi-GB GeoJSON/COG artifacts into git.
 #
-# Browse: https://source.coop/earthgenome/amazon-mining-watch
-# Data API / S3-style listing:
-#   https://data.source.coop/earthgenome/amazon-mining-watch/
-# HTTPS object prefix:
-#   https://data.source.coop/earthgenome/amazon-mining-watch/<key>
+# Browse (web UI — use for folders/prefixes):
+#   https://source.coop/earthgenome/amazon-mining-watch
+#   https://source.coop/earthgenome/amazon-mining-watch/<prefix>
+# Direct file download / S3-compatible proxy (object keys only — no trailing slash):
+#   https://data.source.coop/earthgenome/amazon-mining-watch/<path/to/file.ext>
+# Example object:
+#   https://data.source.coop/earthgenome/amazon-mining-watch/cumulative_detections/..._cumulative2018-2023.geojson
+# path_map.source_coop values below are prefixes under the product root (not full URLs).
 
 schema_version: 1
-updated: 2026-07-22
+updated: 2026-07-24
 
 license: CC-BY-4.0
 contact: info@earthgenome.org
@@ -18,8 +21,13 @@ stores:
   source_coop:
     visibility: public
     product: https://source.coop/earthgenome/amazon-mining-watch
+    browse_root: https://source.coop/earthgenome/amazon-mining-watch
     https_root: https://data.source.coop/earthgenome/amazon-mining-watch
-    # Example:
+    notes: >
+      Browse folders on browse_root (source.coop). https_root is for individual
+      object keys only; trailing slashes and bare prefixes return InvalidRequest
+      on the data proxy. Prefer browse_root links in public docs.
+    # Example object URL:
     #   {https_root}/cumulative_detections/..._cumulative2018-2023.geojson
 
   gcs:

@@ -6,36 +6,31 @@ Code for the automated detection of artisanal gold mines in Sentinel-2 satellite
 [![mining-header-planet](https://user-images.githubusercontent.com/13071901/146877590-b083eace-2084-4945-b739-0f8dda79eaa9.jpg)](https://amazonminingwatch.org)
 
 Quick links: 
-* [**NOVEMBER 2025 UPDATES**](https://github.com/earthrise-media/mining-detector#november-2025-data-and-model-updates)
-* [**MARCH 2024 DATA AND MODEL UPDATES**](https://github.com/earthrise-media/mining-detector#march-2024-data-and-model-updates)
+* [**JULY 2026 UPDATES**](https://github.com/earthrise-media/mining-detector#july-2026-updates)
 * [**INTERPRETING THE FINDINGS**](https://github.com/earthrise-media/mining-detector#interpreting-the-findings)
 * [**JOURNALISM**](https://github.com/earthrise-media/mining-detector#journalism)
 * [**METHODOLOGY**](https://github.com/earthrise-media/mining-detector#methodology)
-* [**MINING**](https://github.com/earthrise-media/mining-detector#results) AND [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset) DATASETS
+* [**RESULTS / DATA**](https://github.com/earthrise-media/mining-detector#results)
+* [**AIRSTRIPS**](https://github.com/earthrise-media/mining-detector#clandestine-airstrips-and-airstrips-dataset)
 
 ---
 
-## November 2025 updates
 
-Ahead of COP in Belém, we significantly redeveloped Amazon Mining Watch, with: 
+Notes on earlier model releases (November 2025 foundation-model experiments, March 2024 CNN rebuild, and prior vintages) remain in git history: see the [README at commit `2ce1738`](https://github.com/earthrise-media/mining-detector/blob/2ce17387445321b4d9cb8292e015386390c853f1/README.md).
 
-* A new webiste, showing trends through time for different jurisdictions and calculations of the socio-economic costs of mining. Current mining hospots are highlighted for further analysis.
-* [Quarterly data updates](https://github.com/earthrise-media/mining-detector#results), starting from Q2, 2025.
-* New models, built on a global geospatial foundation model. Details are in the [methodology](https://github.com/earthrise-media/mining-detector#methodology).
-* Revised mined [area estimation](https://github.com/earthrise-media/mining-detector#area-estimation), using a secondary segmentation algorithm that more closely delineates around mine scars.
-  
-The transition to new models remains work in progress. On the website, 2024 and 2025 data reflects new models outputs, which have largely been cleaned of false positive detections by a human reviewer. 
+## July 2026 updates
 
-## March 2024 data and model updates
+In July 2026 we published a full rebuild of Amazon Mining Watch models and data:
 
-Development of the mining detector halted in 2022 when we lost access to the geospatial computing platform at Descartes Labs. With the arrival of [new API methods](https://medium.com/google-earth/pixels-to-the-people-2d3c14a46da6) to export pixels from Google Earth Engine (GEE), we were able to swap GEE in for Descartes Labs as image source. The original Amazon Mining Watch survey was built on 2020 composite Sentinel-2 satellite imagery. With the redevelopment comes:
+* **Models rebuilt from the ground up.** The production detector is again an ensemble of convolutional networks trained from scratch on Sentinel-2 patches. Details are in the [Methodology](#methodology).
 
-* [Yearly assessments of mining activity for 2018-2023](https://github.com/earthrise-media/mining-detector#results). 
-* A new Sentinel-2 satellite data pipeline based on Google Earth Engine. Anyone with a GEE account should be able to [run this code](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md).
-* New [models](https://github.com/earthrise-media/mining-detector#models). While preserving the original model architecture, we trained from scratch using the GEE data, with added positive and negative data sampling based on model evaluations and our improved understanding of the scope of mining activities in the Amazon basin. 
+* **Expanded training data.** The labeled set now comprises **23,463** patches (2,968 mine / ~20,495 not-mine), spanning train, validation, and geographic holdout splits. This is an eight-fold increase in samples over the 2024 training dataset. Sample chips from the training data are shared in [this Google Drive folder](https://drive.google.com/drive/folders/11nVBwQv3YNfE92d6lq1ts-wzLDoQoVAb?usp=sharing).
 
-Mining expanded each year in the study period, notably into previously untouched areas of Yanomami, Kayapó, and Munduruku indigenous territories. It continues to spread into scattered and remote regions of the Amazon rainforest. Even some of the tiniest isolated detections are working mines. In western Amazonas, Brazil, floating dredges are scooping soils from river banks and bottoms in the search for gold, seen in the ravaged riverbanks of Rio Puré and Rio Boia in the most recent years' data.
+* **New output data, 2018–present.** Detections have been recomputed for years 2018-2025 and quarters starting from Q1, 2025.  This provides a consistent time series from the beginning of monitoring and removes the earlier break where older years and newer years came from different model generations.
 
+* **Improved handling of clouds.**  The new model gracefully suppresses cloud artefacts, important for monitoring on shorter time windows. Especially at the start of each year, no low-cloud satellite views are typically available for large parts of the Amazon basin.
+
+Published products and download links are summarized under [Results](#results).
 
 ## Interpreting the findings
 
@@ -56,28 +51,19 @@ With limited bootstrap sampling, we extrapolated to run over the whole of the Am
 
 You can recognize aquaculture ponds by their geometric shape, efficient use of space, and presence in agricultural zones. 
 
-From the March 2024 data release, we note in particular some false positives from aquaculture and other wet industrial operations around Manaus and an area of landslides in hilly terrain of southern Loreto, Peru.
-
 A more common model error is the _false negative_, where the model fails to detect a mine or the full extent of a mine. 
 
 Where the rainforest has begun to heal, mine scars may not be detected in later years, and so mined area both expands and recedes over time. We see some value in this model response and we decided not to correct it. 
 
 On the whole, false detections are relatively few given how widespread the mining is, and we hope this will be a useful resource to those interested in tracking mining activity in the region. 
 
-#### Detection Accuracy
+#### Detection accuracy
 
-The Amazon basin encompasses an enormous, complex geography extending over 8.5 million square kilometers. For each quarterly dataset, the neural networks make [over 100 million assessments](https://github.com/earthrise-media/mining-detector#methodology) for mining. By constrast, in late 2025, the labeled data we withhold to evaluate model performance consists of around 6400 examples. The metrics we derive from the withheld dataset can only be considered roughly indicative of how the networks will perform in extrapolating to the whole of the territory. [At threshold t=0.925](https://github.com/earthrise-media/mining-detector#results), the 2025 model ensemble operates with a precision of 99.6% and a recall of 79.6% for the detection of mine scars, which translates to an overall accuracy of 98.1%. Those metrics apply before post-processing, aggregation of detections to polygons, and human review.
-
-For the 2024 models, which yield the 2018-2023 data on the Amazon Mining Watch website, we ran the following complimentary test. We evaulated by hand a random sample of 500 patch detections from 2023-year data. Of the 500 samples, 498 show scars from artisanal mining. One is an industrial mine, and one is a remnant of the construction of the Balbina dam and power station from around 1985. From this, we can estimate the precision or positive predictive value for that classifier again (in a numerical coincidence) to be 99.6%. In essence, the precision tells you the likelihood that a patch marked as a mine is actually a mine. 
-
+The Amazon basin is enormous: for each period the model scores on the order of a hundred million patches. By contrast, the labeled evaluation sets consists of thousand examples. Metrics on those labels are useful, but they are not a full census of performance across Amazonia. See [Model training and evaluation](#model-training-and-evaluation) for how we report **mine recall** (share of labeled mines found) and **no-mine recall** (share of labeled non-mines correctly rejected), and for the numbers attached to the recommended single-period and cumulative products.
 
 #### Area estimation
 
-The primary goal of this work is to detect mines, and our classification operates on square image patches covering around twenty hectares each. However, we have been working to improve area estimates, first by deploying an [NDVI](https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index) mask to exclude intact vegetation, and more recently, deploying a fine-tuned [SAM2 segmentation model](https://github.com/facebookresearch/sam2) on RGB channels of the Sentinel-2 imagery to delineate the borders of the mining scars. 
-
-As of March, 2026, this remains a work in progress. Area estimates on [amazonminingwatch.org](https://amazonminingwatch.org) still derive from NDVI masking, which somewhat undercounts areas in forest backgrounds and can have high uncertainties over bare ground. The first SAM2 mining scar rasters are [available on source.coop](https://source.coop/earthgenome/amazon-mining-watch/2025/mining_scar_raster_masks). 
-
-We would like to thank Michael Braun, Daemon Li, and Divas Subedi, masters students in computer science at Georgia Tech University, who fine-tuned and tested the SAM2 model for this work.
+The primary goal of this work is to detect mines, and our classification operates on square image patches covering around twenty hectares each. Area estimates are refined with a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) segmentation model on RGB Sentinel-2 imagery (see [Methodology](#area-estimation-sam2)). Raster masks are published on [Source Cooperative](https://source.coop/earthgenome/amazon-mining-watch). Further fine-tuning on hard cases remains ongoing.
 
 ## Journalism 
 
@@ -118,71 +104,92 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 ### Overview
 
-The mine detector is an ensemble of neural networks, which we train to discriminate mines from other terrain by feeding it hand-labeled examples of key features as they appear in Sentinel-2 satellite imagery. The network operates on square patches of data extracted from the [Sentinel 2 L1C data product](https://sentinel.esa.int/web/sentinel/missions/sentinel-2). Each pixel in the patch captures the light reflected from Earth's surface in thirteen bands of visible and infrared light. We average (median composite) the Sentinel data across a period of many months to reduce the presence of clouds, cloud shadow, and other transitory effects. 
+The mine detector is an ensemble of convolutional neural networks trained to discriminate mines from other terrain using hand-labeled examples in [Sentinel-2 L1C](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) imagery. Each input is a square multi-spectral patch (~480 m on a side at 10 m resolution; 48×48 pixels × 13 bands). We build median composites over multi-month windows to reduce clouds, cloud shadow, and other short-lived effects.
 
-Currently, the neural networks in question are constructed in two parts: (1) a geospatial foundation model (specifically, the open-source DINO ViT-S/16 from the [SSL4EO project](https://github.com/zhu-xlab/SSL4EO-S12)), which is pre-trained on a global sample of Sentinel-2 imagery to produce rich representations of features on Earth's surface; (2) an ensemble of small, fully-connected neural networks that ingest the output features of the foundation model and are trained with labeled data to predict whether each input represents a mine. Prior to 2025, we used an ensemble of lightweight convolutional neural networks trained from scratch on our dataset.
+At run time the ensemble scores patches across the region of interest, stepping by half a patch width so that neighboring assessments overlap. Covering the ~8.5 million km² Amazon basin requires on the order of a hundred million patch assessments per period.
 
-During run time, the network assesses each patch for signs of recent mining activity, and then the region of interest is shifted by half a patch width for the network to make a subsequent assessment. This process proceeds across the entire Amazon basin. The network makes over 100 million individual assessments in covering the 8.5 million square kilometers of the Amazon basin. 
+The system was developed for the Amazon and has also been observed to transfer to other tropical biomes.
 
-The system was developed for use in the Amazon, but it has also been seen to work in other tropical biomes.
+### Model
 
-### Results
+The July 2026 production model is [`models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5`](models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5): an ensemble of six CNNs trained from scratch on 48×48×13 Sentinel-2 patches. Most members use a ~800k-parameter convolutional architecture (`CNN800k` in `core/model_library.py`); the ensemble also includes a smaller ~100k-parameter CNN in the lineage of the 2024 architecture. Member scores are averaged to produce the final confidence.
 
-#### Quarterly assessments of mining in the Amazon basin, starting Q2 2025 (v3 Amazon Mining Watch dataset)
+### Model training and evaluation
 
-Current assessments run through SSL4EO foundation model and the ensemble [48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v0.X_SSL4EO-MLPensemble_2025-10-21.h5). We record outputs for all patches with a mean score over 0.85, on a scale from 0 to 1. To produce the polygons on the Amazon Mining Watch website, we further restrict to detections with score over 0.925, merge patches to polygons, and impose a higher 0.975 confidence level for polygons under 30 hectares in size. While the models are still under development, we are reviewing and filtering false positives from the detections presented on the website. 
+In addition to a validation split drawn from the labeled pool, we withheld coherent geographic regions from training for model selection and evaluation (see `data/boundaries/geo_holdout_*.geojson`). In particular, the Río Caroní area—covering most of Bolívar state, Venezuela (`geo_holdout_caroni.geojson`)—was unused until training and model selection were complete, so that we can measure how the system generalizes to a region never seen in training.
 
-[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble) are available for 2024 and the second and third quarters of 2025. 
+We report performance with two complementary rates:
 
-The website presents cumulative detections of mining scars, starting from 2018. The current model gives the [2024 and 2025 updates](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v0.X_SSL4EO-MLPensemble/cumulative) to the cumulative record, while years 2018-2023 are covered by [outputs of the prior v3.2-3.7 ensemble model](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble/cumulative). 
+* **Mine recall** — of the sites we labeled as mines, what fraction does the system flag? (How completely do we catch known mines?)
+* **No-mine recall** — of the sites we labeled as *not* mines, what fraction does the system correctly leave alone? (How successfully do we reject non-mines?)
 
-Because of the shift in models from year 2023-2024, users will see a jump in detected mining activity from 2023 to 2024 due in part to the advent of new models and not exclusively to changes on the ground. Trends across this gap should be interpreted with caution. Eventually we hope to update the older data. 
+For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed_t0.43_d5_3km_t-iso0.75/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of an F0.5 curve—favoring finding mines without letting false alarms dominate—and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
 
-#### Yearly asessment of mining in the Amazon basin, 2018-2024 (v2 Amazon Mining Watch dataset)
+On that product:
 
-This assessment was run with an ensemble of six models: [48px_v3.2-3.7ensemble_2024-02-13.h5](https://github.com/earthrise-media/mining-detector/blob/main/models/48px_v3.2-3.7ensemble_2024-02-13.h5). We recorded outputs for all patches with a mean score over 0.5, on a scale from 0 to 1. 
+* **Venezuela holdout:** 1,008 labeled patches (343 mines, 665 not-mines). The model correctly rejected **661 / 665** non-mines (no-mine recall **0.994**) and found **307 / 343** mines (mine recall **0.895**).
+* **Combined validation + geographic holdouts:** 723 mines and 3,156 not-mines. No-mine recall **0.998**; mine recall **0.924**. *(Some of this combined pool informed model or threshold selection; `geo_holdout_napo-caquetá.geojson` was later used when training two of the six ensemble members.)*
 
-[Output data](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble) are saved year by year and presented in three formats. The first format records the mean score and the six individual predictions from models 3.2-3.7 for each saved patch. The second, streamlined, format, with filenames tagged _dissolved-0.6_, saves only patches meeting a higher 0.6 mean score threshold and then merges adjacent patches into larger polygons. 
+**Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites *we* labeled; there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
 
-The dissolved predictions should suffice for most users. At lower prediction threshold, the ensemble captures more mining at the cost of more false positive detections; at higher threshold, the ensemble is stingier with its predictions and more likely to be correct in the mines it surfaces. The choice of 0.6 reflects our own preference in this tradeoff. Users wanting to tune the prediction threshold can work with the data in the patch format.
+Architectures we tested before settling on the production ensemble included ~100k-parameter CNNs (the 2024 design), ~800k-parameter CNNs, ResNet-18, and probes on SSL4EO ViT embeddings (class-token only, with 48×48→224×224 rescaling; and CLS + patch-token features at two spatial scales). **Ensembling** proved essential for reducing noise across base architectures.
 
-Finally, because of year-to-year variance in detections of small mine scars, and because mine scars can fade from detection where vegetation regrows, we include a set of [_cumulative_](https://github.com/earthrise-media/mining-detector/tree/main/data/outputs/48px_v3.2-3.7ensemble/cumulative) detections. These datasets aggregate the dissolved yearly detections from 2018 through the later year indicated in the filename, delineating places where mining has ever been detected to that point. In April, 2025, we shifted to present the cumulative detections on [Amazon Mining Watch](https://amazonminingwatch.org/). To our mind they better capture overall mining impact. By 2024, the cumulative area mapped is 70% larger than the area mapped in 2024 alone. On the downside, model errors also accumulate.
+### Postprocessing
 
-#### Assessement of mining in the Amazon basin in 2020 (v1 Amazon Mining Watch dataset)
+After inference we apply a dual confidence threshold based on a simple spatial prior: patches with mine scars tend to cluster. Candidate patches must meet a main confidence cutoff; **isolated** patches (far from other candidates) must meet a higher cutoff. That two-tier rule removes scattershot noise and preserves more true mines than imposing a uniformly strict cutoff.
 
-[Amazon mine map](https://earthrise-media.github.io/mining-detector/amazon-mine-map.html) and the [output dataset](data/outputs/44px_v2.9/mining_amazon_all_unified_thresh_0.8_v44px_v2.6-2.9_2020-01-01_2021-02-01_period_4_method_median.geojson). This data was largely generated with the [44px v2.6 model](models/44px_v2.6_2021-11-09.h5). A small portion in the Brazillian state of Pará was analyzed using the [44px v2.9 model](models/44px_v2.9_2022-02-28.h5) to improve accuracy.
+### Cumulative detections
 
-#### Tapajós basin mining progression, 2016-2020 
+In recent years Amazon Mining Watch has emphasized **cumulative** detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. Because both true coverage and errors accumulate year on year, we use **stricter** confidence settings for cumulatives than for single-period maps: product folder [`postprocessed_t0.55_d5_3km_t-iso0.8/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) (`t_main = 0.55`, `t_iso = 0.8`). Metrics on that operating point (as of the July 2026 rebuild):
 
-[Tapajós mine map](https://earthrise-media.github.io/mining-detector/tapajos-mining-2016-2020pub.html) and [output dataset](data/outputs/28_px_v9/28_px_tapajos_2016-2020_thresh_0.5.geojson). In this case, we analyzed the region yearly from 2016-2020 to monitor the growth of mining in the area, using the earlier [28px v9 model](models/28_px_v9.h5). 
+* Venezuela holdout: no-mine recall **1.0**, mine recall **0.720**
+* Combined evaluation set: no-mine recall **0.9997**, mine recall **0.809**
 
-#### Hand-validated dectections of mines in Venezuela's Bolívar and Amazonas states in 2020
+As the cumulative layer grows through time, mine recall tends to rise and the false-alarm rate among detections tends to worsen somewhat, which is the reason for the stricter thresholds.
 
-[Venezuela mine map](https://earthrise-media.github.io/mining-detector/bolivar-amazonas-2020v9verified.html), [Bolívar dataset](data/outputs/28_px_v9/bolivar_2020_thresh_0.8verified.geojson) and [Amazonas dataset](data/outputs/28_px_v9/amazonas_2020_thresh_0.5verified.geojson). Analysis via the 28px v9 model. 
+For the website we also fold in lower-threshold detections (`t_main = 0.2`) for a few small partner regions in Peru ([`data/boundaries/andes_supplemental.geojson`](data/boundaries/andes_supplemental.geojson)), where the goal is to capture very small-scale mining. We found that we could not train against those sites without driving up false detections elsewhere, indicating a practical lower size limit for a Sentinel-2–based system.
 
-#### Generalization Tests in Ghana
+### Area estimation (SAM2)
 
-These runs test the ability of the models to generalize to tropical geographies outside the Amazon basin. The detections could be more comprehensive, but they appear to capture the broad patterns of mining in the country.
+Patch classification alone overstates or understates scar area. We delineate scars with a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) segmentation model—a clear improvement over estimating area from whole patches or from NDVI masking alone. The model still needs more fine-tuning on hard cases.
 
-[Ghana 2024 dataset](data/outputs/48px_v3.2-3.7ensemble/ghana_48px_v3.2-3.7ensemble_0.50_2024-01-01_2024-11-15-dissolved-0.6.geojson) (January 1 - November 15).
+We gratefully acknowledge **Michael Braun**, **Daemon Li**, and **Divas Subedi**, master’s students in the Department of Computer Science at Georgia Tech, for developing the fine-tuned SAM2 segmentation model as part of their course work.
 
-Ashanti region, combined 2017 and 2020 [map](https://earthrise-media.github.io/mining-detector/ghana-ashanti-2018-2020-v2.8.html) and [dataset](data/outputs/44px_v2.8/mining_ghana_ashanti_v44px_v2.8_2017-2020.geojson).
- 
+## Results
+
+Historical result tables and maps from earlier model generations are retained in git; see the [Results section of the README at `2ce1738`](https://github.com/earthrise-media/mining-detector/blob/2ce17387445321b4d9cb8292e015386390c853f1/README.md#results).
+
+### July 2026 data products
+
+Bulk outputs are **not** stored in this git repository (they are multi-gigabyte). Public copies live on [Source Cooperative — earthgenome/amazon-mining-watch](https://source.coop/earthgenome/amazon-mining-watch). An in-repo catalog of product layout, thresholds, and mirror paths can be found at [`data/outputs/MANIFEST.yaml`](data/outputs/MANIFEST.yaml).
+
+Browse folders on the product page ([source.coop](https://source.coop/earthgenome/amazon-mining-watch)); download individual files via `https://data.source.coop/earthgenome/amazon-mining-watch/<path/to/file>` (object keys only—no trailing slash).
+
+| Product | What it is | Browse on Source Cooperative |
+| --- | --- | --- |
+| **Cumulative detections** | Year-end and quarterly cumulatives (2018→tag) used on the website, plus period-over-period `diffs/` | [`cumulative_detections`](https://source.coop/earthgenome/amazon-mining-watch/cumulative_detections) |
+| **Single-period, recommended** | Dual-threshold postprocess for individual years/quarters (`t_main=0.43`, `t_iso=0.75`) | [`single_periods/postprocessed_t0.43_d5_3km_t-iso0.75`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) |
+| **Single-period, stringent** | Same dual-threshold rule at cumulative settings (`t_main=0.55`, `t_iso=0.8`) | [`single_periods/postprocessed_t0.55_d5_3km_t-iso0.8`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) |
+| **Raw detections** | Patches with confidence ≥ 0.4 before dual-threshold filtering (Amazon ACA; Andes supplemental nested underneath) | [`single_periods/raw_detections`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/raw_detections) |
+| **Mining scar masks** | SAM2 COG rasters for area estimation (yearly masks and quarterly `*_full` mosaics) | [`mining_scar_masks`](https://source.coop/earthgenome/amazon-mining-watch/mining_scar_masks) |
+
+Model file (in this repo): [`models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5`](models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5).
+
 ### Organization of the repository
 
-This repo contains all code needed to generate data, train models, and deploy a model to predict presence of mining in a region of interest. We welcome external use of the code subject to terms of an open [MIT license](https://github.com/earthrise-media/mining-detector/blob/eboyda-patch-1/LICENSE). 
+This repo contains code to generate data, train models, and run inference over a region of interest. 
 
 #### Code
 
-Code for data generation and model inference is in the [`gee`](https://github.com/earthrise-media/mining-detector/tree/main/gee) folder. The [readme](https://github.com/earthrise-media/mining-detector/blob/main/gee/README.md) there provides instructions. 
+Data generation and model inference live under [`core/`](core/) (see [`core/README.md`](core/README.md)).
 
 #### Data inputs
-- `data/boundaries` contains GeoJSON polygon boundaries for regions of interest where the model has been deployed.
-- `data/sampling_locations` contains GeoJSON datasets that are used as sampling locations to generate training datasets. A positive/negative class label is indicated in each file's name.
+- `data/boundaries` — region-of-interest polygons (Amazon ACA, Andes supplemental, geographic holdouts, etc.).
+- `data/sampling_locations` — labeled sampling locations used to build training sets.
 
 #### Models
-The `models` directory contains keras neural network models saved as `.h5` files. The model names indicate the patch size evaluated by the model, followed by the model's version number and date of creation. Each model file is paired with a corresponding config `.txt` file that logs the datasets used to train the model, some hyperparameters, and the model's performance on a test dataset. 
+The `models` directory holds Keras `.h5` checkpoints. Names encode patch size, version, and often training date. Pair each model with its `*_config*.txt` log of datasets, hyperparameters, and held-out metrics where available.
 
 ### License
 
-The code in this repository are available for reuse under an open [MIT License](https://github.com/earthrise-media/mining-detector/blob/main/LICENSE). The data is available under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). In publication, please cite Earth Genome, with reference to this repository.
+The code in this repository is available for reuse under an open [MIT License](LICENSE). The data is available under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). In publication, please cite Earth Genome, with reference to this repository.
