@@ -106,7 +106,7 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 The mine detector is an ensemble of convolutional neural networks trained to discriminate mines from other terrain using hand-labeled examples in [Sentinel-2 L1C](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) imagery. Each input is a square multi-spectral patch (~480 m on a side at 10 m resolution; 48×48 pixels × 13 bands). We build median composites over multi-month windows to reduce clouds, cloud shadow, and other short-lived effects.
 
-At run time the ensemble scores patches across the region of interest, stepping by half a patch width so that neighboring assessments overlap. Covering the ~8.5 million km² Amazon basin requires on the order of a hundred million patch assessments per period.
+At run time the ensemble scores patches across the region of interest, stepping by half a patch width so that neighboring assessments overlap. Covering the 8.2 million km² Amazon basin requires on the order of a hundred million patch assessments per period.
 
 The system was developed for the Amazon and has also been observed to transfer to other tropical biomes.
 
