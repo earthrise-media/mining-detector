@@ -6,6 +6,10 @@ Preprocess mining areas for the website:
 - Intersects these with areas of interest (indigenous territories, protected areas).
 - Calculates area summaries, yearly timeseries.
 - Overlays mining polygons with illegality categories.
+
+Note: raster snapshots are used as-is (cumulative extent at each period).
+Per-period differences are derived at the timeseries step instead of via
+vector overlay differences.
 """
 
 # You can run this script with uv if you prefer,
@@ -18,24 +22,33 @@ Preprocess mining areas for the website:
 #     "geopandas",
 #     "numpy",
 #     "pandas",
+#     "rasterio",
 # ]
 # ///
 
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import rasterio
 from constants import (
     COMBINED_MINING_FILE,
     ILLEGALITY_AREAS_GEOJSON,
     ILLEGALITY_DATA_UPDATED_AT,
     MINING_DIFFERENCES_FILES,
+    MINING_DIFFERENCES_RASTER_FILES,
+    MINING_RASTER_YEARS_QUARTERS,
     MINING_YEARS_QUARTERS,
     generate_mining_simplified_filename,
+    generate_vectorized_raster_filename,
 )
+from rasterio.features import shapes
 from shapely import set_precision
+from shapely.geometry import shape
 
 ADMIN_AREAS_GEOJSON = "data/boundaries/subnational_admin/out/admin_areas.geojson"
 INDIGENOUS_TERRITORIES_GEOJSON = "data/boundaries/protected_areas_and_indigenous_territories/out/indigenous_territories.geojson"
@@ -44,6 +57,23 @@ NATIONAL_ADMIN_GEOJSON = "data/boundaries/national_admin/out/national_admin.geoj
 SUBNATIONAL_ADMIN_GEOJSON = (
     "data/boundaries/subnational_admin/out/admin_areas_display.geojson"
 )
+
+
+def load_vectorized_raster(year):
+    """
+    Loads the pre-vectorized mining raster for a given year/quarter.
+    These are produced by convert_rasters_to_vector.py.
+    """
+    vector_file = generate_vectorized_raster_filename(year)
+    if not Path(vector_file).exists():
+        raise FileNotFoundError(
+            f"Missing vectorized raster: {vector_file}. "
+            "Run convert_rasters_to_vector.py first."
+        )
+    print(f"Loading {vector_file}")
+    gdf = gpd.read_file(vector_file)
+    gdf["year"] = year  # add year column
+    return gdf
 
 
 def simplify_gdf(gdf):
@@ -168,6 +198,9 @@ def intersect_with_areas_of_interest_and_summarize(
     with the already admin-intersected mining areas. Summarizes the areas
     by area of interest and admin boundaries, to use in the Mining Calculator requests.
 
+    Note: the mining areas here are snapshots (cumulative extent per period), so the
+    resulting summary is cumulative per year rather than incremental.
+
     The ignore_if_outside_country argument makes the function ignore in case the area's
     country code doesn't match the parent country code. This is useful for areas that are
     on the border and might fall outside of the country's boundaries.
@@ -221,18 +254,18 @@ def intersect_with_areas_of_interest_and_summarize(
 
 
 def calculate_mining_area_timeseries(summary):
-    # calculate mining area affected per year
+    """
+    The input summary comes from snapshot (cumulative) mining extents, so the
+    per-year value is already the cumulative area. The incremental area for each
+    year is derived here by subtracting the previous period's cumulative value.
+    """
+    # cumulative mining area affected at each period
     summary_mining_affected_area_ha_yearly = (
         summary.groupby(["id", "admin_year"])["intersected_area_ha"]
         .sum()
         .reset_index()
         .sort_values(by=["id", "admin_year"])
-    )
-    # cumulative sum for each id
-    summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
-        summary_mining_affected_area_ha_yearly.groupby("id")[
-            "intersected_area_ha"
-        ].cumsum()
+        .rename(columns={"intersected_area_ha": "intersected_area_ha_cumulative"})
     )
     years_range = summary_mining_affected_area_ha_yearly["admin_year"].unique().tolist()
     years_range.sort()
@@ -251,16 +284,36 @@ def calculate_mining_area_timeseries(summary):
         summary_mining_affected_area_ha_yearly,
         on=["id", "admin_year"],
         how="left",
-    )
+    ).sort_values(by=["id", "admin_year"])
+
     summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"] = (
         summary_mining_affected_area_ha_yearly.groupby("id")[
             "intersected_area_ha_cumulative"
         ]
-        # fill missing nans by carrying forward the previous year's value
+        # fill missing nans by carrying forward the previous period's value
         .ffill()
         # then fillna zero for years before any detection
         .fillna(0)
     )
+
+    # derive the per-period difference from the cumulative snapshots
+    summary_mining_affected_area_ha_yearly["intersected_area_ha"] = (
+        summary_mining_affected_area_ha_yearly.groupby("id")[
+            "intersected_area_ha_cumulative"
+        ]
+        .diff()
+        # the first period has no previous snapshot, so its increment is its own total
+        .fillna(summary_mining_affected_area_ha_yearly["intersected_area_ha_cumulative"])
+    )
+    # snapshots can shrink slightly between periods (reclassification/noise),
+    # clip negatives so the increments stay meaningful
+    summary_mining_affected_area_ha_yearly["intersected_area_ha"] = (
+        summary_mining_affected_area_ha_yearly["intersected_area_ha"].clip(lower=0)
+    )
+
+    summary_mining_affected_area_ha_yearly = summary_mining_affected_area_ha_yearly[
+        ["id", "admin_year", "intersected_area_ha", "intersected_area_ha_cumulative"]
+    ].reset_index(drop=True)
 
     return summary_mining_affected_area_ha_yearly
 
@@ -303,6 +356,29 @@ def prepare_for_mining_calculator_and_save(summary):
     )
 
     return result
+
+
+def summarize_latest_snapshot(summary):
+    """
+    Since the summary is built from cumulative snapshots, summing across all years
+    would double-count. Reduce to the latest snapshot per group instead.
+    """
+    flat = summary.reset_index()
+    group_cols = [
+        "id",
+        "admin_country",
+        "admin_country_code",
+        "admin_name_field",
+        "admin_id_field",
+        "admin_illegality_max",
+    ]
+    latest = (
+        flat.sort_values("admin_year")
+        .groupby(group_cols, as_index=False)
+        .last()
+        .drop(columns=["admin_year"])
+    )
+    return latest.set_index(group_cols)
 
 
 def overlay_max_category(
@@ -391,7 +467,6 @@ if __name__ == "__main__":
         gdf_simplified = simplify_gdf(current_gdf)
 
         # cleanup and save
-        gdf_simplified = gdf_simplified.drop(columns=["Polygon area (ha)"])
         output_file = generate_mining_simplified_filename(current_year)
         ensure_output_path_exists(output_file)
         gdf_simplified.to_file(output_file, driver="GeoJSON")
@@ -403,16 +478,24 @@ if __name__ == "__main__":
     ensure_output_path_exists(COMBINED_MINING_FILE)
     combined_mining_gdf.to_file(COMBINED_MINING_FILE, driver="GeoJSON")
 
+    start = time.time()
+    # rasters are vectorized ahead of time by convert_rasters_to_vector.py
+    all_mining_raster_gdfs = [
+        load_vectorized_raster(year) for year in MINING_RASTER_YEARS_QUARTERS
+    ]
+    print(f"Loading vectorized rasters took {time.time() - start:.1f}s")
+
+    # use the rasterized snapshots as they are: each one is the full mining extent
+    # for that period. Differences between periods are derived later, at the
+    # timeseries step, instead of via vector overlay differences.
+    mining_gdf = gpd.pd.concat(all_mining_raster_gdfs, ignore_index=True)
+    # need to calculate area as it is not present in original raster files
+    mining_gdf = calculate_area_using_utm(mining_gdf, "Mined area (ha)", "hectares")
+
     # for illegality, use a cutoff date, which is when illegality data was produced
-    mining_gdf_for_illegality = gpd.pd.concat(
-        [x[1] for x in all_mining_gdfs if x[0] <= ILLEGALITY_DATA_UPDATED_AT],
-        ignore_index=True,
-    )
+    mining_gdf_for_illegality = mining_gdf[mining_gdf.year <= ILLEGALITY_DATA_UPDATED_AT]
     # take the rest of the mining data and store in variable
-    mining_gdf_rest = gpd.pd.concat(
-        [x[1] for x in all_mining_gdfs if x[0] > ILLEGALITY_DATA_UPDATED_AT],
-        ignore_index=True,
-    )
+    mining_gdf_rest = mining_gdf[mining_gdf.year > ILLEGALITY_DATA_UPDATED_AT]
 
     # overlay illegality data
     mining_gdf_with_illegality = overlay_max_category(
@@ -474,8 +557,20 @@ if __name__ == "__main__":
             ignore_if_outside_country=dataset["ignore_if_outside_country"],
             ignore_if_outside_of_state=dataset["ignore_if_outside_of_state"],
         )
+
+        # the yearly timeseries needs the per-year snapshots, so it is computed
+        # before collapsing the summary to the latest snapshot
+        summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
+            summary
+        )
+
+        # snapshots are cumulative, so totals come from the latest period only
+        summary_latest = summarize_latest_snapshot(summary)
+
         summary_illegality = (
-            summary.groupby(["id", "admin_illegality_max"])["intersected_area_ha"]
+            summary_latest.groupby(["id", "admin_illegality_max"])[
+                "intersected_area_ha"
+            ]
             .sum()
             .round(2)
             .reset_index()
@@ -503,9 +598,6 @@ if __name__ == "__main__":
             .to_dict()
         )
 
-        summary_mining_affected_area_ha_yearly = calculate_mining_area_timeseries(
-            summary
-        )
         # save yearly summary to a json
         summary_mining_affected_area_ha_yearly.to_json(
             dataset["file"].replace(".geojson", "_yearly.json"),
@@ -513,10 +605,10 @@ if __name__ == "__main__":
             orient="records",
         )
 
-        result = prepare_for_mining_calculator_and_save(summary)
+        result = prepare_for_mining_calculator_and_save(summary_latest)
 
         # transform json result into dataframe
-        summary_mining_affected_area_ha = summary.groupby("id")[
+        summary_mining_affected_area_ha = summary_latest.groupby("id")[
             "intersected_area_ha"
         ].sum()
         result_df = pd.DataFrame(
@@ -576,9 +668,14 @@ if __name__ == "__main__":
         )
         # save as a simple json, no geometry data
         gdf_merged_dict = gdf_merged.copy()
-        gdf_merged_dict["bbox"] = gdf_merged_dict.geometry.apply(lambda g: list(g.bounds))  # add bbox column
+        gdf_merged_dict["bbox"] = gdf_merged_dict.geometry.apply(
+            lambda g: list(g.bounds)
+        )  # add bbox column
         gdf_merged_dict = gdf_merged_dict.drop(columns="geometry")
-        gdf_merged_dict.to_json(dataset["file"].replace(".geojson", "_impacts_unfiltered_dict.json"), orient="records")
+        gdf_merged_dict.to_json(
+            dataset["file"].replace(".geojson", "_impacts_unfiltered_dict.json"),
+            orient="records",
+        )
 
         # merge with yearly and save to csv for reference
         ref = gdf_merged.merge(

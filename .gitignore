@@ -35,3 +35,4 @@ venv/
 checkpoints/
 checkpts-tmp/
 data/outputs/48px_v3.2-3.7ensemble/partial_years/
+scripts/boundaries/diffs/
