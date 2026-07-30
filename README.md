@@ -104,7 +104,7 @@ Many thanks to the journalists whose skill and resourceful reporting brought the
 
 ### Overview
 
-The mine detector is an ensemble of convolutional neural networks trained to discriminate mines from other terrain using hand-labeled examples in [Sentinel-2 L1C](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) imagery. Each input is a square multi-spectral patch (~480 m on a side at 10 m resolution; 48×48 pixels × 13 bands). On Google Earth Engine, applying their CloudScore+ algorithm, we build median composites over multi-month windows to reduce clouds, cloud shadow, and other short-lived effects.
+The mine detector is an ensemble of convolutional neural networks trained to discriminate mines from other terrain using hand-labeled examples in [Sentinel-2 L1C](https://sentinel.esa.int/web/sentinel/missions/sentinel-2) imagery. Each input is a square multi-spectral patch (~480 m on a side at 10 m resolution; 48×48 pixels × 13 bands). On Google Earth Engine, from the [Cloud Score+ Sentinel-2 harmonized collection](https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_CLOUD_SCORE_PLUS_V1_S2_HARMONIZED), we build median composites over multi-month windows to reduce clouds, cloud shadow, and other short-lived effects.
 
 At run time the ensemble scores patches across the region of interest, stepping by half a patch width so that neighboring assessments overlap. Covering the 8.2 million km² Amazon basin requires over a hundred million patch assessments per period.
 
