@@ -9,11 +9,18 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 import geopandas as gpd
 import rasterio
 from shapely.geometry import box
 from tqdm import tqdm
+
+# Required for gdalwarp to evaluate the Python pixel function in the mask
+# union VRT (see build_mask_union_vrt). Warping that VRT is effectively
+# single-threaded, so cap warp threads rather than leaving them unbounded.
+os.environ.setdefault("GDAL_NUM_THREADS", "4")
+os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
 
 MASK_SUFFIX = "-msk.tif"
 LOGIT_SUFFIX = "-logits.tif"
@@ -28,6 +35,54 @@ DATE_RANGE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})")
 def run(cmd):
     subprocess.run(
         cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def build_mask_union_vrt(input_files, derived_vrt_path, nodata_val):
+    """Build a VRT computing the pixel-wise union (logical OR) of N mask rasters.
+
+    Plain gdalbuildvrt mosaicking is "last file wins" for overlapping pixels,
+    which drops a 1 from an earlier tile if a later tile has 0 in the same
+    spot. This instead stacks all inputs as separate bands and reduces them
+    with a nodata-aware OR: output is 1 if any input is 1, nodata only if
+    every input is nodata, and 0 otherwise.
+    """
+    vrt_dir = os.path.dirname(derived_vrt_path)
+    stack_vrt = os.path.join(vrt_dir, "stack.vrt")
+
+    run(["gdalbuildvrt", "-separate", stack_vrt] + input_files)
+
+    tree = ET.parse(stack_vrt)
+    root = tree.getroot()
+
+    for band in root.findall("VRTRasterBand"):
+        root.remove(band)
+
+    derived = ET.SubElement(root, "VRTRasterBand", {
+        "dataType": "Byte",
+        "band": "1",
+        "subClass": "VRTDerivedRasterBand",
+    })
+    ET.SubElement(derived, "NoDataValue").text = str(nodata_val)
+    ET.SubElement(derived, "PixelFunctionType").text = "mask_or"
+    ET.SubElement(derived, "PixelFunctionLanguage").text = "Python"
+    code = ET.SubElement(derived, "PixelFunctionCode")
+    code.text = f"""
+import numpy as np
+def mask_or(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize, buf_radius, gt, **kwargs):
+    stack = np.stack(in_ar)
+    is_nodata = stack == {nodata_val}
+    out_ar[:] = np.where(
+        is_nodata.all(axis=0),
+        {nodata_val},
+        np.where((stack == 1).any(axis=0), 1, 0),
+    )
+"""
+    stack_basename = os.path.basename(stack_vrt)
+    for band_index in range(1, len(input_files) + 1):
+        src = ET.SubElement(derived, "SimpleSource")
+        ET.SubElement(src, "SourceFilename", {"relativeToVRT": "1"}).text = stack_basename
+        ET.SubElement(src, "SourceBand").text = str(band_index)
+
+    tree.write(derived_vrt_path)
 
 def utm_zone_from_lon(lon):
     return int((lon + 180) // 6) + 1
@@ -81,7 +136,10 @@ def build_cog(
         vrt_path = os.path.join(tmpdir, "tmp.vrt")
         tmp_tif = os.path.join(tmpdir, "tmp.tif")
 
-        run(["gdalbuildvrt", vrt_path] + input_files)
+        if raster_type == "mask":
+            build_mask_union_vrt(input_files, vrt_path, nodata_val=int(nodata))
+        else:
+            run(["gdalbuildvrt", vrt_path] + input_files)
 
         # Warp to align tiles and snap to a consistent grid
         run([
