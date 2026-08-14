@@ -15,10 +15,14 @@ threshold that should have rejected it. Dedupe before postprocessing, not after.
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
+from postprocess import GEOJSON_COORDINATE_PRECISION  # noqa: E402
 
 DEFAULT_CONFIDENCE_FIELD = "confidence"
 
@@ -29,13 +33,27 @@ DEFAULT_CONFIDENCE_FIELD = "confidence"
 CENTROID_DECIMALS = 5
 
 
-def centroid_key(gdf, decimals=CENTROID_DECIMALS):
+def centroid_key(gdf, decimals=CENTROID_DECIMALS,
+                 write_precision=GEOJSON_COORDINATE_PRECISION):
     """Rounded patch-centre key. Uses bounds midpoints: patches are boxes, and
-    this avoids shapely's centroid-in-geographic-CRS warning."""
+    this avoids shapely's centroid-in-geographic-CRS warning.
+
+    Corners are first rounded to ``write_precision``, so the key is computed on
+    the coordinates as they will be *stored* rather than as they arrive. Without
+    this, deduping is not idempotent: writing at 6 decimals quantizes away the
+    sub-1e-5 jitter between records, and pairs that were distinct at a 5-decimal
+    key beforehand can collide afterwards. Pass ``write_precision=None`` to key
+    on the input coordinates as given.
+    """
     b = gdf.geometry.bounds
+    minx, maxx = b.minx.to_numpy(), b.maxx.to_numpy()
+    miny, maxy = b.miny.to_numpy(), b.maxy.to_numpy()
+    if write_precision is not None:
+        minx, maxx, miny, maxy = (np.round(v, write_precision)
+                                  for v in (minx, maxx, miny, maxy))
     return (
-        np.round((b.minx.to_numpy() + b.maxx.to_numpy()) / 2.0, decimals),
-        np.round((b.miny.to_numpy() + b.maxy.to_numpy()) / 2.0, decimals),
+        np.round((minx + maxx) / 2.0, decimals),
+        np.round((miny + maxy) / 2.0, decimals),
     )
 
 
@@ -81,7 +99,7 @@ def concatenate(paths, outpath, dedupe=True):
     # Pinned so precision does not float with the GDAL/pyogrio version; see
     # core/postprocess.py and docs/design/persistence-planning.md.
     gdf.to_file(outpath, driver="GeoJSON", index=False,
-                COORDINATE_PRECISION=6)
+                COORDINATE_PRECISION=GEOJSON_COORDINATE_PRECISION)
     print(f"Wrote {len(gdf)} detections to {outpath}")
 
 

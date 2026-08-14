@@ -46,6 +46,7 @@ from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 from sam2_logits import DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA
+from postprocess import GEOJSON_COORDINATE_PRECISION
 
 from dense_embedding_cache import (
     DenseCachePaths,
@@ -1028,7 +1029,7 @@ class InferenceEngine:
                     # the other seven annual vintages. See
                     # docs/design/persistence-planning.md.
                     predictions.to_file(outpath, index=False, driver="GeoJSON",
-                                        COORDINATE_PRECISION=6)
+                                        COORDINATE_PRECISION=GEOJSON_COORDINATE_PRECISION)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
