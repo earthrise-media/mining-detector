@@ -339,12 +339,29 @@ Persistence needs stored logits going forward, not just masks. Three decisions:
 carrying no decision-relevant information, and storing it at float32 precision is why the logits
 COGs run ~28× the size of their masks (178 MB across 13 bands at current resolution).
 
-Clamping to [−16, 16] saturates ~91% of pixels to a constant that compresses to nearly nothing,
-while preserving full fidelity across the entire decision-relevant band (±8 log-odds is
-probability 0.00034 to 0.99966 — far wider than any `t_prov,mask` we would calibrate). Store
-**int8 at scale 0.125** over that clamped range, with int16 at scale 0.001 as the conservative
-fallback. Acceptance test: the quantized logits must reproduce the float32 mask **exactly** at
-threshold 0.
+**Measured, and clamping alone does the work — no quantization needed.** Saturating at ±16
+collapses the tail to a constant that ZSTD removes, entirely in float32, with no change of dtype
+or nodata handling. On 16 real logit tiles:
+
+| clamp | predictor 1 | predictor 3 | vs unclamped |
+| --- | --- | --- | --- |
+| none | 3,657 KB | 2,852 KB | 100% |
+| ±32 | 1,033 KB | 929 KB | 33% |
+| **±16** | 588 KB | **541 KB** | **19%** |
+| ±8 | 303 KB | 301 KB | 11% |
+
+**±16 is chosen to be lossless, not merely adequate.** Clamping happens *before* the smoothing is
+replayed, so too tight a limit perturbs the smoothed field near the decision boundary. Verified on
+real tiles, including a genuine 2× upsample in the path: at ±16 the re-derived mask is
+**bit-identical** to the unclamped production mask on every tile (0 differing pixels); at ±8 it is
+not (23 px, IoU 0.9987); at ±4 it fails outright (IoU 0.9768). ±16 log-odds is a probability of
+1 − 1.1e-7, far outside any threshold a `t_prov,mask` sweep would explore.
+
+Implemented as `MaskConfig.logit_clamp`. **Quantization to int8/int16 is deferred**: it would add
+maybe another 1.4× on top of the 5.3× clamping already provides, but requires reworking the nodata
+sentinel (`LOGIT_NODATA` is `nan`, which has no integer equivalent) through `save_tile`,
+`build_logit_max_vrt`'s max-reduce pixel function, and `build_cog`. Not worth bundling with a
+change that is currently provably lossless.
 
 **Layout: chunked by UTM zone × lat band, on the global lattice.** The fixed lattice largely
 dissolves the chunked-vs-global question, since aligned chunks give a global VRT view for free.
@@ -392,7 +409,9 @@ knowing before comparing pixel counts across grid regimes.
 - [ ] Emit logits on the mask grid (upsampled, prior included, unsmoothed).
 - [x] ~~Move Gaussian smoothing downstream of mosaicking~~ — **rejected on measurement**
       2026-08-14; see above. Keep `smooth → threshold → OR` per tile.
-- [ ] Clamp + quantize logits; verify exact mask reproduction at threshold 0.
+- [x] Clamp logits at ±16 (`MaskConfig.logit_clamp`) — 5.3× smaller in float32, re-derived mask
+      bit-identical to production on all 16 real test tiles. Quantization to int8/int16 deferred;
+      see above for why it is a separate change.
 - [ ] Confirm the smoothing-order result on genuinely overlapping tiles when available.
 - [ ] Regenerate 2018–2025 masks and logits on the fixed grid as part of the persistence rerun.
 - [ ] Confirm the temporal code path needs no regrid step once inputs are aligned.

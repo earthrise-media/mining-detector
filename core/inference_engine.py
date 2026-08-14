@@ -197,6 +197,22 @@ class InferenceConfig:
 class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
     smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
+    # Saturation limit for the persisted logits, in log-odds. The spatial prior
+    # is an unbounded quadratic penalty, so log_odds runs to about -862 in
+    # practice; that tail is deterministic geometry carrying no decision-
+    # relevant information, but stored as smoothly-varying float32 it dominates
+    # the file. Clamping collapses it to a constant that ZSTD removes: measured
+    # 5.3x smaller on real tiles (2.85 MB -> 541 KB across 16), in float32, with
+    # no change of dtype or nodata handling.
+    #
+    # 16 is chosen to be lossless, not merely adequate. Clamping happens before
+    # the smoothing is replayed, so a limit that is too tight perturbs the
+    # smoothed field near the decision boundary. Verified on real tiles: at
+    # +/-16 the re-derived mask is bit-identical to the unclamped one on every
+    # tile (0 differing pixels); at +/-8 it is not (23 px, IoU 0.9987).
+    # +/-16 log-odds is a probability of 1 - 1.1e-7, far outside any threshold
+    # a t_prov,mask sweep would explore.
+    logit_clamp: float = 16.0
 
     sam2_repo_path: PathLike = SAM2_PATH
     sam2_checkpoint: Optional[PathLike] = None
@@ -1233,9 +1249,18 @@ class SAM2_Masker:
         #
         # Consequence: (saved logits > 0) does NOT reproduce the saved mask.
         # Measured IoU ~0.84 on real tiles, entirely from the missing smoothing.
+        #
+        # Saturated at +/- logit_clamp purely to make the file compressible; see
+        # MaskConfig.logit_clamp for why the limit is lossless rather than
+        # merely adequate.
+        stored_logits = self.upsample_logits(
+            log_odds, pixels.shape[:2], smooth=False)
+        clamp = self.config.logit_clamp
+        if clamp:
+            stored_logits = np.clip(stored_logits, -clamp, clamp)
+
         self.data_extractor.save_tile(
-            pixels=self.upsample_logits(
-                log_odds, pixels.shape[:2], smooth=False)[..., None],
+            pixels=stored_logits[..., None],
             tile=tile,
             outdir=self.config.mask_dir,
             product_type="logits")
