@@ -46,7 +46,7 @@ from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
 from sam2_logits import DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA
-from postprocess import GEOJSON_COORDINATE_PRECISION
+from postprocess import PostprocessConfig
 
 from dense_embedding_cache import (
     DenseCachePaths,
@@ -139,6 +139,10 @@ class InferenceConfig:
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
     inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
+    # GeoJSON coordinate precision for detection outputs. Defaults from
+    # PostprocessConfig so producer and consumer cannot drift; see there for
+    # why 6, and why it requires a uniform archive.
+    coordinate_precision: int = PostprocessConfig.coordinate_precision
     stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
@@ -1020,16 +1024,14 @@ class InferenceEngine:
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     
                     Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                    # COORDINATE_PRECISION is pinned because it otherwise
-                    # floats with the GDAL/pyogrio version on whichever VM ran
-                    # the job. The 2024 detections came out at 6 decimals while
-                    # every other year got full float64, which silently broke
-                    # centroid joins across years and manufactured a phantom
-                    # +82,245-patch anomaly in the cumulative record. 15 matches
-                    # the other seven annual vintages. See
-                    # docs/design/persistence-planning.md.
+                    # Pinned: left unset this floats with the GDAL/pyogrio
+                    # version on whichever VM ran the job. The 2024 detections
+                    # came out at 6 decimals while every other year got full
+                    # float64, which silently broke centroid joins across years
+                    # and manufactured a phantom +82,245-patch anomaly in the
+                    # cumulative record.
                     predictions.to_file(outpath, index=False, driver="GeoJSON",
-                                        COORDINATE_PRECISION=GEOJSON_COORDINATE_PRECISION)
+                                        COORDINATE_PRECISION=self.config.coordinate_precision)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
