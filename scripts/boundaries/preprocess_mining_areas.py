@@ -90,18 +90,7 @@ def simplify_gdf(gdf):
 
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
-    #
-    # zone_min must be the UTM zone containing lon_min: UTM zone n spans
-    # [-180 + 6(n-1), -180 + 6n], so the band starting at -84 is zone 17
-    # (EPSG:32717, central meridian -81), not zone 18. This was 32718, which
-    # projected every polygon one zone east of where it belonged -- up to 9
-    # degrees off the central meridian. Because Transverse Mercator scale grows
-    # with distance from the central meridian, that inflated areas by +0.64% to
-    # +2.42% depending on longitude (mean +1.55%), with a 6-degree sawtooth that
-    # also distorted comparisons between jurisdictions. Verified against exact
-    # geodesic areas: 32717 gives mean +0.014%, which is ordinary within-zone
-    # conformal distortion.
-    zone_min = 32717
+    zone_min = 32717  # UTM 17S, the zone containing lon_min
     lon_min = -84
     delta_lon = 6
     n_zones = 9
