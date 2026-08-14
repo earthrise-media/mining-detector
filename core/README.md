@@ -159,6 +159,30 @@ python sam2_mask.py \
     --cog
 ```
 
+#### Saved logits: the smoothing must be replayed
+
+Each masked tile writes two products: `*-msk.tif` and `*-logits.tif`. **They are not two views of the same array, and thresholding the logits does not reproduce the mask.**
+
+The production mask is `smooth(upsampled_log_odds) > 0`. The saved logits are the same field *before* the Gaussian smoothing (and clamped to ±16), stored that way deliberately so `smoothing_sigma` stays retunable without re-running SAM2. Thresholding them directly gives a measured IoU of about **0.84** against the real product — expected, not a bug.
+
+Use the helper, which replays the smoothing and reproduces the product exactly:
+
+```python
+from sam2_logits import mask_from_logits
+
+mask = mask_from_logits(logits_array)                  # == the production mask
+mask = mask_from_logits(logits_array, threshold=1.5)   # a stricter provisional mask
+```
+
+Two rules that are easy to get wrong:
+
+* **Replay per tile, before mosaicking.** Never threshold a logits *mosaic*. Smoothing does not commute with the max-reduce that merges overlapping tiles — max-reduce on raw logits is biased upward, and smoothing spreads that inflated max across the seam, inflating area by up to 1.8% at a 12 px overlap. Correct order: per-tile smooth → threshold → union-merge (`sam2_logits.mosaic_masks`). The logits mosaic from `sam2_build_cog.py` is for inspection, not for deriving masks.
+* **`smoothing_sigma` must match the run that produced the logits.** Changing it is legitimate — that is the point of storing them unsmoothed — but it yields a different product.
+
+The ±16 clamp is lossless with respect to the mask: it was chosen so the re-derived mask is bit-identical to the unclamped one after the replay. Background and measurements in [`docs/design/persistence-planning.md`](../docs/design/persistence-planning.md).
+
+#### Quarterly accumulation
+
 Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. After masking the quarterly diffs, **accumulate** each quarter’s diff mask onto the prior full-year (or prior `*_full`) mask with `sam2_combine_masks.py` (OR merge) to produce that quarter’s `*_full` mask. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
 
 ```

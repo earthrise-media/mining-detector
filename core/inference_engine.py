@@ -45,6 +45,7 @@ from tqdm.auto import tqdm
 from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
+from sam2_logits import DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA
 
 from dense_embedding_cache import (
     DenseCachePaths,
@@ -196,7 +197,9 @@ class InferenceConfig:
 @dataclass
 class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
-    smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
+    # Defaults live in sam2_logits so that consumers replaying the smoothing
+    # on saved logits cannot drift from what produced them.
+    smoothing_sigma: float = DEFAULT_SMOOTHING_SIGMA  # after upsampling (px)
     # Saturation limit for the persisted logits, in log-odds. The spatial prior
     # is an unbounded quadratic penalty, so log_odds runs to about -862 in
     # practice; that tail is deterministic geometry carrying no decision-
@@ -212,7 +215,7 @@ class MaskConfig:
     # tile (0 differing pixels); at +/-8 it is not (23 px, IoU 0.9987).
     # +/-16 log-odds is a probability of 1 - 1.1e-7, far outside any threshold
     # a t_prov,mask sweep would explore.
-    logit_clamp: float = 16.0
+    logit_clamp: float = DEFAULT_LOGIT_CLAMP
 
     sam2_repo_path: PathLike = SAM2_PATH
     sam2_checkpoint: Optional[PathLike] = None

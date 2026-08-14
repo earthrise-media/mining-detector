@@ -120,6 +120,14 @@ products:
           so a quarter-only mask would under-cover known scars. Example:
           Q226_full = 2025 year mask ∪ Q126 incremental ∪ Q226 incremental.
 
+          Per-tile *-logits.tif companions are NOT interchangeable with the
+          masks: they are stored before the Gaussian smoothing (and clamped to
+          ±16 log-odds), so thresholding them directly does not reproduce the
+          mask — measured IoU ~0.84. Replay the smoothing per tile first, via
+          core/sam2_logits.mask_from_logits, and union-merge afterwards; never
+          threshold a logits mosaic. See core/README.md and
+          docs/design/persistence-planning.md.
+
   - id: amazon-basin-ssl4eo-archived
     status: archived
     model: 48px_v0.X-SSL4EO-MLPensemble
