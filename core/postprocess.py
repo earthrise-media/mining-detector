@@ -19,6 +19,25 @@ from sklearn.neighbors import NearestNeighbors
 
 KTH_NEIGHBOR_FIELD = "kth_neighbor_km"
 DEFAULT_CONFIDENCE_FIELD = "confidence"
+
+# Pin GeoJSON coordinate precision. Left unset it floats with the GDAL/pyogrio
+# version on whichever machine ran the job -- inference years were run on
+# different VMs, and the 2024 vintage landed at 6 decimals while every other
+# year got full float64.
+#
+# 9 is far finer than any physical need (~0.1 mm; a pixel is 10 m). The binding
+# constraint is not ground resolution but JOIN STABILITY against the existing
+# full-precision archive, which we are not rewriting. Cross-year joins key on a
+# centroid rounded to 5 decimals, and the centroid is derived as
+# (minx + maxx) / 2 -- so rounding the corners first perturbs the centroid by up
+# to half the write quantum, and a fraction of patches then fall on the far side
+# of a 5-dp bin edge. Measured loss when a newly written year is joined against
+# a full-precision year: 6 dp -4.68%, 7 dp -0.53%, 8 dp -0.06%, 9 dp -0.01%.
+#
+# 9 dp still saves ~17% on disk versus full float64. Once the archive is
+# rewritten, or the join snaps centroids to the patch lattice instead of
+# rounding them, this can drop to 6. See docs/design/persistence-planning.md.
+GEOJSON_COORDINATE_PRECISION = 9
 DISSOLVE_CRS = "EPSG:4326"  # buffer_deg is in decimal degrees (~1 m at equator for 1e-5)
 
 
@@ -194,7 +213,8 @@ def main(args: argparse.Namespace) -> None:
         t_iso=args.t_iso,
     )
     outpath.parent.mkdir(parents=True, exist_ok=True)
-    filtered.to_file(outpath, driver="GeoJSON", index=False)
+    filtered.to_file(outpath, driver="GeoJSON", index=False,
+                     COORDINATE_PRECISION=GEOJSON_COORDINATE_PRECISION)
 
     n_at_main = int((gdf[args.confidence_field] >= args.t_main).sum())
     n_iso = int(
@@ -213,7 +233,8 @@ def main(args: argparse.Namespace) -> None:
         dissolved = dissolve_patches(
             filtered, conf_field=args.confidence_field
         )
-        dissolved.to_file(dissolved_path, driver="GeoJSON", index=False)
+        dissolved.to_file(dissolved_path, driver="GeoJSON", index=False,
+                          COORDINATE_PRECISION=GEOJSON_COORDINATE_PRECISION)
         msg += f"; dissolved -> {dissolved_path}"
     print(msg)
 

@@ -1000,7 +1000,16 @@ class InferenceEngine:
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     
                     Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                    predictions.to_file(outpath, index=False)
+                    # COORDINATE_PRECISION is pinned because it otherwise
+                    # floats with the GDAL/pyogrio version on whichever VM ran
+                    # the job. The 2024 detections came out at 6 decimals while
+                    # every other year got full float64, which silently broke
+                    # centroid joins across years and manufactured a phantom
+                    # +82,245-patch anomaly in the cumulative record. 15 matches
+                    # the other seven annual vintages. See
+                    # docs/design/persistence-planning.md.
+                    predictions.to_file(outpath, index=False, driver="GeoJSON",
+                                        COORDINATE_PRECISION=9)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails

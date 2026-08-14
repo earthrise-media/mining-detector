@@ -12,7 +12,10 @@ def concatenate(paths, outpath):
 
     gdf = gpd.pd.concat([gpd.read_file(p) for p in paths], ignore_index=True)
     Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(outpath, driver="GeoJSON", index=False)
+    # Pinned so precision does not float with the GDAL/pyogrio version; see
+    # core/postprocess.py and docs/design/persistence-planning.md.
+    gdf.to_file(outpath, driver="GeoJSON", index=False,
+                COORDINATE_PRECISION=9)
 
 
 if __name__ == '__main__':

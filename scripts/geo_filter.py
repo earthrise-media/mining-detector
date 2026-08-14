@@ -13,7 +13,10 @@ def filter(path, boundary_path):
     filtered = gdf[gdf.intersects(boundary.union_all())]
     print(f'{len(filtered)} features after filtering')
     outpath = Path(path).with_stem(f'{Path(path).stem}-filt')
-    filtered.to_file(outpath, driver="GeoJSON", index=False)
+    # Pinned so precision does not float with the GDAL/pyogrio version; see
+    # core/postprocess.py and docs/design/persistence-planning.md.
+    filtered.to_file(outpath, driver="GeoJSON", index=False,
+                     COORDINATE_PRECISION=9)
 
 
 if __name__ == '__main__':

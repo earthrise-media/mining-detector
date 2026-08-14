@@ -17,7 +17,9 @@ def dissolve(path, threshold, column, buffer_width):
     base = path.split('.geojson')[0]
     suffix = f'-dissolved-{threshold}' if threshold is not None else '-dissolved'
     outpath = base + suffix + '.geojson'
-    df.to_file(outpath)
+    # Pinned so precision does not float with the GDAL/pyogrio version; see
+    # core/postprocess.py and docs/design/persistence-planning.md.
+    df.to_file(outpath, driver="GeoJSON", COORDINATE_PRECISION=9)
 
 if __name__ == '__main__':
     
