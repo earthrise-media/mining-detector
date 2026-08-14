@@ -19,7 +19,7 @@ def dissolve(path, threshold, column, buffer_width):
     outpath = base + suffix + '.geojson'
     # Pinned so precision does not float with the GDAL/pyogrio version; see
     # core/postprocess.py and docs/design/persistence-planning.md.
-    df.to_file(outpath, driver="GeoJSON", COORDINATE_PRECISION=9)
+    df.to_file(outpath, driver="GeoJSON", COORDINATE_PRECISION=6)
 
 if __name__ == '__main__':
     

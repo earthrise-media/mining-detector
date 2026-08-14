@@ -1028,7 +1028,7 @@ class InferenceEngine:
                     # the other seven annual vintages. See
                     # docs/design/persistence-planning.md.
                     predictions.to_file(outpath, index=False, driver="GeoJSON",
-                                        COORDINATE_PRECISION=9)
+                                        COORDINATE_PRECISION=6)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails

@@ -25,19 +25,23 @@ DEFAULT_CONFIDENCE_FIELD = "confidence"
 # different VMs, and the 2024 vintage landed at 6 decimals while every other
 # year got full float64.
 #
-# 9 is far finer than any physical need (~0.1 mm; a pixel is 10 m). The binding
-# constraint is not ground resolution but JOIN STABILITY against the existing
-# full-precision archive, which we are not rewriting. Cross-year joins key on a
-# centroid rounded to 5 decimals, and the centroid is derived as
-# (minx + maxx) / 2 -- so rounding the corners first perturbs the centroid by up
-# to half the write quantum, and a fraction of patches then fall on the far side
-# of a 5-dp bin edge. Measured loss when a newly written year is joined against
-# a full-precision year: 6 dp -4.68%, 7 dp -0.53%, 8 dp -0.06%, 9 dp -0.01%.
+# 6 decimals is ~0.11 m, about 1/100 of a pixel, and matches RFC 7946 guidance.
+# What makes it the right choice is not size but join stability. Cross-year
+# joins key on a centroid rounded to 5 decimals; at full float64 the answer to
+# "how many distinct locations" swings by 146,000 across 2018-2025 depending on
+# whether the analyst keys at 4, 5, 6 or 7 decimals, because sub-1e-5 jitter
+# leaves the same ground location on either side of a bin edge. Writing at 6
+# quantizes that jitter away: the same union varies by only 228 across the same
+# key choices, and 2023<->2024 matching rises from 126,138 to 132,353 as the
+# rest of the archive becomes consistent with the already-6-dp 2024 vintage.
 #
-# 9 dp still saves ~17% on disk versus full float64. Once the archive is
-# rewritten, or the join snaps centroids to the patch lattice instead of
-# rounding them, this can drop to 6. See docs/design/persistence-planning.md.
-GEOJSON_COORDINATE_PRECISION = 9
+# This requires the archive to be UNIFORM. Mixing a newly written 6-dp file
+# against a legacy full-precision one costs 4.68% of matches at a 5-dp join
+# (7 dp -0.53%, 8 dp -0.06%, 9 dp -0.01%). Adopted when the whole postprocessed
+# series was rewritten at both thresholds; if you ever write a file that must
+# join against un-rewritten legacy data, use 9 instead.
+# See docs/design/persistence-planning.md.
+GEOJSON_COORDINATE_PRECISION = 6
 DISSOLVE_CRS = "EPSG:4326"  # buffer_deg is in decimal degrees (~1 m at equator for 1e-5)
 
 

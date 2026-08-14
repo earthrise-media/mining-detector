@@ -16,7 +16,7 @@ def filter(path, boundary_path):
     # Pinned so precision does not float with the GDAL/pyogrio version; see
     # core/postprocess.py and docs/design/persistence-planning.md.
     filtered.to_file(outpath, driver="GeoJSON", index=False,
-                     COORDINATE_PRECISION=9)
+                     COORDINATE_PRECISION=6)
 
 
 if __name__ == '__main__':
