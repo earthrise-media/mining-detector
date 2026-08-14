@@ -29,14 +29,133 @@ MASK_NODATA = "2"
 LOGIT_NODATA = "nan"
 
 LAT_BAND_SIZE = 8  # degrees
+UTM_ZONE_SIZE = 6  # degrees
+
+# --- Fixed output grid -------------------------------------------------------
+# Every published raster sits on one global lattice: pixel edges fall on integer
+# multiples of GRID_RES degrees from (0, 0). This makes pixel (i, j) the same
+# ground location in every period and every UTM/lat band, so temporal rules need
+# no regridding and adjacent bands mosaic without resampling.
+#
+# GRID_RES is finer than every observed source resolution (masks span
+# 9.0404e-05 .. 9.0952e-05 deg), so regridding never decimates. See
+# docs/design/persistence-planning.md, "Fixing the raster grid".
+GRID_RES = 0.00009  # degrees/pixel, ~10.02 m in latitude
+
+# Tiles are assigned to a band by their center, so a tile may overhang the band
+# boundary by up to half its width (~0.026 deg for a 576 px tile). This margin
+# is the fixed allowance; overruns beyond it expand the extent and warn rather
+# than clip.
+GRID_MARGIN_DEG = 0.08
+
+# Guard against float noise when snapping a value that is already on-lattice.
+_SNAP_EPS = 1e-9
 
 DATE_RANGE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})")
+
+
+def snap_floor(value, resolution=GRID_RES):
+    """Largest lattice coordinate <= value."""
+    return math.floor(value / resolution + _SNAP_EPS) * resolution
+
+
+def snap_ceil(value, resolution=GRID_RES):
+    """Smallest lattice coordinate >= value."""
+    return math.ceil(value / resolution - _SNAP_EPS) * resolution
+
+
+def snap_extent(bounds, resolution=GRID_RES):
+    """Snap (minx, miny, maxx, maxy) outward onto the lattice."""
+    minx, miny, maxx, maxy = bounds
+    return (
+        snap_floor(minx, resolution),
+        snap_floor(miny, resolution),
+        snap_ceil(maxx, resolution),
+        snap_ceil(maxy, resolution),
+    )
+
+
+def band_extent(utm_zone, lat_start, lat_end, resolution=GRID_RES,
+                margin=GRID_MARGIN_DEG):
+    """Fixed lattice-aligned extent for a UTM zone x lat band group.
+
+    Derived from the band definition rather than from the tiles present, so the
+    extent is identical for every period.
+    """
+    lon_start = -180 + UTM_ZONE_SIZE * (utm_zone - 1)
+    return snap_extent(
+        (lon_start - margin, lat_start - margin,
+         lon_start + UTM_ZONE_SIZE + margin, lat_end + margin),
+        resolution,
+    )
+
+
+def union_bounds(input_files):
+    """Union of the bounds of input_files."""
+    minx = miny = float("inf")
+    maxx = maxy = float("-inf")
+    for path in input_files:
+        with rasterio.open(path) as ds:
+            b = ds.bounds
+        minx, miny = min(minx, b.left), min(miny, b.bottom)
+        maxx, maxy = max(maxx, b.right), max(maxy, b.top)
+    return (minx, miny, maxx, maxy)
+
+
+def resolve_extent(input_files, extent, resolution=GRID_RES, label=""):
+    """Return a lattice-aligned extent that is guaranteed to contain the inputs.
+
+    Expands (and warns) rather than clipping if the inputs overrun ``extent``:
+    the result stays on the lattice either way, so temporal alignment holds even
+    when the fixed extent has to grow.
+    """
+    src = union_bounds(input_files)
+    if extent is None:
+        return snap_extent(src, resolution)
+
+    grown = (
+        min(extent[0], snap_floor(src[0], resolution)),
+        min(extent[1], snap_floor(src[1], resolution)),
+        max(extent[2], snap_ceil(src[2], resolution)),
+        max(extent[3], snap_ceil(src[3], resolution)),
+    )
+    if grown != tuple(extent):
+        print(
+            f"WARNING: {label or 'group'} tiles overrun the fixed extent "
+            f"{tuple(round(v, 6) for v in extent)} -> "
+            f"{tuple(round(v, 6) for v in grown)}. Data is preserved and the "
+            f"grid stays aligned, but consider raising GRID_MARGIN_DEG."
+        )
+    return grown
+
 
 def run(cmd):
     subprocess.run(
         cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def build_mask_union_vrt(input_files, derived_vrt_path, nodata_val):
+def _buildvrt_grid_args(extent, resolution, resampling, nodata):
+    """gdalbuildvrt arguments pinning the output to the fixed lattice.
+
+    Pinning the VRT (rather than only gdalwarp) means each source is placed on
+    the final grid once, instead of being resampled twice.
+    """
+    # gdalwarp spells nearest "near"; gdalbuildvrt wants "nearest".
+    resampling = "nearest" if resampling == "near" else resampling
+    args = [
+        "-resolution", "user",
+        "-tr", repr(resolution), repr(resolution),
+        "-te", *[repr(v) for v in extent],
+        "-r", resampling,
+    ]
+    # Regions of the fixed extent not covered by a source must read as nodata,
+    # not as 0 -- otherwise the mask OR reduces unobserved ground to
+    # "observed, not mining".
+    args += ["-srcnodata", str(nodata), "-vrtnodata", str(nodata)]
+    return args
+
+
+def build_mask_union_vrt(input_files, derived_vrt_path, nodata_val,
+                         extent=None, resolution=GRID_RES, resampling="nearest"):
     """Build a VRT computing the pixel-wise union (logical OR) of N mask rasters.
 
     Plain gdalbuildvrt mosaicking is "last file wins" for overlapping pixels,
@@ -48,7 +167,11 @@ def build_mask_union_vrt(input_files, derived_vrt_path, nodata_val):
     vrt_dir = os.path.dirname(derived_vrt_path)
     stack_vrt = os.path.join(vrt_dir, "stack.vrt")
 
-    run(["gdalbuildvrt", "-separate", stack_vrt] + input_files)
+    grid_args = (
+        _buildvrt_grid_args(extent, resolution, resampling, nodata_val)
+        if extent is not None else []
+    )
+    run(["gdalbuildvrt", "-separate"] + grid_args + [stack_vrt] + input_files)
 
     tree = ET.parse(stack_vrt)
     root = tree.getroot()
@@ -84,7 +207,8 @@ def mask_or(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize,
 
     tree.write(derived_vrt_path)
 
-def build_logit_max_vrt(input_files, derived_vrt_path):
+def build_logit_max_vrt(input_files, derived_vrt_path, extent=None,
+                        resolution=GRID_RES, resampling="bilinear"):
     """Build a VRT computing the pixel-wise max of N logit rasters.
 
     Plain gdalbuildvrt mosaicking is "last file wins" for overlapping pixels,
@@ -98,7 +222,11 @@ def build_logit_max_vrt(input_files, derived_vrt_path):
     vrt_dir = os.path.dirname(derived_vrt_path)
     stack_vrt = os.path.join(vrt_dir, "stack.vrt")
 
-    run(["gdalbuildvrt", "-separate", stack_vrt] + input_files)
+    grid_args = (
+        _buildvrt_grid_args(extent, resolution, resampling, LOGIT_NODATA)
+        if extent is not None else []
+    )
+    run(["gdalbuildvrt", "-separate"] + grid_args + [stack_vrt] + input_files)
 
     tree = ET.parse(stack_vrt)
     root = tree.getroot()
@@ -154,6 +282,8 @@ def build_cog(
     resampling=None,
     blocksize=512,
     predictor=None,
+    extent=None,
+    resolution=GRID_RES,
 ):
     """
     Build a Cloud-Optimized GeoTIFF (COG) from input rasters.
@@ -166,6 +296,12 @@ def build_cog(
         resampling (str): resampling method for gdalwarp
         blocksize (int): tile size for COG
         predictor (int): predictor for compression
+        extent (tuple|None): fixed (minx, miny, maxx, maxy). Snapped onto the
+            lattice and widened if the inputs overrun it. If None, the snapped
+            union of the inputs is used -- still lattice-aligned, but the extent
+            then varies with the tiles present.
+        resolution (float): degrees/pixel; the lattice step. Defaults to
+            GRID_RES and should not normally be overridden.
     """
     # Set defaults based on raster type
     if raster_type == "mask":
@@ -179,21 +315,32 @@ def build_cog(
     else:
         raise ValueError(f"Unknown raster_type: {raster_type}")
 
+    extent = resolve_extent(
+        input_files, extent, resolution, label=os.path.basename(output_path))
+
     with tempfile.TemporaryDirectory(prefix="sam2_build_cog_") as tmpdir:
         vrt_path = os.path.join(tmpdir, "tmp.vrt")
         tmp_tif = os.path.join(tmpdir, "tmp.tif")
 
         if raster_type == "mask":
-            build_mask_union_vrt(input_files, vrt_path, nodata_val=int(nodata))
+            build_mask_union_vrt(
+                input_files, vrt_path, nodata_val=int(nodata),
+                extent=extent, resolution=resolution, resampling=resampling)
         else:
-            build_logit_max_vrt(input_files, vrt_path)
+            build_logit_max_vrt(
+                input_files, vrt_path,
+                extent=extent, resolution=resolution, resampling=resampling)
 
-        # Warp to align tiles and snap to a consistent grid
+        # The VRT is already on the fixed lattice, so this warp is a no-op
+        # grid-wise; -tr/-te are passed so the output grid is guaranteed rather
+        # than inferred by GDALSuggestedWarpOutput.
         run([
             "gdalwarp",
             vrt_path,
             tmp_tif,
             "-r", resampling,
+            "-tr", repr(resolution), repr(resolution),
+            "-te", *[repr(v) for v in extent],
             "-srcnodata", str(nodata),
             "-dstnodata", str(nodata),
             "-co", "TILED=YES",
@@ -215,7 +362,8 @@ def build_cog(
             "-a_nodata", str(nodata)
         ])
 
-def main(input_dir, output_dir, index_out, stac_out, max_workers):
+def main(input_dir, output_dir, index_out, stac_out, max_workers,
+         extent_mode="band"):
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -283,7 +431,9 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers):
         build_cog(
             input_files=groups[group_key],
             output_path=cog_path,
-            raster_type=raster_type
+            raster_type=raster_type,
+            extent=(band_extent(utm_zone, lat_start, lat_end)
+                    if extent_mode == "band" else None),
         )
         return cog_path, raster_type, utm_zone, lat_start, lat_end, start_date, end_date
 
@@ -417,6 +567,17 @@ if __name__ == "__main__":
     parser.add_argument("--index_out", default=None, help="Tile index GeoParquet path")
     parser.add_argument("--stac_out", default=None, help="STAC catalog output JSON")
     parser.add_argument("--max_workers", type=int, default=os.cpu_count() or 4, help="Parallel worker count")
+    parser.add_argument(
+        "--extent_mode", choices=("band", "union"), default="band",
+        help=(
+            "Output extent for per-band mosaics. 'band' (default) uses the "
+            "fixed UTM-zone x lat-band box, so every period yields a "
+            "byte-identical grid and pixel (i,j) needs no offset bookkeeping. "
+            "'union' uses the snapped union of the tiles present: still on the "
+            "global lattice (so temporal rules remain valid, with an integral "
+            "pixel offset), much smaller and far faster to write. Both are "
+            "correct; 'band' trades write time for downstream simplicity."
+        ))
 
     args = parser.parse_args()
 
@@ -425,4 +586,5 @@ if __name__ == "__main__":
     index_out = args.index_out or os.path.join(output_dir, "tile_index.parquet")
     stac_out = args.stac_out or os.path.join(output_dir, "stac_catalog.json")
 
-    main(input_dir, output_dir, index_out, stac_out, args.max_workers)
+    main(input_dir, output_dir, index_out, stac_out, args.max_workers,
+         extent_mode=args.extent_mode)
