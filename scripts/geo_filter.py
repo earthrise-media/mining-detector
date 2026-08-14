@@ -1,8 +1,12 @@
 
 import argparse
+import sys
 from pathlib import Path
 
 import geopandas as gpd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
+from postprocess import PostprocessConfig  # noqa: E402
 
 
 def filter(path, boundary_path):
@@ -16,7 +20,7 @@ def filter(path, boundary_path):
     # Pinned so precision does not float with the GDAL/pyogrio version; see
     # core/postprocess.py and docs/design/persistence-planning.md.
     filtered.to_file(outpath, driver="GeoJSON", index=False,
-                     COORDINATE_PRECISION=6)
+                     COORDINATE_PRECISION=PostprocessConfig.coordinate_precision)
 
 
 if __name__ == '__main__':
