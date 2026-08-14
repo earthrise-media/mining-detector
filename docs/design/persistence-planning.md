@@ -293,15 +293,44 @@ Persistence needs stored logits going forward, not just masks. Three decisions:
 - **Upsample before storing.** This is what puts logits on the fixed grid and makes them
   mosaickable. Cost is modest: the 35/32 ratio above means ~1.196× more pixels, not the ~5× a
   256×256 SAM2 low-res output would have implied.
-- **Do not apply the Gaussian smoothing before storing.** `smoothing_sigma` then stays tunable
-  without re-running SAM2, and smoothing after mosaicking sees true neighbours instead of
-  `gaussian_filter`'s reflected tile edges, so seams improve rather than degrade. The mask
-  becomes `threshold(smooth(mosaic))`.
+- **Do not apply the Gaussian smoothing before storing** — but **keep applying it per tile** when
+  deriving masks. Storing unsmoothed keeps `smoothing_sigma` tunable without re-running SAM2;
+  it does *not* imply moving the smoothing downstream of mosaicking.
 
-  This reorders the pipeline relative to today (smooth → threshold → OR per tile becomes
-  max-mosaic → smooth → threshold). They differ only in the 12-px overlap collars, where
-  max-reduce introduces a discontinuity the smoother then crosses. **Verify on overlapping test
-  tiles before committing** — this is the one item here to measure rather than argue.
+  **Measured 2026-08-14, and it reverses an earlier proposal in this document.** The suggestion
+  was to switch from `smooth → threshold → OR per tile` to `max-mosaic → smooth → threshold`,
+  on the theory that smoothing after mosaicking sees true neighbours rather than
+  `gaussian_filter`'s reflected tile edges. Tested on 13 real SAM2 logit tiles split into
+  overlapping halves, scored against the seamless reference (smooth the whole field, then
+  threshold):
+
+  | overlap | IoU current | IoU proposed | area err current | area err proposed |
+  | --- | --- | --- | --- | --- |
+  | 4 px | 0.9595 | 0.9590 | 0.00% | 0.22% |
+  | 12 px | 0.9616 | 0.9585 | 0.27% | 0.96% |
+  | 32 px | 0.9581 | 0.9511 | 0.31% | 1.82% |
+
+  (Overlap perturbed by σ=2.0 in logit units. At σ=5.0 the proposed ordering inflates area by up
+  to 4.47%.) The proposed ordering *is* exact when overlapping tiles agree pixel-for-pixel
+  (IoU 1.0000 vs 0.9990), but they do not agree — overlapping tiles come from separate SAM2 runs
+  on different image context. **Max-reduce on raw logits is biased upward**, since the max of two
+  noisy fields exceeds either mean, and the smoother then spreads that inflated max across the
+  seam. Taking the max at the *binary* level, after thresholding, bounds the error instead.
+
+  So the original specification stands: **re-derive per tile — replay upsample + smooth, threshold,
+  then mosaic with the union rule.** The logits mosaic produced by `build_cog` is for inspection
+  and analysis, not a substrate for mask re-derivation.
+
+  Caveat: the test tiles available had **no genuine overlaps**, so tile disagreement was simulated
+  with additive noise. Confirm on real overlapping tiles when they are to hand; the conclusion is
+  unlikely to flip, since the upward bias of max-reduce is structural rather than noise-model
+  dependent.
+
+- **Confirmed on real tiles: thresholding stored logits does not reproduce the stored mask.**
+  Mean IoU 0.84 across 8 tiles (pixel agreement 99.77%, but that is dominated by background).
+  For these tiles logits and mask share a resolution, so upsampling is a no-op and the gap is
+  *entirely* the Gaussian smoothing. This is the "implementation trap" above, measured: any
+  re-derivation must replay the smoothing, and `smoothing_sigma` is not a cosmetic parameter.
 
 **Clamp and quantize.** Measured distribution of stored `log_odds` (utm20 lat[−8,0], 2025,
 436k sampled finite pixels): range **−862 to +11**, median **−126**, with **96% of pixels outside
@@ -361,9 +390,10 @@ knowing before comparing pixel counts across grid regimes.
 - [x] Add grid constants (`R`, lattice anchor, band-extent derivation) to `sam2_build_cog.py`.
 - [x] Pin `-tr`/`-te` on both `gdalbuildvrt` and `gdalwarp`; drop reliance on `-resolution average`. Also pinned `-r` and `-srcnodata`/`-vrtnodata`, the latter because a fixed extent creates large uncovered regions that must read as nodata rather than 0 — otherwise the mask OR reduces unobserved ground to "observed, not mining".
 - [ ] Emit logits on the mask grid (upsampled, prior included, unsmoothed).
-- [ ] Move Gaussian smoothing downstream of mosaicking; measure the seam difference on
-      overlapping tiles first.
+- [x] ~~Move Gaussian smoothing downstream of mosaicking~~ — **rejected on measurement**
+      2026-08-14; see above. Keep `smooth → threshold → OR` per tile.
 - [ ] Clamp + quantize logits; verify exact mask reproduction at threshold 0.
+- [ ] Confirm the smoothing-order result on genuinely overlapping tiles when available.
 - [ ] Regenerate 2018–2025 masks and logits on the fixed grid as part of the persistence rerun.
 - [ ] Confirm the temporal code path needs no regrid step once inputs are aligned.
 

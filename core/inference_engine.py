@@ -1154,11 +1154,16 @@ class SAM2_Masker:
         return out.astype(np.float32)
 
     def upsample_logits(
-        self, logits: np.ndarray, target_shape: Tuple[int, int]) -> np.ndarray:
-        """Resample SAM2 logits to target raster resolution, with optional
-            Gaussian smoothing for spatial regularization.
+        self, logits: np.ndarray, target_shape: Tuple[int, int],
+        smooth: bool = True) -> np.ndarray:
+        """Resample SAM2 logits to target raster resolution.
+
+        ``smooth=True`` additionally applies the Gaussian regularization that
+        the production mask thresholds. Pass ``smooth=False`` to get the
+        upsampled-but-unsmoothed field that is persisted as the ``-logits.tif``
+        artifact; see :meth:`predict`.
         """
-        logits_tensor = torch.from_numpy(logits[None, None, ...]).float()  
+        logits_tensor = torch.from_numpy(logits[None, None, ...]).float()
         upsampled = F.interpolate(
             logits_tensor,
             size=target_shape,
@@ -1167,7 +1172,7 @@ class SAM2_Masker:
         )[0,0].numpy()
 
         sigma = self.config.smoothing_sigma
-        if sigma and sigma > 0:
+        if smooth and sigma and sigma > 0:
             upsampled = ndi.gaussian_filter(upsampled, sigma=sigma)
 
         return upsampled
@@ -1209,8 +1214,28 @@ class SAM2_Masker:
             outdir=self.config.mask_dir,
             product_type="mask")
 
+        # Persist the logits on the *mask* grid, prior included, smoothing not
+        # applied. Three deliberate choices:
+        #
+        # - Upsampled, so mask and logits share a grid. Previously the raw
+        #   256-px SAM2 output was saved while the mask was written at tile
+        #   resolution, so the two products were not even co-registered: for the
+        #   2026 vintage the logits raster is coarser by exactly 35/32.
+        # - Prior included, because soft_spatial_prior is a function of the
+        #   frozen t0.43 detection set. Excluding it would mean carrying every
+        #   tile's detection set forever just to reconstruct log_odds.
+        # - Smoothing NOT applied, so smoothing_sigma stays retunable without
+        #   re-running SAM2. Re-derivation must replay it *per tile* before
+        #   thresholding, then mosaic with the union rule -- do not threshold a
+        #   logits mosaic. Measured: max-reduce on raw logits is biased upward
+        #   and smoothing across that seam inflates area by up to 4.5%. See
+        #   docs/design/persistence-planning.md.
+        #
+        # Consequence: (saved logits > 0) does NOT reproduce the saved mask.
+        # Measured IoU ~0.84 on real tiles, entirely from the missing smoothing.
         self.data_extractor.save_tile(
-            pixels=log_odds[..., None],  
+            pixels=self.upsample_logits(
+                log_odds, pixels.shape[:2], smooth=False)[..., None],
             tile=tile,
             outdir=self.config.mask_dir,
             product_type="logits")
