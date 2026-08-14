@@ -42,6 +42,20 @@ The ±16 clamp on the stored logits is lossless with respect to the mask: it was
 chosen so that the re-derived mask is bit-identical to the unclamped one after
 the smoothing replay. See ``MaskConfig.logit_clamp``.
 
+Legacy files
+------------
+The above describes logits written by the current code. **Everything published
+through July 2026 is different and worse**: those files hold raw SAM2
+``log_odds``, prior included but neither upsampled nor smoothed, so they are not
+co-registered with their own masks -- the logits raster is coarser by exactly
+35/32 in every UTM/lat band.
+
+:func:`mask_from_logits` will not rescue those. They need an upsample to the
+mask grid *as well as* the smoothing replay, and even then will not match
+bit-for-bit, because the bilinear upsample cannot be reproduced exactly outside
+the original torch code path. Deliberately not implemented here: use pre-rerun
+logits as diagnostic rasters, not as a substrate for masks.
+
 Background and measurements: docs/design/persistence-planning.md.
 """
 from __future__ import annotations

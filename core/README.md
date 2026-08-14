@@ -181,6 +181,8 @@ Two rules that are easy to get wrong:
 
 The ±16 clamp is lossless with respect to the mask: it was chosen so the re-derived mask is bit-identical to the unclamped one after the replay. Background and measurements in [`docs/design/persistence-planning.md`](../docs/design/persistence-planning.md).
 
+**Logits written before this change are worse, and `mask_from_logits` alone will not rescue them.** Everything published through July 2026 stores raw SAM2 `log_odds` — prior included, but neither upsampled nor smoothed — so those rasters are not even co-registered with their own masks: the logits are coarser by exactly 35/32 in every UTM/lat band. Deriving a mask from them needs an upsample to the mask grid *as well as* the smoothing replay, and still will not match bit-for-bit, since the bilinear upsample cannot be reproduced exactly outside the original torch path. Treat pre-rerun logits as diagnostic only.
+
 #### Quarterly accumulation
 
 Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. After masking the quarterly diffs, **accumulate** each quarter’s diff mask onto the prior full-year (or prior `*_full`) mask with `sam2_combine_masks.py` (OR merge) to produce that quarter’s `*_full` mask. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
