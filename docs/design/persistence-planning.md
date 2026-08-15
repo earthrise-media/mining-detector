@@ -104,6 +104,95 @@ So the labelling effort is for *validation*, and does not block a first working 
 
 Steps 1–2 are period-local and never recomputed. All temporal logic is in 3–5 and is pure selection over fixed inputs.
 
+### This changes what SAM2 is prompted with — and is untested
+
+**Recorded 2026-08-15.** To date masks have been derived from the *cumulative*
+detections, not per-period ones. Step 2 above is therefore a real change of
+practice, not a restatement, and it has not been validated.
+
+The argument for it: estimate each period's mask from what is visible in that
+period, then accumulate — rather than accumulate first and ask SAM2 to segment
+ground where a scar may have healed, or is shrouded by cloud in that period's
+mosaic. It is also simpler, because every accumulation step then lives in
+post-processing and can be revised without re-running SAM2. The cost is storing
+two sets of masks, period and cumulative.
+
+Two things to check before trusting a basin-wide comparison against the old
+series:
+
+- **SAM2's output depends on its prompt set.** Box prompts come from whichever
+  polygons clip into each tile, so running on per-period `t0.43` rather than
+  cumulative `t0.55` changes the masks *over shared ground too*. The new series
+  will not be "the old masks plus more", and a naive area diff against the old
+  product will mix this effect with the intended one.
+- **Roughly 20% more segmentation than survives**, since persistence later
+  discards some of what was masked. Accepted: it is the price of never needing
+  a rerun.
+
+### Quarterly masks: segment the diff, not the period
+
+Quarterly mosaics are badly cloud-affected. The detector was trained with enough
+cloud remnants and data holes to reject corrupted regions gracefully; **SAM2 has
+not yet seen enough of this in fine-tuning**, so segmenting a full quarter would
+ask it to work exactly where it is weakest. The existing mitigation — segment
+only the quarterly *differential* and OR-merge onto the prior mask — remains
+correct, and the annual change above does not disturb its rationale.
+
+What changes is the reference the diff is taken against:
+
+- **Was:** cumulative `t0.55` now − cumulative `t0.55` previous.
+- **Becomes:** the quarter's period `t0.43` detections − the accumulated selected
+  set through the previous period.
+
+Measured on the current archive, that increment is **3–8% of the period
+detection set** (1,779–7,786 locations against 30,000–120,000 per quarter), so
+SAM2's exposure to a cloud-wrecked mosaic drops 12–30×. Retain the existing
+`≤ 11 ha` drop on dissolved diff polygons: that threshold is half a patch, so it
+removes shards below the resolution at which a detection means anything.
+
+**The resulting asymmetry is deliberate.** Annual periods get a fresh full
+segmentation; quarters get increment-only. That is not an inconsistency awaiting
+tidy-up — we re-segment a year because the annual mosaic can see the whole scar,
+and refuse to re-segment a quarter because it cannot. Anyone "fixing" quarters to
+match the annual path would reintroduce the cloud problem.
+
+**Year-boundary reconciliation.** When annual year `Y` lands, its mask
+*supersedes* the accumulated quarterly estimate within `Y` rather than adding to
+it — the mask-side analogue of provisional → confirmed. If the accumulation code
+gets this wrong, quarterly shards persist alongside the annual mask that replaced
+them and expansion is double-counted.
+
+#### Connected-component attribution on shards
+
+Attribution still applies to quarters, but behaves differently, and two things
+are easy to get wrong.
+
+- **It is vacuous unless the mask is computed on a looser set than the one
+  selected.** Segment the `t0.43` diff and select at `t0.55`; selecting the same
+  set that was segmented retains every component by construction.
+- **Attribute before the OR-merge, never after.** A shard is spatially contiguous
+  with the scar it extends, so once merged onto the prior mask, labelling yields
+  one enormous component that any single detection retains. The merge destroys
+  the structure attribution depends on. This is a hard ordering constraint.
+
+The character of the operation also changes. Attribution exists because SAM2
+segments past the patch that prompted it, so clipping would shave real extent —
+but when the component *is* the increment, that permissiveness has little to bite
+on and the rule behaves closer to a hard filter. **The failure mode reverses**:
+rather than over-retaining, the risk becomes dropping genuine expansion whose
+prompting detection fell between `t0.43` and `t0.55`. Measure this once real diff
+masks exist.
+
+**Structural caveat for reporting.** Quarterly masks only ever add, so quarterly
+area is monotone by construction. That is right for a cumulative product, but it
+means quarterly area change is a *lower bound* on expansion rather than a
+measurement, and it structurally cannot show the recession the annual series can.
+
+**The real fix** is the one already applied to the detector: fine-tune SAM2 on
+cloud-corrupted chips. Then quarters could be segmented like annual periods and
+the asymmetry would disappear. Until then this is load-bearing design rather than
+a temporary hack, and should be documented as such.
+
 ## Measured results (prototype, 2026-08-07)
 
 ### Masks — UTM 21, lat band [-8, 0], annual 2018–2025
@@ -491,7 +580,9 @@ Implementation phase (to do):
 
   **Never cache a pixel-area constant.** Pre-fix rasters carry per-period resolutions differing by ~0.03% and the fixed grid uses 0.00009°; a naive 10 m × 10 m assumption is already −0.29% off on the band tested. Always derive from the raster's own transform, which everything in that module does.
 - [ ] **Rasters at scale:** run the remaining UTM/lat bands.
-- [ ] **Connected-component mask attribution** to the selected detection set (per-tile, pre-mosaic).
+- [ ] **Connected-component mask attribution** to the selected detection set. Now that the fixed grid puts every tile and band on one lattice, prefer labelling *after* mosaicking — windowed connected components with cross-window merging, or a flood-fill propagated from rasterized detection seeds — which removes the tile-seam failure the per-tile approach accepts. For quarters, attribute on the per-period diff mask before the OR-merge; see "Quarterly masks" above.
+- [ ] **Measure what attribution actually removes** before committing to an algorithm: components per band, their size distribution, and the fraction of mask area in components no selected detection intersects. Existing masks were derived from cumulative `t0.55`, so they can characterise component structure but their retention rates will not transfer to per-period `t0.43` masks.
+- [ ] **Validate per-period masks against the old cumulative-derived series** on a few paired tiles, isolating the prompt-set effect from the intended change.
 - [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
 - [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
 - [ ] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds`, so provisional masks are a true re-threshold. Either way, fix the re-derivation path to replay upsample + smooth per tile before thresholding.
