@@ -193,6 +193,100 @@ cloud-corrupted chips. Then quarters could be segmented like annual periods and
 the asymmetry would disappear. Until then this is load-bearing design rather than
 a temporary hack, and should be documented as such.
 
+## Attributing masks to confirmed detections
+
+**Recorded 2026-08-15.** Persistence rejects detections; the mask has to follow.
+Plain connected-component attribution — keep a component whole if *any* retained
+detection intersects it — is too permissive to do that job, because mask area
+whose own detections are revised out survives wherever it is contiguous with a
+component that has a confirmed detection somewhere in it.
+
+### The leak, measured
+
+Connected components of the 2023 mask over a 204 Mpx window on the Tapajós
+(the densest mining in the basin), 8-connectivity:
+
+| | |
+| --- | --- |
+| components | 2,636 |
+| **largest component** | **463,572 px = 4,636 ha, 7.6% of window mask area** |
+| top 10 components | 28.1% of area |
+| top 100 | 63.4% of area |
+| median component | 253 px (2.5 ha) |
+| components < 100 px | 35% of components, 0.5% of area |
+
+So a single surviving detection anywhere in the largest blob would retain
+4,636 ha; ten would retain 28% of the region. In dense mining, rejection would
+have almost no purchase. (These masks are cumulative-`t0.55`-derived and so more
+connected than the per-period masks will be — treat the blob sizes as an upper
+bound. Attribution also runs per period, before accumulation, which bounds
+component size further.)
+
+Two things partly mitigate and one does not. Pixel-level `k`-of-`n` runs on the
+mask independently, so *transient* mask area is removed whether or not its
+detections confirmed. The residual leak is area that recurs across periods, is
+contiguous with confirmed scar, and never has a confirming detection of its own.
+Persistent landscape false positives (sandbars, exposed rock) pass both checks —
+a training-data problem, as noted elsewhere.
+
+### Resolve a contradiction in this document
+
+The hierarchy section says confirmed area is "persistence-confirmed mask pixels
+**lying within** detections confirmed by `Y`", which reads as clipping. The
+pipeline-ordering section says explicitly **not** to clip, and to use
+connected-component attribution. Those are different rules with materially
+different answers. The rule below supersedes both.
+
+### The prior already defines how far a mask may extend
+
+`soft_spatial_prior` is zero inside the detection footprint and applies
+`penalty = -(dist_outside / prior_sigma)²` outside, with `prior_sigma = 12` px.
+A pixel survives threshold 0 only where `best_logits > (dist / 12)²`, so the
+maximum extent beyond a detection is `12·√(max logit)` — a hard geometric cap
+imposed by the pipeline itself, not a tuning choice.
+
+Measured on real stored logits (max log-odds 11.33, which equals max
+`best_logits` since the prior is zero inside detections):
+
+| logit | max extent |
+| --- | --- |
+| theoretical max, 11.33 | 40.4 px = **404 m** |
+| p99 of positive logits, 10.08 | 38.1 px = 381 m |
+| median positive logit, 3.69 | 23.0 px = 230 m |
+
+And where mask pixels actually sit, relative to the detections that prompted
+them (same Tapajós window):
+
+| | |
+| --- | --- |
+| **inside a detection footprint** | **93.9% of mask pixels** |
+| p99 distance beyond | 11.0 px = 111 m |
+| p99.9 | 18.4 px = 185 m |
+| beyond the 40.4 px cap | 0.000% |
+
+(The few pixels reading further are window-edge artifacts — detections just
+outside the query bbox were not loaded. The comparison is against *dissolved
+cumulative* detection polygons, which are more generous than individual patch
+footprints, so 93.9% is an upper bound on what clipping would preserve.)
+
+### Rule
+
+**Bounded geodesic growth from retained detections, capped at the prior-implied
+extent (≈40 px / 404 m), measured through the mask.** This is principled rather
+than tuned — the cap is the distance beyond which the pipeline's own prior makes
+a mask pixel impossible — and near-lossless, since the p99.9 halo is 185 m, less
+than half the cap. It bounds the blob problem exactly: a retained detection can
+only pull in mask it could plausibly have generated itself.
+
+If measurement shows the cap still leaks, the fallback is a **nearest-seed
+partition**: assign every mask pixel to its nearest prompting detection within
+the component and keep pixels whose seed was retained, so a rejected detection
+loses its own neighbourhood and nothing else. Costlier (distance transform with
+indices, ideally geodesic within-mask) and less obviously principled, but
+strictly tighter.
+
+Do not clip to patch footprints, and do not use unbounded connected components.
+
 ## Measured results (prototype, 2026-08-07)
 
 ### Masks — UTM 21, lat band [-8, 0], annual 2018–2025
@@ -581,7 +675,8 @@ Implementation phase (to do):
   **Never cache a pixel-area constant.** Pre-fix rasters carry per-period resolutions differing by ~0.03% and the fixed grid uses 0.00009°; a naive 10 m × 10 m assumption is already −0.29% off on the band tested. Always derive from the raster's own transform, which everything in that module does.
 - [ ] **Rasters at scale:** run the remaining UTM/lat bands.
 - [ ] **Connected-component mask attribution** to the selected detection set. Now that the fixed grid puts every tile and band on one lattice, prefer labelling *after* mosaicking — windowed connected components with cross-window merging, or a flood-fill propagated from rasterized detection seeds — which removes the tile-seam failure the per-tile approach accepts. For quarters, attribute on the per-period diff mask before the OR-merge; see "Quarterly masks" above.
-- [ ] **Measure what attribution actually removes** before committing to an algorithm: components per band, their size distribution, and the fraction of mask area in components no selected detection intersects. Existing masks were derived from cumulative `t0.55`, so they can characterise component structure but their retention rates will not transfer to per-period `t0.43` masks.
+- [ ] **Compare the four attribution rules on real per-period masks** — clip to footprint, bounded geodesic growth at several `N` (including the prior-implied ≈40 px), nearest-seed partition, and unbounded connected components — reporting retained area under each on one band. If bounded growth and unbounded CC agree to ~1%, the cap is free and settles it; if they diverge, the choice is load-bearing. Existing masks were derived from cumulative `t0.55`, so they characterise component structure but their retention rates will not transfer.
+- [ ] **Confirm the prior-implied cap on per-period masks.** The ≈40 px figure comes from `12·√(max logit)` with max log-odds 11.33; re-derive it from the new logits, since a different prompt set may change the achievable maximum.
 - [ ] **Validate per-period masks against the old cumulative-derived series** on a few paired tiles, isolating the prompt-set effect from the intended change.
 - [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
 - [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
