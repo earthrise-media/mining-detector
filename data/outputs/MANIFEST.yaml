@@ -24,6 +24,12 @@ stores:
     browse_root: https://source.coop/earthgenome/amazon-mining-watch
     https_root: https://data.source.coop/earthgenome/amazon-mining-watch
     notes: >
+      Public record. Carries the subset of products intended for outside use,
+      mirrored from gcs (the store of record) rather than the other way around.
+      Deliberately does not carry everything: the full t0.55 single-period
+      series is internal, because publishing two thresholds side by side has
+      caused partners to ask which of t0.43 / t0.55 they should use.
+
       Browse folders on browse_root (source.coop). https_root is for individual
       object keys only; trailing slashes and bare prefixes return InvalidRequest
       on the data proxy. Prefer browse_root links in public docs.
@@ -31,13 +37,19 @@ stores:
     #   {https_root}/cumulative_detections/..._cumulative2018-2023.geojson
 
   gcs:
-    # Internal Earth Genome redundancy only — not a public distribution channel.
+    # Internal store of record — not a public distribution channel.
     visibility: internal
     root: gs://amw-dev/outputs
     notes: >
-      Team-only mirror. Layout follows local model-output folder names under
-      outputs/, not the source.coop public tree. Prefer source_coop URLs in
-      public docs and notebooks.
+      The internal data store of record, as of August 2026. Previously
+      described as a mirror of source.coop; the relationship is now the
+      reverse — source.coop mirrors the public-facing subset from here. Holds
+      working products that are not published, including the full t0.55
+      single-period series.
+
+      Layout follows local model-output folder names under outputs/, not the
+      source.coop public tree. Prefer source_coop URLs in public docs and
+      notebooks for anything that is published there.
 
   local:
     visibility: workspace
@@ -106,6 +118,15 @@ products:
       single_periods_post_stringent:
         source_coop: single_periods/postprocessed_t0.55_d5_3km_t-iso0.8/
         gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.55_d5_3km_t-iso0.8/
+        notes: >
+          Internal by default. t0.55 exists to stand in for temporal
+          corroboration at the provisional leading edge, where a period is too
+          recent for persistence to confirm it. Once a period has enough
+          following periods to be confirmed, its t0.55 layer has served its
+          purpose and is retired from source.coop; the confirmed layer derives
+          from t0.43 instead. Publishing the full t0.55 series alongside t0.43
+          invites the question of which threshold to use, which has no good
+          answer outside that provisional context.
 
       mining_scar_masks:
         source_coop: mining_scar_masks/
