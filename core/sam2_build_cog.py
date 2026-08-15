@@ -374,7 +374,7 @@ def build_cog(
         ])
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers,
-         extent_mode="union", raster_types=("mask", "logits")):
+         extent_mode="union", raster_types=("mask",)):
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -582,14 +582,16 @@ if __name__ == "__main__":
     parser.add_argument("--max_workers", type=int, default=os.cpu_count() or 4, help="Parallel worker count")
     parser.add_argument(
         "--raster_types", nargs="+", choices=("mask", "logits"),
-        default=["mask", "logits"],
+        default=["mask"],
         help=(
             "Which mosaics to build. Logit mosaics are for inspection only: "
             "re-deriving a mask at a different threshold must replay the "
             "smoothing per tile, because max-reduce across overlapping tiles "
             "does not commute with it. The durable logit artifact is the "
             "per-tile *-logits.tif, not the mosaic. Passing 'mask' alone skips "
-            "the float32 half of the work, which dominates the run."
+            "the float32 half of the work, which dominates the run. Default is "
+            "mask only; pass 'mask logits' if you want a logit mosaic to "
+            "look at."
         ))
     parser.add_argument(
         "--extent_mode", choices=("band", "union"), default="union",
