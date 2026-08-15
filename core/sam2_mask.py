@@ -63,6 +63,7 @@ def main(args):
             index_out=str(index_out),
             stac_out=str(stac_out),
             max_workers=args.max_workers,
+            extent_mode=args.extent_mode,
         )
 
 
@@ -154,6 +155,17 @@ if __name__ == "__main__":
     # ----------------------------
     parser.add_argument("--cog", action="store_true",
                         help="Run COG mosaicking pipeline after masking")
+    parser.add_argument(
+        "--extent_mode", choices=("band", "union"), default="band",
+        help=(
+            "Output extent for per-band mosaics when --cog is set. 'band' "
+            "writes the fixed UTM-zone x lat-band box, so every period yields a "
+            "byte-identical grid, but writes ~6.2 Gpx per band regardless of "
+            "how many tiles went in (~170 s/band). 'union' writes the snapped "
+            "union of the tiles present -- still on the same global lattice, an "
+            "integral pixel offset away, and far faster. Both are correct for "
+            "temporal alignment."
+        ))
 
     args = parser.parse_args()
 

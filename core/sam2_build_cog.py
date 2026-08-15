@@ -130,8 +130,19 @@ def resolve_extent(input_files, extent, resolution=GRID_RES, label=""):
 
 
 def run(cmd):
-    subprocess.run(
-        cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    """Run a GDAL command, surfacing its stderr if it fails.
+
+    GDAL is chatty on success and the noise is not worth keeping, but silencing
+    stderr unconditionally makes a failure look like nothing happened at all --
+    the traceback names the exit code and no reason. Capture, discard on
+    success, re-raise with the message on failure.
+    """
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode, cmd,
+            output=proc.stdout,
+            stderr=f"{proc.stderr.strip()}\n  command: {' '.join(map(str, cmd))}")
 
 def _buildvrt_grid_args(extent, resolution, resampling, nodata):
     """gdalbuildvrt arguments pinning the output to the fixed lattice.
