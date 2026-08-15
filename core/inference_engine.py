@@ -1339,9 +1339,16 @@ class SAM2_Masker:
                 tiles_w_polys.append((tile, tile_polys))
 
         # --- SAM2 masking multi-threaded --- 
-        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
+        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame) -> None:
             pixels = self.data_extractor.get_tile_data(tile)
-            return self.predict(pixels, tile, tile_polys)
+            # Discard predict()'s return value rather than handing it back.
+            # It carries SAM2's full-resolution masks -- (n_boxes, 3, H, W)
+            # float32, hundreds of MB on a detection-dense tile -- and the
+            # futures dict below holds every future for the whole batch, so a
+            # returned result stays reachable until the batch finishes rather
+            # than being freed as each tile completes. The mask and logits are
+            # already written to disk inside predict(); nothing here needs it.
+            self.predict(pixels, tile, tile_polys)
 
         for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
                       desc="Processing tiles"):
