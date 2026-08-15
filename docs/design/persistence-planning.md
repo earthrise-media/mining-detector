@@ -372,6 +372,88 @@ figures exactly for 2018–2023. See "Operational gotchas" for the write-side fi
 - **Everything else is within noise.** `n3_provis_2025` beats the current product on F1, but by **4 false positives**. The honest conclusion is *equivalence* to the current product, plus monotonicity and freedom from N-drift — not superiority.
 - **What this protocol cannot show:** N-drift (it evaluates a single 2025 snapshot, so the strongest argument for persistence is structurally invisible), and dating errors (a chip hits if *any* patch intersects it, regardless of onset year).
 
+## Confirmation recipes A–D
+
+**Recorded 2026-08-16.** The confirmation rule has two free axes — how long the
+window runs, and whether quarterly periods may corroborate — giving four
+recipes. `core/persistence.py` implements all of them as configuration.
+
+| | window `[Y, Y+1]` (one following year) | window `[Y, Y+2]` (two following years) |
+| --- | --- | --- |
+| **annuals only** | **A** — n=2 | **C** — the classic k=2 of n=3 |
+| **annuals + quarters** | **B** | **D** |
+
+`D+` denotes D with `early_confirm`: evaluated against whatever periods exist
+rather than waiting for the window to close. Safe by construction, since the
+witness set only grows toward a fixed endpoint, so confirmations accumulate and
+are never withdrawn.
+
+### Cumulative detections under each recipe
+
+Locations with confirmed onset ≤ T, against the published t0.55 union:
+
+| through | published t0.55 | A | B | C | D |
+| --- | --- | --- | --- | --- | --- |
+| 2018 | 95,085 | 99,302 (+4.4%) | 99,302 | 103,977 (+9.4%) | 103,977 |
+| 2019 | 120,364 | 118,615 (−1.5%) | 118,615 | 125,535 (+4.3%) | 125,535 |
+| 2020 | 140,038 | 137,237 (−2.0%) | 137,237 | 142,618 (+1.8%) | 142,618 |
+| 2021 | 161,405 | 156,734 (−2.9%) | 156,734 | 162,800 (+0.9%) | 162,800 |
+| 2022 | 180,776 | 175,321 (−3.0%) | 175,321 | 181,592 (+0.5%) | 181,592 |
+| 2023 | 200,148 | 192,761 (−3.7%) | 192,761 | 198,794 (−0.7%) | 199,388 (−0.4%) |
+| 2024 | 215,484 | 202,173 (−6.2%) | 205,575 (−4.6%) | 207,468\* (−3.7%) | 211,596\* (−1.8%) |
+
+**A ≡ B and C ≡ D through 2022**, exactly — quarterly data begins in 2025, so
+there are no extra witnesses to add for earlier onsets. The four recipes are
+really two until 2023. `*` marks lower bounds: both window-3 columns need 2026
+annual to close 2024.
+
+`C`/`D` track the published series closely (+9.4% at 2018 decaying to −0.7% at
+2023); `A`/`B` sit 2–4% below throughout, the cost of the shorter window.
+
+### Test-set metrics for A–D
+
+Same protocol and pooled split as above. Each layer is confirmed onsets plus the
+t0.55 provisional layer for annual periods whose window has not closed;
+`[confirmed only]` drops the provisional part. Quarters serve as witnesses in
+B/D but are not themselves added to the layer, so the comparison isolates the
+rule.
+
+| layer | patches | TP | FP | FN | TN | Precision | Recall | F1 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `or_t055_2025` (current) | 250,398 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9716 |
+| `or_t043_2025` (loose) | 302,520 | 718 | 82 | 5 | 3074 | 0.8975 | 0.9931 | 0.9429 |
+| **A** window2 annual | 236,125 | 718 | **32** | 5 | 3124 | 0.9573 | 0.9931 | **0.9749** |
+| **B** window2 + quarters | 239,527 | 718 | 34 | 5 | 3122 | 0.9548 | 0.9931 | 0.9736 |
+| **C** window3 annual | 245,569 | 718 | 33 | 5 | 3123 | 0.9561 | 0.9931 | 0.9742 |
+| **D** window3 + quarters | 246,163 | 718 | 35 | 5 | 3121 | 0.9535 | 0.9931 | 0.9729 |
+| **D+** window3 + quarters, early | 251,274 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9716 |
+| A [confirmed only] | 202,173 | 715 | 30 | 8 | 3126 | 0.9597 | 0.9889 | 0.9741 |
+| B [confirmed only] | 205,575 | 715 | 33 | 8 | 3123 | 0.9559 | 0.9889 | 0.9721 |
+| C [confirmed only] | 198,794 | 711 | **29** | 12 | 3127 | 0.9608 | 0.9834 | 0.9720 |
+| D [confirmed only] | 199,388 | 711 | 31 | 12 | 3125 | 0.9582 | 0.9834 | 0.9706 |
+
+- **Every recipe holds recall at 718/723 and beats the current product on false
+  positives** (32–37 against 37), so they differ only in precision, and only by a
+  handful of chips. The earlier conclusion stands: this protocol shows
+  *equivalence*, not superiority.
+- **The 82 → 32 FP result is the one with real signal**, and it survives for all
+  four recipes. Persistence recovers what loose thresholds give up, at zero
+  recall cost, regardless of which window or witness set is chosen.
+- **Quarters cost about 2 FP with no recall gain**, consistently: A→B is 32→34
+  and C→D is 33→35. Two chips is noise on its own, but the direction is the same
+  in two independent pairs and it agrees with the confidence evidence that
+  quarter-only corroborations are weaker. Treat it as a weak prior against
+  quarters, not a finding.
+- **`D+` is indistinguishable from the current product** — identical TP/FP/FN/TN.
+  Confirming as early as possible pushes the layer back toward the loose union.
+- **The provisional layer is carrying real recall.** Confirmed-only C has 12 FN
+  against 5 for the full layer, so provisional detections supply 7 true positives
+  the confirmed core does not yet have.
+- **This protocol cannot separate these recipes.** A 5-chip spread across 3,879
+  chips is not a basis for choosing. The decision should rest on the structural
+  properties — when a period becomes final, and whether confirmations can be
+  withdrawn — and on visual review of the differing detections.
+
 ## Fixing the raster grid
 
 **Recorded 2026-08-14.** Every pixel-wise temporal rule needs pixel *(i,j)* to mean the same
