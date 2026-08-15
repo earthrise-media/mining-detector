@@ -374,7 +374,7 @@ def build_cog(
         ])
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers,
-         extent_mode="band"):
+         extent_mode="union", raster_types=("mask", "logits")):
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -394,6 +394,8 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
             continue
 
         raster_type = "mask" if is_mask else "logits"
+        if raster_type not in raster_types:
+            continue
 
         with rasterio.open(tif) as ds:
             bounds = ds.bounds
@@ -579,6 +581,17 @@ if __name__ == "__main__":
     parser.add_argument("--stac_out", default=None, help="STAC catalog output JSON")
     parser.add_argument("--max_workers", type=int, default=os.cpu_count() or 4, help="Parallel worker count")
     parser.add_argument(
+        "--raster_types", nargs="+", choices=("mask", "logits"),
+        default=["mask", "logits"],
+        help=(
+            "Which mosaics to build. Logit mosaics are for inspection only: "
+            "re-deriving a mask at a different threshold must replay the "
+            "smoothing per tile, because max-reduce across overlapping tiles "
+            "does not commute with it. The durable logit artifact is the "
+            "per-tile *-logits.tif, not the mosaic. Passing 'mask' alone skips "
+            "the float32 half of the work, which dominates the run."
+        ))
+    parser.add_argument(
         "--extent_mode", choices=("band", "union"), default="union",
         help=(
             "Output extent for per-band mosaics. 'union' (default) uses the "
@@ -602,4 +615,4 @@ if __name__ == "__main__":
     stac_out = args.stac_out or os.path.join(output_dir, "stac_catalog.json")
 
     main(input_dir, output_dir, index_out, stac_out, args.max_workers,
-         extent_mode=args.extent_mode)
+         extent_mode=args.extent_mode, raster_types=tuple(args.raster_types))
