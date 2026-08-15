@@ -579,15 +579,19 @@ if __name__ == "__main__":
     parser.add_argument("--stac_out", default=None, help="STAC catalog output JSON")
     parser.add_argument("--max_workers", type=int, default=os.cpu_count() or 4, help="Parallel worker count")
     parser.add_argument(
-        "--extent_mode", choices=("band", "union"), default="band",
+        "--extent_mode", choices=("band", "union"), default="union",
         help=(
-            "Output extent for per-band mosaics. 'band' (default) uses the "
-            "fixed UTM-zone x lat-band box, so every period yields a "
-            "byte-identical grid and pixel (i,j) needs no offset bookkeeping. "
-            "'union' uses the snapped union of the tiles present: still on the "
-            "global lattice (so temporal rules remain valid, with an integral "
-            "pixel offset), much smaller and far faster to write. Both are "
-            "correct; 'band' trades write time for downstream simplicity."
+            "Output extent for per-band mosaics. 'union' (default) uses the "
+            "snapped union of the tiles present -- on the global lattice, so "
+            "temporal rules stay valid with an integral pixel offset between "
+            "periods. 'band' uses the fixed UTM-zone x lat-band box, giving "
+            "byte-identical grids across periods, but writes 6.2 Gpx per band "
+            "regardless of content: only ~1.1x the union on the dense core "
+            "bands, but 16x on utm20 lat[-24,-16] and 79,000x on utm19 "
+            "lat[-24,-16], whose real extent is 285x275 pixels. That has "
+            "exhausted memory in gdalwarp on a loaded machine. Prefer 'band' "
+            "only when identical extents are worth the cost and the run has "
+            "the machine to itself."
         ))
 
     args = parser.parse_args()
