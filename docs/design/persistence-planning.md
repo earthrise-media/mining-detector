@@ -692,6 +692,66 @@ knowing before comparing pixel counts across grid regimes.
 - [ ] Regenerate 2018–2025 masks and logits on the fixed grid as part of the persistence rerun.
 - [ ] Confirm the temporal code path needs no regrid step once inputs are aligned.
 
+## Publication model
+
+**Recorded 2026-08-16.** What ships publicly, and in what form. Not yet
+implemented; this is the target for the cumulative/diff code.
+
+### Patches are the data; dissolved polygons are a rendering
+
+The public vector artifact becomes the **patch-level first-detection-year
+layer**, not dissolved polygons. Two reasons:
+
+- **Attributes only exist on patches.** `onset_year`, `status`, `confirmed_in`
+  and `confidence` are the whole point of the persistence product, and a
+  dissolved polygon spanning six onset years can carry none of them. Publishing
+  dissolved would discard exactly what makes the new product better than the old.
+- **Dissolved outlines misrepresent the resolution.** They look like traced mine
+  boundaries; they are unions of 480 m squares with staircase edges. The README
+  already directs area questions to the SAM2 masks, but the geometry invites the
+  reading the README warns against. A grid of squares looks like what it is.
+
+So each artifact does one job: **patches** answer *where* and *when*, **masks**
+answer *how much*, **dissolved polygons and pmtiles** are what the website draws.
+
+Publishing patches obliges us to state plainly that **patch geometry is not scar
+extent**, and that summing patch areas double-counts, since patches overlap by
+half a width. Area comes from the masks, with the ~0.65 correction factor.
+
+### Publish yearly increments, not cumulative dissolves
+
+The dissolve is not decomposable — 2020→2021 adds 21,367 patches but only 728
+polygons, so almost every new patch merges into an existing polygon and redraws
+it. A cumulative dissolved series therefore republishes every earlier year in
+altered form: 163 MB across the current series against 24 MB for the increments.
+
+**Publish the yearly incremental polygons instead, and let consumers union them
+as they wish.** This works because **status splits at a year boundary**: with no
+early confirmation, an annual period is either wholly confirmable or wholly
+provisional, so every increment is status-homogeneous and each polygon carries an
+unambiguous `onset_year` and `status`. (Adopting early confirmation would break
+this and force dissolving within `(status, onset_year)` groups instead.)
+
+Retire the wholly-dissolved yearly cumulative set. Keep the increments published
+through the transition, since existing consumers have built against the current
+product and the rule change should not land in the same release as a format
+change.
+
+### Open questions for the implementation
+
+- **Overlapping or partitioning increments?** `dissolve(patches with onset Y)`
+  produces polygons that overlap the previous year's, since patches overlap by
+  half a width; a geometric difference against the running union produces a
+  non-overlapping partition. The partition is better for drawing growth by year
+  and unions just as well, but costs a running cumulative to compute.
+- **Cumulative dissolves remain necessary as intermediates** either way. Dropping
+  them is a publishing decision, not a computation saving.
+- **The `≤ 11 ha` drop leaks.** If small fragments are dropped from published
+  increments, a consumer who unions them will not reproduce the cumulative — the
+  shortfall is invisible today because the cumulative is published directly.
+  Either keep fragments in the published increments, or document the
+  discrepancy explicitly.
+
 ## Deliverables
 
 - **A first-detection-year layer**: for each location, the year mining was confirmed to have begun. Every cumulative figure we report derives from it and cannot decrease. This matches the convention used by Hansen Global Forest Change, so it will be familiar to technical partners.
