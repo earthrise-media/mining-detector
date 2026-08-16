@@ -444,8 +444,19 @@ rule.
   in two independent pairs and it agrees with the confidence evidence that
   quarter-only corroborations are weaker. Treat it as a weak prior against
   quarters, not a finding.
-- **`D+` is indistinguishable from the current product** — identical TP/FP/FN/TN.
-  Confirming as early as possible pushes the layer back toward the loose union.
+- **`D+` scores identically to the current product but is not the same layer.**
+  The confusion matrices match cell for cell, yet the layers share only
+  Jaccard 0.891 — 14,934 patches unique to `D+`, 14,058 to `or_t055` — and even
+  their false positives differ, sharing 31 of 37. Two different layers landing
+  on the same matrix is coincidence at chip resolution, not equivalence.
+
+  What `D+` does show is worth more. It is **strictly additive over C** (their
+  intersection is all of C), adding 5,705 patches at **median confidence 0.497** —
+  detections below the provisional threshold, rescued on a single witness. Those
+  additions gain **zero true positives** and cost **4 false positives**. So the
+  case against maximal early confirmation is not that the layer degenerates
+  toward the unfiltered union; it is that the marginal detections early
+  confirmation admits are the weakest available and buy no recall.
 - **The provisional layer is carrying real recall.** Confirmed-only C has 12 FN
   against 5 for the full layer, so provisional detections supply 7 true positives
   the confirmed core does not yet have.
