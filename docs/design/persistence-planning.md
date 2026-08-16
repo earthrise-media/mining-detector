@@ -465,6 +465,44 @@ rule.
   properties — when a period becomes final, and whether confirmations can be
   withdrawn — and on visual review of the differing detections.
 
+### Visual review of A vs the current product
+
+**Recorded 2026-08-16**, on `A_vs_current_2024_diff.geojson`. Cumulative through
+2024: current 215,484, A 202,173, with 10,707 A-only and 24,018 current-only.
+Roughly 85% of the disagreement in both directions is edge fill within 500 m of
+the other layer — incremental detail on mines both already have. Only 1,032
+locations sit more than 3 km from anything in the other layer, and those are the
+only ones where the recipe decides whether a *field* appears at all.
+
+| | fill (<0.5 km) | nearby | new field (>3 km) | median conf, new field |
+| --- | --- | --- | --- | --- |
+| A only | 9,082 | 1,361 | 264 | 0.553 |
+| current only | 19,683 | 3,567 | 768 | **0.822** |
+
+The 768 isolated detections the current product carries and A drops were the
+identified risk: at median confidence 0.822 they are exactly the case where
+confidence cannot help, because a confidently-wrong one-off looks like a
+confident correct detection. **Review of the `new_field` subset found it to be
+mostly errors in both directions, and specifically that losing those 768 is
+desirable.** The finding is about the isolated subset only; the ~32,000 fill and
+nearby differences were not characterised this way, and are better understood as
+marginal edge detail on mines both layers already carry.
+
+That is the clearest evidence yet that persistence does the job it was designed
+for. A high-confidence detection that never recurs is the failure mode
+threshold-tightening cannot catch, and it is what the chip metrics were blind to:
+labelled chips sit on labelled ground, not on isolated terrain far from any
+label. It also resolves the concern that A's shorter window discards genuine
+discoveries — the isolated detections it discards are predominantly false.
+
+It is consistent, too, with why `postprocess` applies a stricter `t_iso` to
+isolated patches in the first place: isolation is itself evidence of error, and
+persistence and the isolation threshold are attacking the same population by
+different means. Since both directions of the isolated subset are mostly wrong,
+A's own 264 isolated additions are largely errors as well — A simply adds far
+fewer than it removes, for a net of roughly 500 fewer isolated false positives.
+Neither layer is clean here.
+
 ## Fixing the raster grid
 
 **Recorded 2026-08-14.** Every pixel-wise temporal rule needs pixel *(i,j)* to mean the same
@@ -737,20 +775,26 @@ through the transition, since existing consumers have built against the current
 product and the rule change should not land in the same release as a format
 change.
 
+Increments are built as a **geometric difference** against the running union, so
+they partition rather than overlap. `dissolve(patches with onset Y)` alone would
+overlap the previous year's polygons, since patches overlap by half a width. The
+partition draws growth-by-year correctly and unions just as well. Cumulative
+dissolves therefore remain necessary as intermediates: not publishing them is a
+publishing decision, not a computation saving.
+
+**The `≤ 11 ha` drop stays, and the leak it causes is acceptable** because
+polygons are explicitly display-only. A consumer who unions the published
+increments will fall slightly short of the true cumulative, by the sum of dropped
+fragments. That is a reason to point people at the patches as the authoritative
+source rather than a reason to keep the fragments: anyone wanting an exact
+cumulative should dissolve the patch layer themselves, which is a one-line
+operation and gives the right answer by construction.
+
 ### Open questions for the implementation
 
-- **Overlapping or partitioning increments?** `dissolve(patches with onset Y)`
-  produces polygons that overlap the previous year's, since patches overlap by
-  half a width; a geometric difference against the running union produces a
-  non-overlapping partition. The partition is better for drawing growth by year
-  and unions just as well, but costs a running cumulative to compute.
-- **Cumulative dissolves remain necessary as intermediates** either way. Dropping
-  them is a publishing decision, not a computation saving.
-- **The `≤ 11 ha` drop leaks.** If small fragments are dropped from published
-  increments, a consumer who unions them will not reproduce the cumulative — the
-  shortfall is invisible today because the cumulative is published directly.
-  Either keep fragments in the published increments, or document the
-  discrepancy explicitly.
+- Dissolving within `(status, onset_year)` groups becomes necessary if early
+  confirmation is ever adopted, since status would no longer split cleanly at a
+  year boundary.
 
 ## Deliverables
 
