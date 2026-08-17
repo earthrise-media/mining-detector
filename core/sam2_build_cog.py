@@ -91,7 +91,15 @@ def band_extent(utm_zone, lat_start, lat_end, resolution=GRID_RES,
 
 
 def union_bounds(input_files):
-    """Union of the bounds of input_files."""
+    """Union of the bounds of input_files.
+
+    Raises on an empty list rather than returning infinities, which would
+    otherwise surface much later as an incomprehensible OverflowError from
+    math.floor inside snap_extent.
+    """
+    input_files = list(input_files)
+    if not input_files:
+        raise ValueError("union_bounds: no input rasters")
     minx = miny = float("inf")
     maxx = maxy = float("-inf")
     for path in input_files:
