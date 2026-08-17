@@ -1,7 +1,7 @@
 # Stabilizing cumulative estimates with a temporal persistence check
 
 **Recorded:** 2026-08-07 (design discussion; no implementation yet.)  
-**Updated:** 2026-08-07 — prototype run on real data. Adds the **nested rule** (early confirmation via `n=2`, provably non-withdrawing), measured results for masks and detections, test-set metrics, and the **pipeline ordering** decision for SAM2. Supersedes the flat rejection of early resolution below.
+**Updated:** 2026-08-17 — recipe **A** chosen; see "Decision: recipe A". Earlier updates added the nested rule (early confirmation via the shorter window, provably non-withdrawing), measured results for masks and detections, test-set metrics, and the **pipeline ordering** decision for SAM2.
 
 ## Background: two halves of the pipeline
 
@@ -17,20 +17,55 @@ Detections are accumulated as a union — once a site is detected it stays in th
 
 ## Proposed change
 
-Require temporal corroboration before a location enters the cumulative record: a detection or mask pixel must be confirmed in at least **2 of 3 consecutive annual periods** (`k=2`, `n=3`). Once confirmed, it stays permanently.
+Require temporal corroboration before a location enters the cumulative record: a
+detection or mask pixel must be seen at onset year `Y` and again within a window
+of following years. Once confirmed, it stays permanently.
 
-This works because real mine scars are permanent and recur every year, while cloud and mosaic artifacts appear once and vanish. Requiring two occurrences removes most transient errors while leaving genuine features essentially untouched.
+This works because real mine scars are permanent and recur every year, while
+cloud and mosaic artifacts appear once and vanish. Requiring two occurrences
+removes most transient errors while leaving genuine features essentially
+untouched.
 
-### The nesting property, and the nested rule
+### The four recipes
 
-**`k=2/n=2` confirmations are a strict subset of `k=2/n=3` confirmations.** If a location is detected at `Y` and `Y+1`, it necessarily has 2 detections inside `[Y, Y+2]`, so it satisfies 2-of-3. The converse fails: the gap pattern (detected, missed, detected) passes `n=3` but not `n=2`. Verified exhaustively over all 256 possible 8-year detection sequences: zero violations.
+Two free axes — how long the window runs, and whether quarterly periods may
+corroborate — give four recipes, named here and used throughout this document.
+`core/persistence.py` implements all of them as configuration, and every rule
+takes `k=2`: two occurrences, counting the onset itself.
+
+| | window `[Y, Y+1]` | window `[Y, Y+2]` |
+| --- | --- | --- |
+| **annual witnesses only** | **A** | **C** |
+| **annual + quarterly witnesses** | **B** | **D** |
+
+**B and D are rejected on comparability, independent of their metrics.**
+Quarterly mosaics do not exist before 2025, so a rule admitting quarterly
+witnesses is strictly stricter for 2018–2024 than for later years. Users compare
+across time, and a rule that changes character mid-series makes those comparisons
+invalid. Their counts are retained under "Cumulative detections under each
+recipe" for the record, and the review of what B adds over A is reported there.
+
+**A is the chosen rule** — see "Decision: recipe A" for the reasoning. C is
+retained throughout as the main comparison, since it was the original proposal.
+
+### The nesting property
+
+**A's confirmations are a strict subset of C's.** If a location is detected at
+`Y` and `Y+1`, it necessarily has 2 detections inside `[Y, Y+2]`. The converse
+fails: the gap pattern (detected, missed, detected) satisfies C but not A.
+Verified exhaustively over all 256 possible 8-year detection sequences: zero
+violations.
 
 Two consequences:
 
-1. **Early confirmation is safe.** Apply `n=2` only where the 3-window is not yet complete, and it can *only ever add* locations, never remove them. The confirmed layer stays monotonic under reprocessing as well as under time. Operationally this is just `min(onset_n2, onset_n3)` — both are deterministic functions of the full stack, so there is no per-detection confirmation state to track across runs. This is what replaces the rejected "resolve early" idea.
-2. **`n=2` now, `n=3` later is a safe migration.** Switching from the shorter to the longer window is purely additive, so choosing `n=2` as an interim regulator does not lock us out of `n=3` when mask accuracy improves.
-
-Under the nested rule the provisional edge shrinks from two years to one: with annual data through 2025, 2024 is confirmable via the `n=2` path and only 2025 remains fully provisional.
+1. **Early confirmation is safe.** Applying A where C's window is not yet
+   complete can *only ever add* locations, never remove them, so the confirmed
+   layer stays monotonic under reprocessing as well as under time. Operationally
+   it is `min(onset_A, onset_C)` — both deterministic functions of the full stack,
+   so no per-detection confirmation state need be tracked across runs. This is
+   what replaces the rejected "resolve early" idea.
+2. **A now, C later is a safe migration.** Widening the window is purely
+   additive, so choosing A does not lock us out of C if mask accuracy improves.
 
 ## Why we propose to apply this to both halves
 
@@ -89,7 +124,7 @@ The saved `-logits.tif` is `log_odds` — before the bilinear upsample to tile r
 
 - **Target quantity:** `confirmed(Y) − confirmed(Y−1)`, i.e. the area attributable to onset year `Y`, versus the single-year mask at `t_prov,mask` restricted to locations not already in `confirmed(Y−1)`.
 - **Objective:** per-pixel agreement (IoU or F1), *not* area equality — a threshold can hit the right total in the wrong places. Use total-area match only as a secondary check.
-- **Starting bracket:** `n3` admits 77–81% of each year's new OR area on the UTM 21 band, so `t_prov,mask` should shed roughly 20% of what a threshold-0 mask would newly add. That is where to begin the sweep.
+- **Starting bracket:** C admits 77–81% of each year's new OR area on the UTM 21 band, so `t_prov,mask` should shed roughly 20% of what a threshold-0 mask would newly add. That is where to begin the sweep.
 
 So the labelling effort is for *validation*, and does not block a first working value.
 
@@ -293,7 +328,7 @@ Do not clip to patch footprints, and do not use unbounded connected components.
 
 Areas in hectares, cos-latitude weighted. Outputs in `data/outputs/sam2/persistence-tests/` and `persistence-tests2-2/`.
 
-| Year | Existing (per-year) | OR | n3 (2,3) | n2 (2,2) | nested |
+| Year | Existing (per-year) | OR | C | A | nested |
 | --- | --- | --- | --- | --- | --- |
 | 2018 | 93,840 | 93,840 | 84,249 | 80,056 | 84,249 |
 | 2019 | 109,528 | 123,313 | 107,902 | 101,309 | 107,902 |
@@ -305,25 +340,22 @@ Areas in hectares, cos-latitude weighted. Outputs in `data/outputs/sam2/persiste
 | 2025 | 165,610 | 268,084 | — | — | — |
 
 - **The fluctuation is real:** the existing series drops **−5.3% (−9,220 ha) from 2024 to 2025**, the only decrease. Both cumulative regimes are monotonic.
-- **The ratchet is confirmed:** the OR-vs-n3 gap widens with archive length, −10.2% (2018) → −17.0% (2023), flattening toward ~20% because the per-increment rejection rate is stable (n3 admits 77–81% of each year's new OR area).
-- **Pure `n2` costs ~4–4.5% permanently** relative to `n3` — the gap-pattern locations, never recovered.
-- **Nested reproduces `n3` exactly** for 2018–2023 and extends to 2024, cutting the provisional share of the eventual total from ~12% to ~7%.
-- **A weak 2025 mosaic suppressed the `n2` gain.** The `n2` path admitted only 53.8% of the 2024 OR increment against the ~78% historical rate; roughly **5,100 ha** of genuine 2024 area should confirm when 2026 lands and `n3` can use it as an alternative second witness. Under a wholesale switch to `n2` that area would be lost permanently rather than deferred — the main argument for nesting over switching.
+- **The ratchet is confirmed:** the OR-vs-C gap widens with archive length, −10.2% (2018) → −17.0% (2023), flattening toward ~20% because the per-increment rejection rate is stable (C admits 77–81% of each year's new OR area).
+- **A costs ~4–4.5% permanently** relative to C — the gap-pattern locations, never recovered.
+- **Nested reproduces C exactly** for 2018–2023 and extends to 2024, cutting the provisional share of the eventual total from ~12% to ~7%.
+- **A weak 2025 mosaic suppressed A's gain.** A admitted only 53.8% of the 2024 OR increment against the ~78% historical rate; roughly **5,100 ha** of genuine 2024 area should confirm when 2026 lands and C can use it as an alternative second witness.
 
 ### Detections — basin-wide, annual 2018–2025
 
-Cumulative patch counts. Outputs in `data/outputs/48px_v4.10b-.../persistence_t0.43_d5_3km_t-iso0.75/`.
+Cumulative patch counts, recomputed on the 5-dp key and the deduplicated
+archive. The original 2026-08-07 prototype outputs have been deleted: they
+predate both fixes, so their own counts differ (A at 2023: 184,911 there against
+191,908 here). The current A layer lives in `persistence_A_window2_annual/`.
 
-**Corrected 2026-08-14.** The original table was computed with a centroid join key rounded to
-6 decimals. The 2024 GeoJSONs — alone among all years — are written at 6-decimal coordinate
-precision (every other year is full float64), so their centroids, formed by averaging two
-already-rounded corners, do not land on the same 6-dp key as the other years. Roughly 40% of
-2024 patches therefore registered as never-before-seen locations, and the inflation carried
-forward into 2025. The table below uses a **5-decimal key**, which is robust to this (the
-half-patch grid step is 0.00217°, so 5 dp resolves the grid ~217×) and reproduces the 6-dp
-figures exactly for 2018–2023. See "Operational gotchas" for the write-side fix.
+Computed with a **5-decimal centroid join key**; see "Operational gotchas" for why
+the key precision matters and what the write-side fix is.
 
-| Year | OR t0.43 | OR t0.55 (current) | n3 | n2 | nested | n3 vs current |
+| Year | OR t0.43 | OR t0.55 (current) | C | A | nested | C vs current |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2018 | 117,731 | 95,097 | 103,991 | 99,316 | 103,991 | +9.4% |
 | 2019 | 146,836 | 120,377 | 125,548 | 118,629 | 125,548 | +4.3% |
@@ -334,59 +366,27 @@ figures exactly for 2018–2023. See "Operational gotchas" for the write-side fi
 | 2024 | 263,225 | 220,957 | — | 200,890 | 206,686 | — |
 | 2025 | 309,713 | 256,156 | — | — | — | — |
 
-- **Persistence at loose thresholds converges on threshold-tightening**: `n3` declines smoothly
+- **Persistence at loose thresholds converges on threshold-tightening**: C declines smoothly
   from +9.4% above the current product at 2018 to −0.9% at 2023, tracking it within ±1% from
   2021 onward. Two unrelated mechanisms landing in the same place is good evidence the tightened
   thresholds were doing roughly the right amount of work and that persistence is a principled
   substitute.
 - **The trend is the N-dependence**: a fixed threshold cannot track FP accrual that grows with
-  archive length. At 2018 the tightened threshold *over*-corrects (`n3` is +9.4% above it)
+  archive length. At 2018 the tightened threshold *over*-corrects (C is +9.4% above it)
   because there is no accrual yet to correct. The correction shrinks year on year and crosses
   over at 2023.
-- **There is no 2024 anomaly.** The 2024 OR increment is +24,590 patches, squarely inside the
-  21,000–29,000/yr norm, and the same is true at the raw-detection level (+27,495 at t ≥ 0.43).
-  The apparent +82,245 was entirely the join-key artifact described above.
+- **Yearly increments are stable at 21,000–29,000 patches**, with 2024 at +24,590 squarely
+  inside that range and matching the raw-detection level (+27,495 at t ≥ 0.43).
 - **The 2025 increment is genuinely elevated**, but modestly: +35,199 on the current t0.55
-  product against a 2019–2024 mean of 20,977, so **1.68×**, not double. It is larger on the loose
+  product against a 2019–2024 mean of 20,977, so **1.68×**. It is larger on the loose
   t0.43 column (1.92×) than the stringent one, which is the direction expected if part of the
   excess is low-confidence detections scattering into new locations rather than new mining. This
   is the kind of excess persistence should absorb once 2026 annual lands.
-- **The test-set metrics below predate this correction** and were computed on layers built with
-  the 6-dp key. The two OR rows are likely unaffected at chip level (the spurious extra entries
-  are geometrically coincident duplicates), but `n3_2023`, `n2_2024`, and `n3_provis_2025` need
-  recomputation — `n3` at 2023 gains ~3,400 patches once the key is fixed.
 
-### Test-set metrics
+## Comparing the recipes
 
-`core/persistence_evaluation.ipynb`, protocol matching `model_evaluation.ipynb` §3 (chip positive iff it intersects any patch). Pooled val+test2+test3, 3,879 chips, 723 positive.
-
-| Layer | TP | FP | FN | TN | Precision | Recall | F1 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `or_t055_2025` (current) | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9716 |
-| `or_t043_2025` (loose, no persistence) | 718 | 82 | 5 | 3074 | 0.8975 | 0.9931 | 0.9429 |
-| `n3_2023` (confirmed only) | 709 | 28 | 14 | 3128 | 0.9620 | 0.9806 | 0.9712 |
-| `n3_provis_2025` (proposed) | 718 | 33 | 5 | 3123 | 0.9561 | 0.9931 | **0.9742** |
-| `n2_2024` | 709 | 27 | 14 | 3129 | 0.9633 | 0.9806 | 0.9719 |
-
-- **The one result with real signal:** persistence recovers the precision that loose thresholds give up at **zero recall cost** — 82 FP → 33 FP with TP unchanged at 718. A 49-chip difference, well outside noise. This is the direct test of persistence as a substitute for threshold-tightening.
-- **Everything else is within noise.** `n3_provis_2025` beats the current product on F1, but by **4 false positives**. The honest conclusion is *equivalence* to the current product, plus monotonicity and freedom from N-drift — not superiority.
-- **What this protocol cannot show:** N-drift (it evaluates a single 2025 snapshot, so the strongest argument for persistence is structurally invisible), and dating errors (a chip hits if *any* patch intersects it, regardless of onset year).
-
-## Confirmation recipes A–D
-
-**Recorded 2026-08-16.** The confirmation rule has two free axes — how long the
-window runs, and whether quarterly periods may corroborate — giving four
-recipes. `core/persistence.py` implements all of them as configuration.
-
-| | window `[Y, Y+1]` (one following year) | window `[Y, Y+2]` (two following years) |
-| --- | --- | --- |
-| **annuals only** | **A** — n=2 | **C** — the classic k=2 of n=3 |
-| **annuals + quarters** | **B** | **D** |
-
-`D+` denotes D with `early_confirm`: evaluated against whatever periods exist
-rather than waiting for the window to close. Safe by construction, since the
-witness set only grows toward a fixed endpoint, so confirmations accumulate and
-are never withdrawn.
+**Recorded 2026-08-16.** The four recipes are defined under "The four recipes"
+above.
 
 ### Cumulative detections under each recipe
 
@@ -403,17 +403,28 @@ Locations with confirmed onset ≤ T, against the published t0.55 union:
 | 2024 | 215,484 | 202,173 (−6.2%) | 205,575 (−4.6%) | 207,468\* (−3.7%) | 211,596\* (−1.8%) |
 
 **A ≡ B and C ≡ D through 2022**, exactly — quarterly data begins in 2025, so
-there are no extra witnesses to add for earlier onsets. The four recipes are
-really two until 2023. `*` marks lower bounds: both window-3 columns need 2026
-annual to close 2024.
+there are no extra witnesses to add for earlier onsets. This is the comparability
+problem that rejects B and D, visible directly in the table: the recipes are
+really two rules until 2023, then four. `*` marks lower bounds: both window-3
+columns need 2026 annual to close 2024.
 
 `C`/`D` track the published series closely (+9.4% at 2018 decaying to −0.7% at
 2023); `A`/`B` sit 2–4% below throughout, the cost of the shorter window.
 
-### Test-set metrics for A–D
+**What B adds over A**, measured on 2024 before the B outputs were discarded:
+28,586 patches at median confidence 0.795, of which only **3,202 are at new
+locations** (median 0.687) — the rest is edge fill on mines A already carries.
+So the quarterly witnesses buy mostly incremental detail, and the fraction that
+could change whether a site appears at all is small and lower-confidence than the
+bulk. Combined with the comparability problem, this is why B was dropped rather
+than pursued.
 
-Same protocol and pooled split as above. Each layer is confirmed onsets plus the
-t0.55 provisional layer for annual periods whose window has not closed;
+### Test-set metrics
+
+`core/persistence_evaluation.ipynb`, protocol matching `model_evaluation.ipynb`
+§3 (chip positive iff it intersects any patch). Pooled val+test2+test3, 3,879
+chips, 723 positive; 5-decimal centroid key. Each layer is confirmed onsets plus
+the t0.55 provisional layer for annual periods whose window has not closed;
 `[confirmed only]` drops the provisional part. Quarters serve as witnesses in
 B/D but are not themselves added to the layer, so the comparison isolates the
 rule.
@@ -432,38 +443,36 @@ rule.
 | C [confirmed only] | 198,794 | 711 | **29** | 12 | 3127 | 0.9608 | 0.9834 | 0.9720 |
 | D [confirmed only] | 199,388 | 711 | 31 | 12 | 3125 | 0.9582 | 0.9834 | 0.9706 |
 
-- **Every recipe holds recall at 718/723 and beats the current product on false
-  positives** (32–37 against 37), so they differ only in precision, and only by a
-  handful of chips. The earlier conclusion stands: this protocol shows
-  *equivalence*, not superiority.
-- **The 82 → 32 FP result is the one with real signal**, and it survives for all
-  four recipes. Persistence recovers what loose thresholds give up, at zero
-  recall cost, regardless of which window or witness set is chosen.
-- **Quarters cost about 2 FP with no recall gain**, consistently: A→B is 32→34
-  and C→D is 33→35. Two chips is noise on its own, but the direction is the same
-  in two independent pairs and it agrees with the confidence evidence that
-  quarter-only corroborations are weaker. Treat it as a weak prior against
-  quarters, not a finding.
-- **`D+` scores identically to the current product but is not the same layer.**
-  The confusion matrices match cell for cell, yet the layers share only
-  Jaccard 0.891 — 14,934 patches unique to `D+`, 14,058 to `or_t055` — and even
-  their false positives differ, sharing 31 of 37. Two different layers landing
-  on the same matrix is coincidence at chip resolution, not equivalence.
+**The critical point: this protocol cannot separate the recipes.** The whole
+spread is 5 false-positive chips out of 3,879 — far short of the statistics
+needed to choose. The decision has to rest on structural properties and on visual
+review of the differing detections, which is what "Decision: recipe A" does.
 
-  What `D+` does show is worth more. It is **strictly additive over C** (their
-  intersection is all of C), adding 5,705 patches at **median confidence 0.497** —
-  detections below the provisional threshold, rescued on a single witness. Those
-  additions gain **zero true positives** and cost **4 false positives**. So the
-  case against maximal early confirmation is not that the layer degenerates
-  toward the unfiltered union; it is that the marginal detections early
-  confirmation admits are the weakest available and buy no recall.
-- **The provisional layer is carrying real recall.** Confirmed-only C has 12 FN
+Two weak trends are visible and both point the same way, but neither is
+individually significant:
+
+- **False positives increase monotonically as the criterion loosens** — A 32,
+  C 33, B 34, D 35, `D+` 37 — while recall is pinned at 718/723 for every recipe.
+  Loosening buys no recall and costs a little precision.
+- **Every recipe beats the loose product on the one result with real signal**:
+  82 FP → 32–37 FP at zero recall cost. That is persistence substituting for
+  threshold-tightening, and it holds regardless of window or witness set.
+
+Two further points do come out of the table:
+
+- **The provisional layer carries real recall.** Confirmed-only C has 12 FN
   against 5 for the full layer, so provisional detections supply 7 true positives
-  the confirmed core does not yet have.
-- **This protocol cannot separate these recipes.** A 5-chip spread across 3,879
-  chips is not a basis for choosing. The decision should rest on the structural
-  properties — when a period becomes final, and whether confirmations can be
-  withdrawn — and on visual review of the differing detections.
+  the confirmed core does not have.
+- **Against the current product this is equivalence, not superiority.** A's F1
+  edge over `or_t055` is 5 false-positive chips. What persistence adds beyond
+  parity is monotonicity and freedom from N-drift, neither of which this protocol
+  can see.
+
+**What this protocol cannot show**, and why it was never going to settle the
+choice: N-drift, since it evaluates a single 2025 snapshot, making the strongest
+argument for persistence structurally invisible; and dating errors, since a chip
+counts as hit if *any* patch intersects it, regardless of onset year. Onset
+attribution is precisely what separates the recipes.
 
 ### Visual review of A vs the current product
 
@@ -502,6 +511,55 @@ different means. Since both directions of the isolated subset are mostly wrong,
 A's own 264 isolated additions are largely errors as well — A simply adds far
 fewer than it removes, for a net of roughly 500 fewer isolated false positives.
 Neither layer is clean here.
+
+### Decision: recipe A (2026-08-17)
+
+**A — `k=2`, `window=2`, annual witnesses only.** `PersistenceConfig` defaults
+to it. The reasoning, in priority order:
+
+1. **Timeliness**, which is a significant priority in itself. A confirms year Y
+   at Y+1; C waits until Y+2.
+2. **Any-witness rules break comparability.** Using quarterly witnesses (B, D)
+   was attractive, but quarters do not exist before 2025, so the rule would be
+   stricter for 2018–2024 than for later years. Users compare across time, and a
+   rule that changes character mid-series makes that invalid. This kills B and D
+   regardless of their test-set numbers.
+3. **The 8-quarter display already *is* recipe A.** 2024 is confirmed by the
+   2025 annual while the site shows provisional 2025 and partial 2026 quarters.
+   Rolling into 2027, 2025 confirms on the 2026 annual, its provisional quarters
+   are replaced by confirmed 2025, and 2026–27 quarters become the provisional
+   edge. The annual rule confirms; quarters are provisional display. There was
+   never a conflict to resolve.
+4. **Simplicity.** No repeated checks, and no resurrecting provisional
+   detections that were dropped and confirmed much later. It also matches the
+   intended A rule on mask pixels for the scar rasters.
+5. **A mine gets many windows, not one.** In a cumulative product A confirms on
+   *any* adjacent pair of years, and an 8-year record contains seven overlapping
+   2-year windows. Since scars typically persist for years, a genuine mine has
+   repeated opportunities to be caught in some consecutive pair — it does not
+   have to be caught in a particular one. And within any window a detection can
+   match in either direction: confirming the prior year, or confirmed by the
+   following one. Read as "one chance to confirm", A looks far more stringent
+   than it is, and that reading is what motivated evaluating C and unbounded.
+6. **The difference sets decide it.** Comparing A against C and against the
+   current product, with attention to patches *away from* known detections — the
+   potentially-new mining that actually discriminates between rules — the more
+   generous recipes are largely adding noise. A gives up a little genuine recall
+   among new fields, but most of what it forgoes is recall that *fills in
+   already exhaustively mapped* fields, which is low priority. In exchange it
+   removes a substantial number of false positives. Net: less recall where
+   recall is cheap, more precision everywhere.
+
+**Known casualty.** The Maraba cluster (7.316843°S, 50.974598°W) has a 3-year
+gap that no finite window rescues — C does not recover it either; only an
+unbounded rule would. It is expected to confirm on a 2025–2026 match. Accepted.
+
+**Rejected: unbounded.** Onset attribution differs markedly between rules there
+(at Maraba, U dates 44 patches to 2019 against A's 6), and U's non-finality is
+milder than it first appears, since onsets are stable and published sets only
+grow. But the same difference-set test that decided against C applies more
+strongly to U, and a rule whose historical layers never close is a poor fit for
+a product whose stated problem is fluctuation.
 
 ## Fixing the raster grid
 
@@ -864,7 +922,7 @@ Notes from the design discussion that are not part of the summary above but bear
 
 - **Confirmation runs forward, not backward.** Scars are permanent, so the window is anchored at the candidate onset year `Y` and spans `[Y, Y+n-1]`. A trailing window would require the mine to have existed before it started.
 - **Confirmation and dating are separate.** Confirm with `k`-of-`n`; the onset year is the first clear *that passes its own confirmation window*. This avoids backdating a real 2022 onset to a spurious 2019 cloud artifact.
-- **Confirm only on a complete window** — *superseded by the nested rule above.* Originally: an onset year `Y` is evaluated once all `n` periods in `[Y, Y+n-1]` exist, with no partial resolution, since general early resolution would require tracking per-detection confirmation state across runs. That objection does not apply to the nested rule, which gets the same timeliness gain from a stateless recomputation (`min(onset_n2, onset_n3)`) whose result can only grow. Under plain `n=3` the provisional edge is the two most recent years (2024 and 2025 with data through 2025); under the nested rule it is one (2025 only).
+- **Confirm only on a complete window** — *superseded by the nested rule above.* Originally: an onset year `Y` is evaluated once all `n` periods in `[Y, Y+n-1]` exist, with no partial resolution, since general early resolution would require tracking per-detection confirmation state across runs. That objection does not apply to the nested rule, which gets the same timeliness gain from a stateless recomputation (`min(onset_A, onset_C)`) whose result can only grow. Under plain C the provisional edge is the two most recent years (2024 and 2025 with data through 2025); under the nested rule it is one (2025 only).
 - **`k=2` over `k=3`.** Unanimity would systematically drop sites in cloud-wrecked years, and would also drop short-lived operations that partially heal by `Y+2`.
 - **Don't run persistence on quarterly.** Cloud loss is seasonal, not random, so a fixed `k`-of-`n` over quarters preferentially confirms dry-season-visible pixels — a bias, not noise. Quarterly stays provisional under a stricter instantaneous threshold `t_prov`; annual confirms.
 - **`t_prov` needs separate calibration per cadence.** A value tuned on annual mosaics will not transfer to quarterly. We have paired 2025 quarterly and 2025 annual coverage, which is the natural calibration experiment — retain the quarterly outputs after they are superseded.
@@ -878,7 +936,7 @@ Notes from the design discussion that are not part of the summary above but bear
 - **The annual mask COGs are not co-registered.** Each year has its own extent *and its own resolution*. Root cause, magnitude, and the fix are now in "Fixing the raster grid" above; until that lands, **any pixel-wise temporal rule must resample to a common grid first** (union extent, finest resolution, `-tap`, nearest). It also means existing per-year area figures are computed on slightly different pixel areas.
 - **Detection patches are on a near-stable grid, but the join still needs rounding — at 5 decimals, not 6.** Two separate effects:
   - The underlying patch coordinates are *not* bit-identical across years; exact float matching starts breaking down from 2020 (the 2018–2025 union inflates from 309,713 to 508,316 under exact matching). Some rounding is mandatory regardless of file format.
-  - **The 2024 GeoJSONs are written at 6-decimal coordinate precision; every other year is full float64.** Centroids formed by averaging two already-rounded corners then miss a 6-dp key: 2024's overlap with 2023 collapses from 126,138 patches at 5 dp to 73,743 at 6 dp and 4,763 at 7 dp. This is what produced the phantom 2024 detection anomaly.
+  - **The 2024 GeoJSONs are written at 6-decimal coordinate precision; every other year is full float64.** Centroids formed by averaging two already-rounded corners then miss a 6-dp key: 2024's overlap with 2023 collapses from 126,138 patches at 5 dp to 73,743 at 6 dp and 4,763 at 7 dp.
 
   Use **5 decimals** — the half-patch grid step is 0.00217°, so 5 dp resolves the grid ~217× while absorbing both effects; 4 dp begins to collide (3 collisions in 2018 alone). Better still, snap centroids to the patch lattice rather than trusting file coordinates. Separately, pin `COORDINATE_PRECISION` explicitly on every GeoJSON write so this cannot recur — there was no explicit setting anywhere in `core/` or `scripts/`, leaving it to float with the GDAL/pyogrio version on whichever VM ran the job. A few hundred duplicate centroids per year also exist (overlapping source tiles); dedupe keeping the highest confidence, or a location can cast two votes for its own persistence.
 - **Exploit nodata when processing the mask rasters.** Only 3.6% (2018) to 6.1% (2025) of the band's bounding box carries data. Probing occupancy once at 1/32 resolution (which hits the COG overviews, ~0.1 s/year) and skipping empty blocks cuts the per-pixel work by ~68%. Net end-to-end gain is only ~2×, though: reading uniform nodata blocks was already cheap, and the `gdal_translate -of COG` writes are a fixed cost the skip cannot touch. Note also that in pass 1 skipped blocks need *no* write (GeoTIFF initialises to 0 = "never detected"), but in pass 2 they *must* be written, since the correct value there is nodata (2) — skipping that write silently mislabels every unobserved pixel as "observed, not mining".
@@ -889,7 +947,7 @@ Notes from the design discussion that are not part of the summary above but bear
 
 Prototype phase (done, but as throwaway scripts — none of this is in the repo):
 
-- [x] **Detections:** `k`-of-`n` admission over per-period `postprocessed_t0.43_d5_3km_t-iso0.75`, for `n2` and `n3`; outputs + `detection_counts.csv` in `persistence_t0.43_d5_3km_t-iso0.75/`.
+- [x] **Detections:** `k`-of-`n` admission over per-period `postprocessed_t0.43_d5_3km_t-iso0.75`, for A and C. Current outputs in `persistence_A_window2_annual/`, with C retained under `persistence_rule_tests/`.
 - [x] **Rasters:** `k`-of-`n` over the UTM 21 lat[-8,0] annual masks; `first_year_*` and per-year cumulative COGs in `persistence-tests/` and `persistence-tests2-2/`.
 - [x] **Provisional edge:** `cumulative_n3_provis_{2024,2025}` using `t0.55` as `t_prov`, with a `status` field (195,011 confirmed + 65,055 provisional 2024 + 36,835 provisional 2025).
 - [x] **Evaluate (paired A/B):** `core/persistence_evaluation.ipynb` — verified by execution.
@@ -928,7 +986,5 @@ Implementation phase (to do):
 - [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
 - [ ] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds`, so provisional masks are a true re-threshold. Either way, fix the re-derivation path to replay upsample + smooth per tile before thresholding.
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025 annual comparison.
-- [x] **Investigate the 2024 detection anomaly** — closed 2026-08-14. There is no anomaly in the data; it was a 6-dp join-key artifact against 2024's reduced-precision GeoJSONs. Corrected tables above. Residual real finding: the 2025 increment is 1.68× the historical mean on the t0.55 product, worth revisiting once 2026 annual lands.
-- [ ] **Recompute the test-set metrics** on 5-dp-keyed layers; the published table predates the correction.
+- [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
 - [ ] Confirmed/provisional split plumbed through to published outputs.
-- [ ] Decide `n2` vs nested for production. Interim call: `n2` as an additional regulator while masks run over-generous, migrating to `n3`/nested later — safe because the switch is purely additive.

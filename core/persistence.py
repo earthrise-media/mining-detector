@@ -125,9 +125,12 @@ class PersistenceConfig:
     #: that partly heal; k=2 is the working value.
     k: int = 2
 
-    #: Window length in *years*, including the onset year. window=3 with k=2 is
-    #: the classic rule: seen in year Y and again within the following two.
-    window: int = 3
+    #: Window length in *years*, including the onset year. window=2 with k=2 is
+    #: recipe A: seen in year Y and again in Y+1. Chosen over window=3 on
+    #: timeliness and on review of the difference set -- see the planning doc,
+    #: "Decision: recipe A". Less stringent than it looks: a cumulative record
+    #: offers a mine every adjacent pair of years, not one designated window.
+    window: int = 2
 
     #: Whether quarterly periods inside the window count as corroborating
     #: witnesses. Quarterly cloud loss is seasonal rather than random, so
