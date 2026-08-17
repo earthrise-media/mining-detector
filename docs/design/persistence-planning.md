@@ -927,6 +927,32 @@ operation and gives the right answer by construction.
   confirmation is ever adopted, since status would no longer split cleanly at a
   year boundary.
 
+#### Andes supplemental is unioned after postprocessing (noted 2026-08-17)
+
+**Open, and judged too minor to change.** `andes_supplemental` is not an extra
+region: it lies **entirely inside** Amazon_ACA and is a second pass over the same
+ground at a lower raw threshold (0.2 against 0.4), to catch the fainter Andean
+mines. Its detections are raw -- never postprocessed -- and are unioned into the
+cumulative afterwards, deduplicated on rounded centroid keeping the higher
+confidence. Coincident records differ by a median 8.8e-4 (2024), the same
+disagreement the six-subregion seams produce, so the existing rule covers it.
+
+Two asymmetries follow, both inherited from the current published product rather
+than introduced by persistence:
+
+- **The supplemental provisional edge is effectively unfiltered.** Amazon
+  provisional uses `t_prov` = 0.55; the supplemental contributes its single 0.2
+  set to both the confirmation and provisional layers. Andes-only detections have
+  median confidence ~0.29, with only 4% reaching 0.55.
+- **Isolation is judged on an incomplete neighbour catalog.** `postprocess`
+  computes the k-th-nearest-neighbour distance over the Amazon detections alone,
+  before the union, so inside the supplemental boundary a main-run detection can
+  be rejected as isolated while supplemental detections sit beside it, invisible
+  to the test. Strictly the union belongs *before* postprocessing, for the same
+  reason the archive deduplicates before it. Changing the order would perturb the
+  Amazon product wherever the two overlap, which is not worth doing for a region
+  contributing ~570 confirmed locations.
+
 #### The provisional edge is replaced, not confirmed (measured 2026-08-17)
 
 **Open.** A quarter's provisional detections are not an early draft of the

@@ -47,9 +47,11 @@ import pandas as pd
 from pyproj import Geod
 
 try:
-    from .postprocess import PostprocessConfig, centroid_key, dissolve_patches
+    from .postprocess import (PostprocessConfig, centroid_key, dedupe_detections,
+                              dissolve_patches)
 except ImportError:
-    from postprocess import PostprocessConfig, centroid_key, dissolve_patches
+    from postprocess import (PostprocessConfig, centroid_key, dedupe_detections,
+                             dissolve_patches)
 
 LocKey = Tuple[float, float]
 
@@ -185,9 +187,33 @@ def detection_path(base: Path, period: Period, *, region_stem: str,
     return folder / f"{region_stem}_{period.date_span}_{tag}.geojson"
 
 
-def load_period(path: Path, decimals: int) -> gpd.GeoDataFrame:
-    """Read one period's detections, keyed by rounded patch centroid."""
+def supplemental_path(base: Path, period: Period, *, stem: str,
+                      threshold: str, subdir: str) -> Optional[Path]:
+    """Path to the Andes supplemental detections for ``period``, if present."""
+    path = base / subdir / f"{stem}_{threshold}_{period.date_span}.geojson"
+    return path if path.is_file() else None
+
+
+def load_period(path: Path, decimals: int,
+                supplemental: Optional[Path] = None) -> gpd.GeoDataFrame:
+    """Read one period's detections, keyed by rounded patch centroid.
+
+    ``supplemental`` is unioned in and deduplicated. The Andes supplemental pass
+    covers ground that lies *entirely inside* Amazon_ACA -- it is a second pass
+    at a lower raw threshold (0.2 against 0.4) to catch the fainter Andean mines,
+    not an extra region. So every supplemental detection may have a main-run
+    twin: measured on 2024, all 229 main-run detections inside the boundary also
+    appear in the supplemental set, differing by a median 8.8e-4 in confidence.
+    That is the same disagreement the six-subregion seams produce, so the same
+    rule applies -- keep the highest-confidence record per location.
+    """
     gdf = gpd.read_file(path)
+    if supplemental is not None:
+        extra = gpd.read_file(supplemental)
+        gdf = gpd.GeoDataFrame(
+            pd.concat([gdf, extra], ignore_index=True),
+            crs=gdf.crs or extra.crs)
+        gdf = dedupe_detections(gdf, decimals=decimals, verbose=False)
     if gdf.crs is None:
         gdf = gdf.set_crs("EPSG:4326")
     kx, ky = centroid_key(gdf, decimals=decimals)
@@ -500,13 +526,16 @@ def main(args: argparse.Namespace) -> None:
                               t_main=args.t_main, t_iso=args.t_iso)
         if not path.is_file():
             raise SystemExit(f"missing detections for {p.tag}: {path}")
-        frames[p] = load_period(path, config.centroid_decimals)
+        supp = None if args.no_supplemental else supplemental_path(
+            base, p, stem=args.supplemental_stem,
+            threshold=args.supplemental_threshold, subdir=args.supplemental_dir)
+        frames[p] = load_period(path, config.centroid_decimals, supp)
         if p in resolvable or p not in publishable:
             continue
         prov_path = detection_path(base, p, region_stem=args.region_stem,
                                    t_main=config.t_prov, t_iso=args.t_prov_iso)
         if prov_path.is_file():
-            provisional[p] = load_period(prov_path, config.centroid_decimals)
+            provisional[p] = load_period(prov_path, config.centroid_decimals, supp)
         else:
             print(f"  ! no t_prov file for {p.tag}, skipping provisional layer")
 
@@ -586,6 +615,14 @@ if __name__ == "__main__":
     parser.add_argument("--outdir",
                         default="../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative",
                         help="Published product directory; sits alongside raw_detections")
+    parser.add_argument("--supplemental_dir", default="raw_detections/andes_supplemental",
+                        help="Supplemental detections, relative to --base ('' to disable)")
+    parser.add_argument("--supplemental_stem",
+                        default="andes_supplemental_48px_v4.10b-18d-20g-21a-22bc-ensemble")
+    parser.add_argument("--supplemental_threshold", default="0.2",
+                        help="Raw threshold in the supplemental filenames")
+    parser.add_argument("--no-supplemental", action="store_true",
+                        help="Skip the Andes supplemental union")
     parser.add_argument("--no-series", action="store_true",
                         help="Write only the first-detection layer, not the per-period series")
     parser.add_argument("--patch-diffs", action="store_true",
