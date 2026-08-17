@@ -811,6 +811,30 @@ what makes chunking lossless.
 and memory is the product. Rather than 1024: chunk count sets subprocess
 overhead, which dominates once the stacking cost is gone.
 
+**The basin-wide mosaic is overhead-dominated, and that is not worth fixing.** A
+full serial 2018 run takes ~63 min: 11 min for the 22 band groups and **53 min
+for the single whole-region mosaic**, which unions only 22 band COGs but spans
+112 Gpx, giving ~26,800 chunks of almost pure subprocess cost. Enlarging chunks
+for that case looks obvious and is a trap, because the two cases are opposite
+regimes:
+
+| chunk px | 741-tile group: work | basin mosaic: non-empty chunks |
+| --- | --- | --- |
+| 2,048 | 3.9 Gpx-src (92.1% of chunks empty) | 14,921 |
+| 8,192 | 52.6 | 1,066 |
+| 32,768 | **778.9** (0% empty) | 90 |
+
+Tile groups are *skip-dominated* — 92% of chunks touch no tile, and enlarging
+destroys that saving at 200× the work. The mosaic is *overhead-dominated* — its
+22 sources between them tile the basin, so skipping saves little while chunk
+count is everything. Two attempts at a source-count-based rule both failed: one
+held `sources × chunk_px` constant and would have left a 130-source group
+effectively unchunked, which is the exact case measured failing a 3.37 GiB
+allocation under an 8 GB cap; the other held `sources × chunk_area` constant and
+regressed the tile groups from 11 min to a projected 31. A geometry-aware rule
+does work — take the largest size whose worst chunk fits the memory budget — but
+the whole prize is ~50 min against a 4–5 hour SAM2 run, so the flat 2048 stands.
+
 **Verified 2026-08-17.** Bit-identical to the pre-change mosaics on all three
 andes 2018 groups (grid and pixels). The four largest Amazon groups, none of
 which could complete before, build in 0.3 / 0.5 / 1.4 / 1.4 min; the 3,370-tile
