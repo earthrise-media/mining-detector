@@ -314,6 +314,61 @@ def cumulative_through(layer: gpd.GeoDataFrame, period: Period) -> gpd.GeoDataFr
     return layer.loc[keep].reset_index(drop=True)
 
 
+def published_periods(periods: Sequence[Period],
+                      config: PersistenceConfig) -> List[Period]:
+    """The periods that become published layers, in order.
+
+    Annual periods the rule can resolve publish as themselves. Past the last of
+    those, the provisional edge publishes at the finest cadence available:
+    quarters where they exist, otherwise that year's annual.
+
+    An annual period that quarters already cover is still loaded as a *witness*
+    -- 2024 cannot confirm without the 2025 annual -- but is not published.
+    Witness and published layer are different roles, and coverage past the last
+    confirmed year should arrive progressively rather than in year-sized jumps.
+    """
+    resolvable = [p for p in resolvable_periods(periods, config)]
+    last_year = max((p.year for p in resolvable), default=None)
+
+    quartered = {p.year for p in periods if not p.is_annual}
+    out = list(resolvable)
+    for p in sorted(periods):
+        if p.is_annual and (last_year is None or p.year <= last_year):
+            continue                       # already published, or resolvable
+        if p.is_annual and p.year in quartered:
+            continue                       # superseded by its own quarters
+        out.append(p)
+    return sorted(set(out))
+
+
+def write_cumulative_series(layer: gpd.GeoDataFrame,
+                            periods: Sequence[Period],
+                            outdir: Path,
+                            stem: str,
+                            precision: int = PostprocessConfig.coordinate_precision
+                            ) -> List[Tuple[Period, int, int]]:
+    """Write one cumulative patch layer per period.
+
+    Returns ``(period, total, confirmed)`` per period. The cumulatives are
+    redundant with ``layer`` -- each is a filter on ``onset`` -- but are what
+    consumers actually load, and per-period files are what QGIS wants for review.
+    """
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    start = min(periods).year
+    summary = []
+    for period in periods:
+        cumulative = cumulative_through(layer, period)
+        if cumulative.empty:
+            continue
+        cumulative.to_file(
+            outdir / f"{stem}_cumulative{start}-{period.tag}.geojson",
+            driver="GeoJSON", index=False, COORDINATE_PRECISION=precision)
+        summary.append((period, len(cumulative),
+                        int((cumulative["status"] == "confirmed").sum())))
+    return summary
+
+
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
@@ -331,19 +386,26 @@ def main(args: argparse.Namespace) -> None:
 
     frames, provisional = {}, {}
     resolvable = set(resolvable_periods(periods, config))
+    # A period withheld from publication contributes no provisional rows either.
+    # Loading them would defeat the withholding: their onset tag sorts inside the
+    # published sequence, so every later cumulative would sweep them back in --
+    # the 2025 annual adds 27,910 locations to Q126 that its own quarters are
+    # supposed to be introducing progressively.
+    publishable = set(published_periods(periods, config))
     for p in periods:
         path = detection_path(base, p, region_stem=args.region_stem,
                               t_main=args.t_main, t_iso=args.t_iso)
         if not path.is_file():
             raise SystemExit(f"missing detections for {p.tag}: {path}")
         frames[p] = load_period(path, config.centroid_decimals)
-        if p not in resolvable:
-            prov_path = detection_path(base, p, region_stem=args.region_stem,
-                                       t_main=config.t_prov, t_iso=args.t_prov_iso)
-            if prov_path.is_file():
-                provisional[p] = load_period(prov_path, config.centroid_decimals)
-            else:
-                print(f"  ! no t_prov file for {p.tag}, skipping provisional layer")
+        if p in resolvable or p not in publishable:
+            continue
+        prov_path = detection_path(base, p, region_stem=args.region_stem,
+                                   t_main=config.t_prov, t_iso=args.t_prov_iso)
+        if prov_path.is_file():
+            provisional[p] = load_period(prov_path, config.centroid_decimals)
+        else:
+            print(f"  ! no t_prov file for {p.tag}, skipping provisional layer")
 
     print(f"{len(frames)} periods, {len(resolvable)} resolvable under "
           f"k={config.k} window={config.window} witnesses={args.witnesses}")
@@ -351,17 +413,35 @@ def main(args: argparse.Namespace) -> None:
     layer = build_first_detection_layer(frames, provisional, config)
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)
-    dest = out / "detections_first_year.geojson"
+
+    # The published stem carries no threshold tags: consumers get one product,
+    # and which thresholds produced it is recorded by the postprocessed_* folder
+    # names archived alongside.
+    stem = args.region_stem
+    for suffix in (f"_{args.t_main:g}", "_0.40"):
+        stem = stem.replace(suffix, "")
+
+    dest = out / f"{stem}_detections_first_year.geojson"
     layer.to_file(dest, driver="GeoJSON", index=False,
                   COORDINATE_PRECISION=PostprocessConfig.coordinate_precision)
 
-    counts = layer.groupby(["onset", "status"]).size().reset_index(name="n")
-    counts["_o"] = counts["onset"].map(lambda t: Period.parse(t).sort_key)
-    for _, r in counts.sort_values("_o").iterrows():
-        print(f"  {r['onset']:>6}  {r['status']:<12} {r['n']:>8,}")
     confirmed = int((layer["status"] == "confirmed").sum())
     print(f"\n  {confirmed:,} confirmed + {len(layer) - confirmed:,} provisional "
           f"= {len(layer):,} locations -> {dest}")
+
+    if args.no_series:
+        return
+
+    published = published_periods(periods, config)
+    withheld = [p.tag for p in periods if p not in published]
+    if withheld:
+        print(f"  witnesses not published as layers: {', '.join(withheld)}")
+
+    print(f"\n{'period':>8} {'patches':>10} {'confirmed':>11} {'provisional':>12}")
+    for period, total, conf in write_cumulative_series(layer, published, out, stem):
+        print(f"{period.tag:>8} {total:>10,} {conf:>11,} {total - conf:>12,}")
+    print(f"\n  series -> {out}")
+
 
 
 if __name__ == "__main__":
@@ -391,5 +471,9 @@ if __name__ == "__main__":
                         default=PostprocessConfig.t_iso)
     parser.add_argument("--t-prov", dest="t_prov", type=float, default=defaults.t_prov)
     parser.add_argument("--t-prov-iso", dest="t_prov_iso", type=float, default=0.8)
-    parser.add_argument("--outdir", default="../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/persistence")
+    parser.add_argument("--outdir",
+                        default="../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative",
+                        help="Published product directory; sits alongside raw_detections")
+    parser.add_argument("--no-series", action="store_true",
+                        help="Write only the first-detection layer, not the per-period series")
     main(parser.parse_args())
