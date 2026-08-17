@@ -543,7 +543,9 @@ def main(args: argparse.Namespace) -> None:
           f"k={config.k} window={config.window} witnesses={args.witnesses}")
 
     layer = build_first_detection_layer(frames, provisional, config)
-    out = Path(args.outdir)
+    # Derived from --base rather than defaulted literally, so pointing at a
+    # different model writes that model's cumulative, not this one's.
+    out = Path(args.outdir) if args.outdir else base / "cumulative"
     out.mkdir(parents=True, exist_ok=True)
 
     # The published stem carries no threshold tags: consumers get one product,
@@ -612,9 +614,9 @@ if __name__ == "__main__":
                         default=PostprocessConfig.t_iso)
     parser.add_argument("--t-prov", dest="t_prov", type=float, default=defaults.t_prov)
     parser.add_argument("--t-prov-iso", dest="t_prov_iso", type=float, default=0.8)
-    parser.add_argument("--outdir",
-                        default="../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative",
-                        help="Published product directory; sits alongside raw_detections")
+    parser.add_argument("--outdir", default=None,
+                        help=("Published product directory; defaults to "
+                              "<base>/cumulative, alongside raw_detections"))
     parser.add_argument("--supplemental_dir", default="raw_detections/andes_supplemental",
                         help="Supplemental detections, relative to --base ('' to disable)")
     parser.add_argument("--supplemental_stem",
