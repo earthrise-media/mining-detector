@@ -708,13 +708,62 @@ tiny either way (nodata compresses away). Because the cost is set by output
 size rather than input count, the *relative* overhead shrinks at production
 tile counts. Both modes are correct — lattice alignment is what temporal rules
 need — so `--extent_mode {band,union}` selects between identical-grids
-convenience and write speed. Default `band`.
+convenience and write speed. Default `union` since 2026-08-15: the band box is
+only ~1.1× the union on the dense core bands but 16× on utm20 lat[-24,-16] and
+79,000× on utm19 lat[-24,-16], whose real extent is 285 × 275 px.
 
 **Area is preserved, not pixel counts.** `GRID_RES` is finer than the sources,
 so nearest resampling raises pixel counts by the areal scale factor (~0.6% for
 these tiles: 29,710 → 30,109). Ground area is preserved to ~0.7%, the residual
 being edge rounding. Well inside the segmentation-area error bar, but worth
 knowing before comparing pixel counts across grid regimes.
+
+### Chunked mosaic assembly (2026-08-17)
+
+The mask union introduced in `f7dd983` is correct but does not scale, and at
+production tile counts it could not run at all. A `VRTDerivedRasterBand` receives
+**every** source for each window it is asked for — GDAL cannot know `mask_or`
+ignores all-nodata inputs — and it requests full-**width** strips, not square
+blocks. So peak memory is `n_sources × raster_width × strip_height`, and both
+`n_sources` and `width` grow as coverage grows. Measured windows: 6400 × 4352
+under `gdalwarp`, 260 × width under `gdal_translate`.
+
+| group (2018) | tiles | needed | outcome before |
+| --- | --- | --- | --- |
+| utm19 lat[-8,0] | 130 | 3.4 GB | fails under 8 GB |
+| utm19 lat[-16,-8] | 741 | 21 GB | fails under 8 GB |
+| utm21 lat[0,8] | 3,370 | **375 GB** | fails at any size |
+
+This is why cogging produced only `tile_index.parquet` for several years: every
+large group died within seconds, and small groups on the same machine died as
+collateral once memory was gone. `gdalwarp` exits **1** on a failed allocation
+rather than being SIGKILLed, which is what made it look like a GDAL fault.
+
+Dropping `gdalwarp` does *not* fix it — `gdal_translate` reads full-width strips
+too, so it merely moves the cliff (survives 741 tiles, fails at 1,760).
+
+`build_cog` now assembles per chunk (`CHUNK_PX = 2048`): only the tiles
+intersecting a chunk enter that chunk's union VRT, chunks no tile touches are
+skipped, and the disjoint chunk rasters are combined with a plain `gdalbuildvrt`
+where last-wins is exact. 90% of chunks are empty. Chunk edges are derived in
+integer lattice indices, so seams cannot drift off-grid — the fixed lattice is
+what makes chunking lossless.
+
+2048 rather than 4096: the worst chunk holds 79 tiles at 2048 but 180 at 4096,
+and memory is the product. Rather than 1024: chunk count sets subprocess
+overhead, which dominates once the stacking cost is gone.
+
+**Verified 2026-08-17.** Bit-identical to the pre-change mosaics on all three
+andes 2018 groups (grid and pixels). The four largest Amazon groups, none of
+which could complete before, build in 0.3 / 0.5 / 1.4 / 1.4 min; the 3,370-tile
+group completes inside a hard 4 GB cap. An independent rasterio union on six
+windows centred on chunk corners disagrees only inclusively (132 px, all on
+mining-patch boundaries) — the same nearest-neighbour margin that reference shows
+against the *pre-change* output, so it is the reference that differs, not the
+chunking. Peak RSS reaches 10 GB but is GDAL block cache, not a requirement;
+`GDAL_CACHEMAX` is the lever if it matters.
+
+This restores the pre-`f7dd983` runtime without reintroducing the seam bug.
 
 ### Tasks
 
