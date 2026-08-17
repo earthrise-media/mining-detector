@@ -44,11 +44,12 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from pyproj import Geod
 
 try:
-    from .postprocess import PostprocessConfig, centroid_key
+    from .postprocess import PostprocessConfig, centroid_key, dissolve_patches
 except ImportError:
-    from postprocess import PostprocessConfig, centroid_key
+    from postprocess import PostprocessConfig, centroid_key, dissolve_patches
 
 LocKey = Tuple[float, float]
 
@@ -345,6 +346,7 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
                             periods: Sequence[Period],
                             outdir: Path,
                             stem: str,
+                            patch_diffs: bool = False,
                             precision: int = PostprocessConfig.coordinate_precision
                             ) -> List[Tuple[Period, int, int]]:
     """Write one cumulative patch layer per period.
@@ -352,9 +354,17 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
     Returns ``(period, total, confirmed)`` per period. The cumulatives are
     redundant with ``layer`` -- each is a filter on ``onset`` -- but are what
     consumers actually load, and per-period files are what QGIS wants for review.
+
+    ``patch_diffs`` additionally writes each period's new patches to
+    ``patch_diffs/``. Off by default: nothing consumes them, and for patches the
+    increment is just the rows carrying that onset, recoverable from any
+    cumulative. The published increments are the dissolved polygons, which are
+    genuinely not recoverable by filtering -- see write_dissolved_series.
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    if patch_diffs:
+        (outdir / "patch_diffs").mkdir(exist_ok=True)
     start = min(periods).year
     summary = []
     for period in periods:
@@ -364,8 +374,101 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
         cumulative.to_file(
             outdir / f"{stem}_cumulative{start}-{period.tag}.geojson",
             driver="GeoJSON", index=False, COORDINATE_PRECISION=precision)
+        if patch_diffs:
+            increment = layer.loc[layer["onset"] == period.tag].reset_index(drop=True)
+            increment.to_file(
+                outdir / "patch_diffs" / f"{stem}_growth_{period.tag}.geojson",
+                driver="GeoJSON", index=False, COORDINATE_PRECISION=precision)
         summary.append((period, len(cumulative),
                         int((cumulative["status"] == "confirmed").sum())))
+    return summary
+
+
+def polygon_area_ha(gdf: gpd.GeoDataFrame) -> np.ndarray:
+    """Geodesic area of each polygon, in hectares.
+
+    Geodesic rather than the per-UTM-zone reprojection used in
+    scripts/boundaries: exact on the ellipsoid at any longitude, with no zone
+    bookkeeping to get wrong.
+    """
+    geod = Geod(ellps="WGS84")
+    return np.array([abs(geod.geometry_area_perimeter(g)[0]) / 1e4
+                     for g in gdf.geometry])
+
+
+def write_dissolved_series(layer: gpd.GeoDataFrame,
+                           periods: Sequence[Period],
+                           outdir: Path,
+                           stem: str,
+                           min_polygon_ha: float = 11.0,
+                           buffer_deg: float = PostprocessConfig.dissolve_buffer_deg,
+                           precision: int = PostprocessConfig.coordinate_precision
+                           ) -> List[Tuple[Period, int, int]]:
+    """Write dissolved cumulative polygons per period, and their increments.
+
+    Returns ``(period, cumulative polygons, increment polygons)``.
+
+    The increment is a **geometric difference** against the running union, not
+    ``dissolve(patches with onset Y)``: patches overlap by half a width, so
+    dissolving a year's own patches would overlap the previous year's polygons
+    instead of partitioning. The difference draws growth-by-year correctly and
+    still unions back to the cumulative.
+
+    This is why the cumulative dissolves are computed even though the increments
+    are what get published -- they are the necessary intermediate.
+
+    Each increment is status-homogeneous, since without early confirmation an
+    annual period is either wholly confirmable or wholly provisional; that is
+    what lets a polygon carry one unambiguous ``onset_year`` and ``status``.
+
+    Increments below ``min_polygon_ha`` are dropped. This leaks: a consumer
+    unioning the published increments falls short of the true cumulative by the
+    dropped fragments. Acceptable because the polygons are display-only -- anyone
+    wanting an exact cumulative should dissolve the patch layer, which is
+    authoritative and gives the right answer by construction. The cumulative
+    dissolves here are *not* filtered, since they are intermediates for the
+    difference and filtering them would compound the leak year on year.
+    """
+    outdir = Path(outdir)
+    (outdir / "diffs").mkdir(parents=True, exist_ok=True)
+    start = min(periods).year
+    summary, previous = [], None
+    for period in periods:
+        cumulative = cumulative_through(layer, period)
+        if cumulative.empty:
+            continue
+        dissolved = dissolve_patches(cumulative, buffer_deg=buffer_deg)
+        dissolved.to_file(
+            outdir / f"{stem}_cumulative{start}-{period.tag}-dissolved.geojson",
+            driver="GeoJSON", index=False, COORDINATE_PRECISION=precision)
+
+        increment = dissolved.copy()
+        if previous is not None:
+            increment.geometry = dissolved.geometry.difference(previous)
+            increment = increment.loc[~increment.geometry.is_empty]
+            increment = increment.explode(index_parts=False).reset_index(drop=True)
+
+        statuses = set(layer.loc[layer["onset"] == period.tag, "status"])
+        increment["onset"] = period.tag
+        increment["onset_year"] = period.year
+        increment["status"] = statuses.pop() if len(statuses) == 1 else "mixed"
+
+        if min_polygon_ha and len(increment):
+            increment["area_ha"] = polygon_area_ha(increment)
+            keep = increment["area_ha"] > min_polygon_ha
+            dropped = int((~keep).sum())
+            if dropped:
+                print(f"  {period.tag}: dropped {dropped:,} increment polygons "
+                      f"<= {min_polygon_ha:g} ha "
+                      f"({increment.loc[~keep, 'area_ha'].sum():,.0f} ha)")
+            increment = increment.loc[keep].reset_index(drop=True)
+
+        increment.to_file(
+            outdir / "diffs" / f"{stem}_growth_{period.tag}-dissolved.geojson",
+            driver="GeoJSON", index=False, COORDINATE_PRECISION=precision)
+
+        previous = dissolved.geometry.union_all()
+        summary.append((period, len(dissolved), len(increment)))
     return summary
 
 
@@ -438,10 +541,19 @@ def main(args: argparse.Namespace) -> None:
         print(f"  witnesses not published as layers: {', '.join(withheld)}")
 
     print(f"\n{'period':>8} {'patches':>10} {'confirmed':>11} {'provisional':>12}")
-    for period, total, conf in write_cumulative_series(layer, published, out, stem):
+    for period, total, conf in write_cumulative_series(
+            layer, published, out, stem, patch_diffs=args.patch_diffs):
         print(f"{period.tag:>8} {total:>10,} {conf:>11,} {total - conf:>12,}")
     print(f"\n  series -> {out}")
 
+    if args.dissolve:
+        dissolved_out = out.with_name(f"{out.name}_dissolved")
+        print(f"\n{'period':>8} {'polygons':>10} {'increment':>11}")
+        for period, npoly, ninc in write_dissolved_series(
+                layer, published, dissolved_out, stem,
+                min_polygon_ha=args.min_polygon_ha):
+            print(f"{period.tag:>8} {npoly:>10,} {ninc:>11,}")
+        print(f"\n  dissolved series -> {dissolved_out}")
 
 
 if __name__ == "__main__":
@@ -476,4 +588,12 @@ if __name__ == "__main__":
                         help="Published product directory; sits alongside raw_detections")
     parser.add_argument("--no-series", action="store_true",
                         help="Write only the first-detection layer, not the per-period series")
+    parser.add_argument("--patch-diffs", action="store_true",
+                        help="Also write per-period new patches to patch_diffs/")
+    parser.add_argument("--dissolve", action="store_true",
+                        help=("Also write dissolved cumulative polygons and their "
+                              "geometric yearly increments to <outdir>_dissolved/"))
+    parser.add_argument("--min-polygon-ha", dest="min_polygon_ha", type=float,
+                        default=11.0,
+                        help="Drop increment polygons at or below this area (0 disables)")
     main(parser.parse_args())
