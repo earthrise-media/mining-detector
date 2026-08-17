@@ -927,6 +927,48 @@ operation and gives the right answer by construction.
   confirmation is ever adopted, since status would no longer split cleanly at a
   year boundary.
 
+#### The provisional edge is replaced, not confirmed (measured 2026-08-17)
+
+**Open.** A quarter's provisional detections are not an early draft of the
+confirmed annual layer that eventually supersedes them. They come from different
+imagery — quarterly composites thresholded at `t_prov` = 0.55, against a
+full-year composite at `t0.43` — so when 2025 confirms on the 2026 annual, the
+published provisional entries are *replaced* rather than promoted.
+
+Measured on the 14,357 provisional new locations published through Q425 2025:
+
+| | count | share |
+| --- | --- | --- |
+| present in the 2025 annual at `t0.43` (*could* confirm) | 7,827 | 54.5% |
+| absent from it — **can never confirm** | 6,530 | **45.5%** |
+
+Eligibility is not confirmation: those 7,827 still need 2026 corroboration, so
+survival will be below 54.5%. For scale, the *annual* provisional drop rate is
+8.4% at one year. The quarterly edge churns at least five times harder.
+
+Eligibility tracks season, as quarterly cloud loss predicts: Q225 41% → 73%,
+Q425 only 35% at median confidence 0.608 against Q225's 0.802.
+
+The reverse direction is just as large: **74,542 locations in the 2025 annual at
+`t0.43` appear in no 2025 quarter at all** (46.6% of the annual set), so the
+confirmed layer will also introduce sites that were never shown provisionally.
+
+Three consequences to settle:
+
+1. **This is the `t_prov,quarterly` calibration signal**, and the paired
+   experiment the calibration task calls for is now half-run. A 45.5%
+   never-eligible rate is direct evidence that 0.55 admits substantial quarterly
+   noise. The value was left at 0.55 on 2026-08-17, before this measurement
+   existed; raising it trades provisional coverage for a smaller withdrawal rate.
+2. **The two layers answer different questions** — provisional is "what have we
+   seen lately", confirmed is "where did mining begin". If the site presents
+   provisional entries as pending versions of themselves, replacement will read
+   as instability rather than as two products with different supports.
+3. Whether to require a location in ≥2 quarters before publishing it as
+   provisional. This would cut the withdrawal rate, but it is persistence over
+   quarters, which "Design details" rejects for confirmation on seasonal-bias
+   grounds; the argument may or may not carry over to display.
+
 ## Deliverables
 
 - **A first-detection-year layer**: for each location, the year mining was confirmed to have begun. Every cumulative figure we report derives from it and cannot decrease. This matches the convention used by Hansen Global Forest Change, so it will be familiar to technical partners.
@@ -1009,6 +1051,9 @@ Implementation phase (to do):
 - [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
 - [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
 - [ ] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds`, so provisional masks are a true re-threshold. Either way, fix the re-derivation path to replay upsample + smooth per tile before thresholding.
-- [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025 annual comparison.
+- [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
+      annual comparison — half-run, see "The provisional edge is replaced, not
+      confirmed": at 0.55, 45.5% of published provisional locations are absent
+      from the 2025 annual at t0.43 and can never confirm.
 - [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
 - [ ] Confirmed/provisional split plumbed through to published outputs.
