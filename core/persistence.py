@@ -382,8 +382,17 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
     consumers actually load, and per-period files are what QGIS wants for review.
 
     ``patch_diffs`` additionally writes each period's new patches to
-    ``patch_diffs/``. Off by default: nothing consumes them, and for patches the
-    increment is just the rows carrying that onset, recoverable from any
+    ``patch_diffs/``. These are the SAM2 prompt set for quarterly segmentation:
+    the quarter's detections minus everything already accumulated, which is what
+    keeps SAM2 off the cloud-wrecked bulk of a quarterly mosaic. Note the
+    threshold differs by cadence and that is deliberate -- annual increments come
+    from the t0.43 frames, quarterly from ``t_prov`` -- because a quarterly mask
+    is replaced when its year closes, never promoted, so there is nothing for a
+    looser quarterly prompt to be promoted into. See the planning doc,
+    "Quarterly masks: segment the diff, not the period".
+
+    Off by default because the published product does not need them: for patches
+    the increment is just the rows carrying that onset, recoverable from any
     cumulative. The published increments are the dissolved polygons, which are
     genuinely not recoverable by filtering -- see write_dissolved_series.
     """

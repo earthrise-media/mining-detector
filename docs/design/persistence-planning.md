@@ -176,8 +176,24 @@ correct, and the annual change above does not disturb its rationale.
 What changes is the reference the diff is taken against:
 
 - **Was:** cumulative `t0.55` now − cumulative `t0.55` previous.
-- **Becomes:** the quarter's period `t0.43` detections − the accumulated selected
-  set through the previous period.
+- **Becomes:** the quarter's period detections at `t_prov` − the accumulated
+  selected set through the previous period. This is what
+  `persistence.py --patch-diffs` writes to `patch_diffs/`.
+
+**Prompt quarters at `t_prov`, not `t0.43`** (corrected 2026-08-17; this section
+previously specified `t0.43`). The t0.43 prompting rule exists so that any
+location which *later confirms* already has a mask, making a rerun unnecessary.
+That reasoning does not reach quarters: a quarterly mask is never promoted. When
+year `Y` closes, the annual `t0.43` run plus persistence produces the confirmed
+masks and **replaces** the quarterly estimate wholesale — the mask-side analogue
+of provisional detections being replaced rather than confirmed. There is nothing
+for a quarterly `t0.43` mask to be promoted into, so segmenting at `t0.43` would
+produce 2–3× the masks and discard the surplus.
+
+It also strengthens the rationale for diffing at all: prompting at `t_prov` cuts
+SAM2's exposure to cloud-wrecked mosaics further, in the one place it is weakest.
+The annual path is unchanged and still runs at `t0.43`, so the asymmetry in
+thresholds mirrors the asymmetry in roles — annual confirms, quarterly displays.
 
 Measured on the current archive, that increment is **3–8% of the period
 detection set** (1,779–7,786 locations against 30,000–120,000 per quarter), so
