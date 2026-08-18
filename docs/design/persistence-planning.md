@@ -118,15 +118,46 @@ thresholded directly. That matters here: a basin-scale `t_prov,mask` sweep can
 run on mosaics instead of re-deriving 15,000 tiles per candidate value. See
 `core/sam2_logits.py` for the vintages and how to read each.
 
-**Current baseline:** the production mask thresholds log-odds at **0** (probability 0.5), so `t_prov,mask > 0`.
-
-**Calibration.** New labelled data would let us validate the chosen value, but a first estimate needs no labels at all, because for 2018–2023 we know *both* sides already: the single-year mask at any threshold is re-derivable from stored logits, and the persistence-confirmed mask is known. So sweep the threshold and pick the value at which the single-year mask best reproduces the increment that persistence eventually confirmed for that onset year:
+**Calibration.** New labelled data would let us validate the chosen value, but a first estimate needs no labels at all, because for 2018–2024 we know *both* sides already: the single-year mask at any threshold is re-derivable from stored logits, and the persistence-confirmed mask is known. So sweep the threshold and pick the value at which the single-year mask best reproduces the increment that persistence eventually confirmed for that onset year:
 
 - **Target quantity:** `confirmed(Y) − confirmed(Y−1)`, i.e. the area attributable to onset year `Y`, versus the single-year mask at `t_prov,mask` restricted to locations not already in `confirmed(Y−1)`.
 - **Objective:** per-pixel agreement (IoU or F1), *not* area equality — a threshold can hit the right total in the wrong places. Use total-area match only as a secondary check.
 - **Starting bracket:** C admits 77–81% of each year's new OR area on the UTM 21 band, so `t_prov,mask` should shed roughly 20% of what a threshold-0 mask would newly add. That is where to begin the sweep.
 
 So the labelling effort is for *validation*, and does not block a first working value.
+
+**Decided 2026-08-18: `t_prov,mask` = 0**, i.e. no tightening. No value above 0 survives the sweep.
+
+Swept over onset years 2018-2024 on three band groups spanning dense to sparse,
+target `onset == Y` against the single-year mask at `t` excluding anything already
+confirmed:
+
+| t | IoU | F1 | area ratio |
+| --- | --- | --- | --- |
+| **0.0** | **0.5826** | **0.7362** | 1.555 |
+| 0.5 | 0.5716 | 0.7274 | 1.254 |
+| 1.0 | 0.5224 | 0.6863 | 1.008 |
+| 2.0 | 0.3717 | 0.5420 | 0.631 |
+
+F1 peaks at 0 in five of seven years and two of three groups; 0.5 wins the others
+by ≤0.012 and nothing peaks above 0.5. **The two objectives disagree**, and not as
+this section expected: area parity wants `t ≈ 1.0`, per-pixel agreement wants no
+tightening. Reaching parity trades 313,509 true pixels for 368,231 false ones --
+a coin flip.
+
+**Why thresholding is the wrong instrument.** Logits separate confirmed from
+rejected pixels only weakly: medians 2.63 against 1.17, but **22.9% of rejected
+pixels sit above the confirmed median**. Persistence rejects on *temporal*
+grounds, and a scar crisply segmented one year and absent the next carries a high
+logit with no corroboration. Confidence is not the axis the rejection runs along.
+
+**The ~1.55x provisional overshoot is therefore accepted and disclosed**, not
+corrected. A scalar area correction would be honest about the total and wrong
+pixel-wise -- the reasoning already rejected for `smoothing_sigma`. Requiring a
+pixel in ≥2 quarters would attack transience directly, but is unworkable: quarterly
+imagery has too many no-data holes for a pixel to be reliably seen twice. The
+overshoot is a large fraction of a small absolute quantity, and quarterly masks are
+already regulated by running SAM2 only on the detection increment.
 
 ### Net pipeline shape
 
@@ -1190,7 +1221,7 @@ Implementation phase (to do):
 - [ ] **Confirm the prior-implied cap on per-period masks.** The ≈40 px figure comes from `12·√(max logit)` with max log-odds 11.33; re-derive it from the new logits, since a different prompt set may change the achievable maximum.
 - [ ] **Validate per-period masks against the old cumulative-derived series** on a few paired tiles, isolating the prompt-set effect from the intended change.
 - [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
-- [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
+- [x] **Calibrate `t_prov,mask`** — done 2026-08-18: **0**, no tightening. F1 peaks there and logits separate confirmed from rejected too weakly for a cutoff to act on; see above.
 - [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
       annual comparison — half-run, see "The provisional edge is replaced, not
