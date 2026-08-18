@@ -176,11 +176,11 @@ after they are built.
 
 Steps 1–2 are period-local and never recomputed. All temporal logic is in 3–5 and is pure selection over fixed inputs.
 
-### This changes what SAM2 is prompted with — and is untested
+### This changes what SAM2 is prompted with
 
-**Recorded 2026-08-15.** To date masks have been derived from the *cumulative*
-detections, not per-period ones. Step 2 above is therefore a real change of
-practice, not a restatement, and it has not been validated.
+**Recorded 2026-08-15, revised 2026-08-18.** To date masks had been derived from
+the *cumulative* detections, not per-period ones. Step 2 above is therefore a real
+change of practice, not a restatement.
 
 The argument for it: estimate each period's mask from what is visible in that
 period, then accumulate — rather than accumulate first and ask SAM2 to segment
@@ -189,17 +189,26 @@ mosaic. It is also simpler, because every accumulation step then lives in
 post-processing and can be revised without re-running SAM2. The cost is storing
 two sets of masks, period and cumulative.
 
-Two things to check before trusting a basin-wide comparison against the old
-series:
+**Done and reviewed.** Per-period masks now exist for 2018–2025 basin-wide, and
+the resulting cumulative masks were reviewed against the published series with no
+structural defects found (see "Masks — basin-wide").
 
-- **SAM2's output depends on its prompt set.** Box prompts come from whichever
-  polygons clip into each tile, so running on per-period `t0.43` rather than
-  cumulative `t0.55` changes the masks *over shared ground too*. The new series
-  will not be "the old masks plus more", and a naive area diff against the old
-  product will mix this effect with the intended one.
-- **Roughly 20% more segmentation than survives**, since persistence later
-  discards some of what was masked. Accepted: it is the price of never needing
-  a rerun.
+**Wasted segmentation is ~8%, not the 20% first estimated.** Of 1,161,860 `t0.43`
+prompts across 2018–2025, 97,729 are at locations never published — 8.4%. In
+steady state it is lower still, 4.9–5.8% for 2019–2023. The 31% figure for 2025 is
+a series-edge artifact rather than waste: 2025 cannot be an onset without 2026, so
+its genuinely new locations are provisional, not rejected. Accepted either way —
+it is the price of never needing a rerun, and the price is a third of what was
+assumed.
+
+**The prompt-set caveat stands, and was never isolated.** Box prompts come from
+whichever polygons clip into each tile, so running on per-period `t0.43` rather
+than cumulative `t0.55` changes the masks *over shared ground too*. The new series
+is not "the old masks plus more", and a naive area diff against the old product
+mixes this effect with the intended one. The 2026-08-18 review attributed the
+observed differences to four other causes — recall, mask persistence, tightening
+of poor masks, and the old product's seam corruption — but did not separate out
+the prompt-set effect, so its magnitude remains unmeasured.
 
 ### Quarterly masks: segment the diff, not the period
 
