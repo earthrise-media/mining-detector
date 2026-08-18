@@ -385,6 +385,35 @@ Areas in hectares, cos-latitude weighted. Outputs in `data/outputs/sam2/persiste
 - **Nested reproduces C exactly** for 2018–2023 and extends to 2024, cutting the provisional share of the eventual total from ~12% to ~7%.
 - **A weak 2025 mosaic suppressed A's gain.** A admitted only 53.8% of the 2024 OR increment against the ~78% historical rate; roughly **5,100 ha** of genuine 2024 area should confirm when 2026 lands and C can use it as an alternative second witness.
 
+### Masks — basin-wide (2026-08-18)
+
+All 23 UTM/lat band groups via `core/sam2_persistence.py`, 61 minutes total.
+Areas are exact WGS84 ellipsoidal, by onset year.
+
+| through | increment ha | cumulative ha |
+| --- | --- | --- |
+| 2018 | 516,817 | 516,817 |
+| 2020 | 91,935 | 703,420 |
+| 2022 | 90,621 | 892,680 |
+| 2024 | 61,347 | **1,042,353** |
+
+- **Basin total lands within 2.3% of the published t0.55 cumulative** (1,042,353 ha
+  confirmed through 2024 against 1,018,640 ha published through 2025 — so the gap
+  is wider at equal coverage). Two unrelated mechanisms, temporal corroboration
+  and a tightened threshold, arriving at nearly the same number, as on the
+  detection side.
+- **But it redistributes rather than uplifts.** Dense groups run above the
+  published product (utm21 lat[-8,0] +18.0%, utm21 lat[0,8] +8.5%) and sparse ones
+  well below (utm18 lat[-16,-8] −86.5%, utm20 lat[-24,-16] −47.7%, utm18 lat[-8,0]
+  −41.4%). That is the rule working as designed — an isolated one-off has nothing
+  to corroborate it — but the sparse-region losses are large in relative terms and
+  warrant visual review before publication.
+- **The 2018 increment is not an onset.** 516,817 ha, half the total, is everything
+  already present at series start. Any "new mining by year" presentation must say
+  so.
+- `utm21_lat_8_16` yields zero: two years of coverage leaves one resolvable onset
+  year under `window=2`.
+
 ### Detections — basin-wide, annual 2018–2025
 
 Cumulative patch counts, recomputed on the 5-dp key and the deduplicated
