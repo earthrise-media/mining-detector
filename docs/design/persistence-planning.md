@@ -414,6 +414,30 @@ Areas are exact WGS84 ellipsoidal, by onset year.
 - `utm21_lat_8_16` yields zero: two years of coverage leaves one resolvable onset
   year under `window=2`.
 
+**Corrected 2026-08-18** to fold in the Andes supplemental, which the first run
+omitted: band groups take the union of all runs' mosaics, not one file. Basin
+total 1,047,949 ha through 2024, **+2.9%** against 1,018,640 ha published through
+2025. `utm18_lat_-16_-8` rose 3.3x but remains 55.9% below the published product; the
+residual was reviewed and is lower patch recall plus weak SAM2 segmentation and
+absent persistence, not a structural fault.
+
+**Regional split.** Surpluses concentrate in the Brazilian Amazon (utm21 lat[-8,0]
++18.0%, utm21 lat[0,8] +8.5%), deficits in the Andes and Madre de Dios (utm18
+lat[-16,-8] -55.9%, utm20 lat[-24,-16] -47.7%). Different mining regimes -- stable
+forest-clearing scars against mobile alluvial workings -- so a `k`-of-`n` rule
+should behave differently between them, and does.
+
+**Visual review (2026-08-18) found no defects.** Four effects account for the
+differences. Where the published product exceeds the new: patch recall is down
+under recipe A, mask-level persistence removes pixels, and poor masks are
+beneficially tightened. Where the new exceeds published: **the published masks
+are partly faulty**, carrying tile seams that blacked out mask area under the
+last-wins `gdalbuildvrt` mosaicking that `f7dd983` fixed.
+
+That last point limits what the comparison can show: the +2.9% is partly
+bug-fix recovery rather than a rule effect, and the older product is corrupt in
+some of the places the new one gains. Treat the two as not cleanly comparable.
+
 ### Detections — basin-wide, annual 2018–2025
 
 Cumulative patch counts, recomputed on the 5-dp key and the deduplicated
