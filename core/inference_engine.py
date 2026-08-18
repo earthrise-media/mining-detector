@@ -45,7 +45,8 @@ from tqdm.auto import tqdm
 from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
-from sam2_logits import DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA
+from sam2_logits import (DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA,
+                         smooth_logits)
 from postprocess import PostprocessConfig
 
 from dense_embedding_cache import (
@@ -248,6 +249,28 @@ class MaskConfig:
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
+        self.write_config()
+
+    #: Fields that determine how to read a ``-logits.tif``. Recorded per run
+    #: because they are irreversible: smoothing, the clamp and the spatial prior
+    #: are all baked into the stored field and none can be undone from the file.
+    PROVENANCE_FIELDS: ClassVar[Tuple[str, ...]] = (
+        "prior_sigma", "smoothing_sigma", "logit_clamp",
+        "sam2_checkpoint", "finetuned_weights", "sam2_model_cfg")
+
+    def write_config(self, name: str = "mask_config.txt") -> Path:
+        """Record the mask configuration beside the tiles it produced.
+
+        Run-level rather than per-raster metadata: a reader needs to know how the
+        stored logits were made, and that is a property of the run. Without it,
+        the smoothed and unsmoothed vintages are indistinguishable -- same dtype,
+        grid and value range -- and thresholding the wrong one fails silently.
+        """
+        path = Path(self.mask_dir) / name
+        lines = [f"logits_stored = smooth(clip(upsampled_log_odds, +/-clamp))"]
+        lines += [f"{f} = {getattr(self, f)}" for f in self.PROVENANCE_FIELDS]
+        path.write_text("\n".join(lines) + "\n")
+        return path
 
     @staticmethod
     def _resolve_sam2_hydra_config(
@@ -1236,7 +1259,7 @@ class SAM2_Masker:
             outdir=self.config.mask_dir,
             product_type="mask")
 
-        # Persist the logits on the *mask* grid, prior included, smoothing not
+        # Persist the logits on the *mask* grid, prior included, smoothing
         # applied. Three deliberate choices:
         #
         # - Upsampled, so mask and logits share a grid. Previously the raw
@@ -1246,21 +1269,29 @@ class SAM2_Masker:
         # - Prior included, because soft_spatial_prior is a function of the
         #   frozen t0.43 detection set. Excluding it would mean carrying every
         #   tile's detection set forever just to reconstruct log_odds.
-        # - Smoothing NOT applied, so smoothing_sigma stays retunable without
-        #   re-running SAM2. Re-derivation must replay it *per tile* before
-        #   thresholding, then mosaic with the union rule -- do not threshold a
-        #   logits mosaic. Measured: max-reduce on raw logits is biased upward
-        #   and smoothing across that seam inflates area by up to 4.5%. See
-        #   docs/design/persistence-planning.md.
+        # - Smoothing APPLIED, so (stored logits > 0) reproduces the mask and
+        #   any stricter cutoff is a true re-threshold. Storing unsmoothed kept
+        #   smoothing_sigma retunable, but thresholding such a file looks correct
+        #   and silently gives IoU ~0.84; sigma is also worth only ~2% of basin
+        #   area, so the flexibility did not pay for the trap. It additionally
+        #   makes thresholding commute with the max-reduce mosaic, since
+        #   max(a,b) > t is identically (a>t) or (b>t) -- so a logits mosaic can
+        #   be thresholded directly. See docs/design/persistence-planning.md.
         #
-        # Consequence: (saved logits > 0) does NOT reproduce the saved mask.
-        # Measured IoU ~0.84 on real tiles, entirely from the missing smoothing.
-        #
-        # Saturated at +/- logit_clamp purely to make the file compressible; see
-        # MaskConfig.logit_clamp for why the limit is lossless rather than
-        # merely adequate.
-        stored_logits = self.upsample_logits(
+        # Clamp AFTER smoothing. The mask is smooth(unclipped) > 0, and clipping
+        # a smoothed field at +/-16 cannot change its sign, so this reproduces
+        # the mask exactly. Clamping first does not: the prior is an unbounded
+        # quadratic penalty running to about -862, so most of a tile sits at the
+        # clamp (76,275 of 78,400 px on a real tile), and collapsing that tail
+        # raises the local average enough to push an occasional boundary pixel
+        # across zero -- measured on ~0.02% of tiles, 1-2 px each. Converting a
+        # legacy tile can only produce the clamp-first form, since the unclipped
+        # field is gone; that residual is the price of the migration, not a
+        # reason to degrade new runs to match it.
+        upsampled_unsmoothed = self.upsample_logits(
             log_odds, pixels.shape[:2], smooth=False)
+        stored_logits = smooth_logits(
+            upsampled_unsmoothed, self.config.smoothing_sigma)
         clamp = self.config.logit_clamp
         if clamp:
             stored_logits = np.clip(stored_logits, -clamp, clamp)

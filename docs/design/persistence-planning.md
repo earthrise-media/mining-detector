@@ -681,9 +681,28 @@ Persistence needs stored logits going forward, not just masks. Three decisions:
 - **Upsample before storing.** This is what puts logits on the fixed grid and makes them
   mosaickable. Cost is modest: the 35/32 ratio above means ~1.196× more pixels, not the ~5× a
   256×256 SAM2 low-res output would have implied.
-- **Do not apply the Gaussian smoothing before storing** — but **keep applying it per tile** when
-  deriving masks. Storing unsmoothed keeps `smoothing_sigma` tunable without re-running SAM2;
-  it does *not* imply moving the smoothing downstream of mosaicking.
+- **Store the smoothed logits** (revised 2026-08-18; previously stored unsmoothed to keep
+  `smoothing_sigma` tunable without re-running SAM2). Unsmoothed storage is a trap: thresholding
+  the file directly looks correct and silently gives IoU ~0.84 against the real mask. Storing
+  smoothed also makes thresholding commute with the max-reduce mosaic — `max(s₁,s₂) > t` is
+  identically `(s₁>t) or (s₂>t)` — so the per-tile rule below stops being load-bearing.
+  Confirmed on a real overlapping pair: `smooth → max → threshold` is bit-identical to
+  `smooth → threshold → OR`, while `max raw → smooth → threshold` inflates area 0.17%.
+  Migration needs no SAM2 re-run, since `smooth(stored)` is exactly the smoothed field.
+  Run configuration goes in a `config.txt` beside the tiles rather than per-file metadata:
+  the clamp and the spatial prior are equally irreversible, so run-level is the right grain.
+
+  **`smoothing_sigma` = 2.5 retained, now measured** (2026-08-18). It was originally chosen by
+  visual appraisal — smooth without losing small details. Over 750 mining tiles, sigma across
+  0–5 moves basin mask area by only **~2%** (+0.38% at 0, −1.60% at 5), though per-tile spread is
+  much wider (p95 +11.6% at sigma 0, p5 −21.1% at sigma 5): the aggregate is stable because
+  per-tile changes cancel, not because sigma is inert. Scanned against the GeoCompass annotations
+  on 170 covered val+test chips (`area_analysis/sigma_scan.py`), IoU peaks at sigma **1–1.5** and
+  declines monotonically above it, in every one of seven chip-size bins — worth +0.015 mean IoU
+  (+3.5%) over 2.5. But total area ratio moves the other way, 1.518 at sigma 0 to 1.464 at 5, so
+  more smoothing mildly reduces the ~50% over-estimate. The two criteria genuinely conflict and
+  both effects are small against that over-estimate, so 2.5 stands as the balance; there is no
+  quantitative case to overrule the visual appraisal.
 
   **Measured 2026-08-14, and it reverses an earlier proposal in this document.** The suggestion
   was to switch from `smooth → threshold → OR per tile` to `max-mosaic → smooth → threshold`,
