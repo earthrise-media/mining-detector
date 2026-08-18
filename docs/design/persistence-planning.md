@@ -1,7 +1,7 @@
 # Stabilizing cumulative estimates with a temporal persistence check
 
 **Recorded:** 2026-08-07 (design discussion; no implementation yet.)  
-**Updated:** 2026-08-17 — recipe **A** chosen; see "Decision: recipe A". Earlier updates added the nested rule (early confirmation via the shorter window, provably non-withdrawing), measured results for masks and detections, test-set metrics, and the **pipeline ordering** decision for SAM2.
+**Updated:** 2026-08-18 — recipe **A** chosen; cumulative masks with persistence built basin-wide; logits stored smoothed; `t_prov,mask` = 0. Open: quarterly mask accumulation, `t_prov,quarterly`, and isolating the prompt-set effect.
 
 ## Background: two halves of the pipeline
 
@@ -67,7 +67,7 @@ Two consequences:
 2. **A now, C later is a safe migration.** Widening the window is purely
    additive, so choosing A does not lock us out of C if mask accuracy improves.
 
-## Why we propose to apply this to both halves
+## Why this applies to both halves
 
 **For the rasters**, it is the direct fix: it makes reported area monotonic by construction — the total can never fall — without the systematic overestimate that a naive merge would introduce.
 
@@ -1006,15 +1006,15 @@ This restores the pre-`f7dd983` runtime without reintroducing the seam bug.
 
 - [x] Add grid constants (`R`, lattice anchor, band-extent derivation) to `sam2_build_cog.py`.
 - [x] Pin `-tr`/`-te` on both `gdalbuildvrt` and `gdalwarp`; drop reliance on `-resolution average`. Also pinned `-r` and `-srcnodata`/`-vrtnodata`, the latter because a fixed extent creates large uncovered regions that must read as nodata rather than 0 — otherwise the mask OR reduces unobserved ground to "observed, not mining".
-- [ ] Emit logits on the mask grid (upsampled, prior included, unsmoothed).
+- [x] Emit logits on the mask grid (upsampled, prior included) — done; **smoothed**, not unsmoothed, see "Logits as the durable artifact".
 - [x] ~~Move Gaussian smoothing downstream of mosaicking~~ — **rejected on measurement**
       2026-08-14; see above. Keep `smooth → threshold → OR` per tile.
 - [x] Clamp logits at ±16 (`MaskConfig.logit_clamp`) — 5.3× smaller in float32, re-derived mask
       bit-identical to production on all 16 real test tiles. Quantization to int8/int16 deferred;
       see above for why it is a separate change.
-- [ ] Confirm the smoothing-order result on genuinely overlapping tiles when available.
-- [ ] Regenerate 2018–2025 masks and logits on the fixed grid as part of the persistence rerun.
-- [ ] Confirm the temporal code path needs no regrid step once inputs are aligned.
+- [x] Confirm the smoothing-order result on genuinely overlapping tiles — done 2026-08-18: +0.17% on a real pair, and moot now that logits are stored smoothed.
+- [x] Regenerate 2018–2025 masks and logits — done; per-tile on native grids, mosaics on the fixed lattice.
+- [x] Confirm the temporal code path needs no regrid step — done: `sam2_persistence` stacks years at integer lattice offsets, no resampling.
 
 ## Publication model
 
@@ -1202,8 +1202,8 @@ Prototype phase (done, but as throwaway scripts — none of this is in the repo)
 
 Implementation phase (to do):
 
-- [ ] **Port the prototype logic into the repo.** The prototype scripts were scratch-only and are gone; they need rewriting as proper modules, parameterised by UTM zone / lat band (the raster side was hardcoded to `utm21_lat_-8_0`) and by rule.
-- [ ] **Fix `build_cog` grid alignment** so annual mask COGs share a grid by construction, removing the need to regrid before every temporal operation. Full specification and task list in "Fixing the raster grid" above.
+- [x] **Port the prototype logic into the repo** — done: `core/persistence.py` (detections) and `core/sam2_persistence.py` (rasters), parameterised by band group and rule.
+- [x] **Fix `build_cog` grid alignment** — done; see "Fixing the raster grid".
 - [x] **Pin `COORDINATE_PRECISION` on all GeoJSON writes** — done 2026-08-14 at **9 decimals**. Applied in `core/inference_engine.py` (the raw-detection write, where the 2024 vintage originated), `core/postprocess.py` (patch and dissolved outputs), and `scripts/{concatenate,geo_filter,dissolve}.py`. Confirmed cause: inference years were run on different VMs with different GDAL/pyogrio versions, so the unset option floated.
 
   **Why 9 and not 6.** 9 dp is ~0.1 mm, absurd against a 10 m pixel — but the binding constraint is not ground resolution, it is join stability against the existing full-precision archive, which we are not rewriting. Because the join key is a centroid derived as `(minx + maxx) / 2`, rounding the corners at write time perturbs the centroid by up to half the write quantum, and a fraction of patches then land on the far side of a 5-dp bin edge. Measured loss when a newly written year is joined at 5 dp against a full-precision year:
@@ -1224,12 +1224,12 @@ Implementation phase (to do):
   Sanity check on UTM21 lat[−8,0] 2023: 163,248.9 ha exact, against 163,175 ha in the mask table above — 0.045% apart, so the prototype's cos-weighting was already sound and no published figure moves. The danger is not the basin total but *per-jurisdiction* totals, where a single global pixel-area constant would bias southern jurisdictions against northern ones by up to ~6%.
 
   **Never cache a pixel-area constant.** Pre-fix rasters carry per-period resolutions differing by ~0.03% and the fixed grid uses 0.00009°; a naive 10 m × 10 m assumption is already −0.29% off on the band tested. Always derive from the raster's own transform, which everything in that module does.
-- [ ] **Rasters at scale:** run the remaining UTM/lat bands.
-- [ ] **Connected-component mask attribution** to the selected detection set. Now that the fixed grid puts every tile and band on one lattice, prefer labelling *after* mosaicking — windowed connected components with cross-window merging, or a flood-fill propagated from rasterized detection seeds — which removes the tile-seam failure the per-tile approach accepts. For quarters, attribute on the per-period diff mask before the OR-merge; see "Quarterly masks" above.
-- [ ] **Compare the four attribution rules on real per-period masks** — clip to footprint, bounded geodesic growth at several `N` (including the prior-implied ≈40 px), nearest-seed partition, and unbounded connected components — reporting retained area under each on one band. If bounded growth and unbounded CC agree to ~1%, the cap is free and settles it; if they diverge, the choice is load-bearing. Existing masks were derived from cumulative `t0.55`, so they characterise component structure but their retention rates will not transfer.
-- [ ] **Confirm the prior-implied cap on per-period masks.** The ≈40 px figure comes from `12·√(max logit)` with max log-odds 11.33; re-derive it from the new logits, since a different prompt set may change the achievable maximum.
+- [x] **Rasters at scale** — done: all 23 band groups, 61 min; see "Masks — basin-wide".
+- [x] **Mask attribution to the selected detection set** — done for the annual path: bounded geodesic growth after mosaicking, windowed with a cap-sized halo so growth is not truncated at window edges. Connected components were rejected on measurement. **Still open for quarters:** attribute on the per-period diff mask before the OR-merge; see "Quarterly masks" above.
+- [x] **Compare the four attribution rules on real per-period masks** — done: the three growth rules agree to 0.13%, clip differs by −2.7%. See "Attributing masks to confirmed detections".
+- [x] **Confirm the prior-implied cap on per-period masks** — done: 43.0 px from max logit 12.66, against a furthest observed mask pixel of 33.1 px.
 - [ ] **Validate per-period masks against the old cumulative-derived series** on a few paired tiles, isolating the prompt-set effect from the intended change.
-- [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
+- [x] **`t_prov,annual`** — moot: the provisional edge is published as quarters, so no annual layer is published provisionally. Only `t_prov,quarterly` is reached.
 - [x] **Calibrate `t_prov,mask`** — done 2026-08-18: **0**, no tightening. F1 peaks there and logits separate confirmed from rejected too weakly for a cutoff to act on; see above.
 - [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
@@ -1237,4 +1237,4 @@ Implementation phase (to do):
       confirmed": at 0.55, 45.5% of published provisional locations are absent
       from the 2025 annual at t0.43 and can never confirm.
 - [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
-- [ ] Confirmed/provisional split plumbed through to published outputs.
+- [x] Confirmed/provisional split plumbed through to published outputs — `status` on every cumulative layer; increments are status-homogeneous.

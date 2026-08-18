@@ -18,9 +18,11 @@ Two properties make this safe to re-run at any time:
 * **Stateless.** Onset is a pure function of the full period stack. Nothing is
   carried between runs, so reprocessing cannot drift.
 
-The rule is configurable because the choice is not settled; see
-docs/design/persistence-planning.md. The axes are the window length and whether
-quarterly periods count as witnesses:
+**Recipe A** is the chosen rule (``k=2``, ``window=2``, annual witnesses only);
+see docs/design/persistence-planning.md, "Decision: recipe A". The rule stays
+configurable so the alternatives can be re-measured, not because the choice is
+open. The axes are the window length and whether quarterly periods count as
+witnesses:
 
 ===========  ==========================  ==============================
              ``window=2`` (one year on)  ``window=3`` (two years on)
