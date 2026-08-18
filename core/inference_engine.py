@@ -249,7 +249,6 @@ class MaskConfig:
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
-        self.write_config()
 
     #: Fields that determine how to read a ``-logits.tif``. Recorded per run
     #: because they are irreversible: smoothing, the clamp and the spatial prior
@@ -267,7 +266,7 @@ class MaskConfig:
         grid and value range -- and thresholding the wrong one fails silently.
         """
         path = Path(self.mask_dir) / name
-        lines = [f"logits_stored = smooth(clip(upsampled_log_odds, +/-clamp))"]
+        lines = ["logits_stored = clip(smooth(upsampled_log_odds), +/-clamp)"]
         lines += [f"{f} = {getattr(self, f)}" for f in self.PROVENANCE_FIELDS]
         path.write_text("\n".join(lines) + "\n")
         return path
@@ -1103,6 +1102,11 @@ class SAM2_Masker:
         self, data_extractor: GEE_Data_Extractor, config: MaskConfig):
         self.data_extractor = data_extractor
         self.config = config
+        # Written here, not from MaskConfig.__post_init__: callers redirect
+        # mask_dir to a per-run subfolder *after* constructing the config (see
+        # sam2_mask.py), and MaskConfig is also instantiated merely to read
+        # defaults, which must not touch the disk.
+        self.config.write_config()
 
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
