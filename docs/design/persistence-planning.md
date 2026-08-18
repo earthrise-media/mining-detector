@@ -344,6 +344,24 @@ strictly tighter.
 
 Do not clip to patch footprints, and do not use unbounded connected components.
 
+**Measured on per-period masks, 2026-08-18.** The comparison the task list called
+for, on `utm21_lat_-8_0`: bounded growth, nearest-seed and unbounded components
+return **the same answer** -- byte-identical on a dense window, and within 0.13%
+across whole windows at every year from 2019 to 2025. Clipping is the only rule
+that differs materially, at -1.1% to -2.9%.
+
+So the blob leak this section was written to prevent **does not materialise once
+pixel-level `k`-of-`n` runs first**: the 4,636 ha component figure came from
+cumulative-`t0.55`-derived masks, and once transient area is removed what remains
+is nearly all adjacent to a confirmed detection (only 0.10% of persistent mask is
+unreachable from one). Bounded growth stays the default -- it is free and bounds a
+worst case a sparser band might still exercise -- but it is insurance, not a fix,
+and the nearest-seed fallback can be retired.
+
+The cap re-derived from the current logits is **43.0 px**, against a furthest
+observed mask pixel of 33.1 px, so it clips no real scar. The clamp gives a
+data-independent ceiling of `12*sqrt(16)` = 48 px.
+
 ## Measured results (prototype, 2026-08-07)
 
 ### Masks — UTM 21, lat band [-8, 0], annual 2018–2025
