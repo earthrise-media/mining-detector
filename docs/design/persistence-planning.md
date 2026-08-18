@@ -102,21 +102,21 @@ Verified: the `t0.55/iso0.8` detections are a strict subset of `t0.43/iso0.75` (
 
 The detection-side `t_prov` has a mask-side counterpart: for provisional years, re-derive the binary mask from the logits at a **stricter logit threshold**, so the provisional mask approximates what the persistence-confirmed mask will look like once corroboration arrives. Same principle as everywhere else here — substitute instantaneous evidence for the temporal evidence that does not exist yet.
 
-**Logits never need recomputing; masks do.** The logits are the durable artifact and the binary mask is a cheap re-derivation from them, so no SAM2 or Earth Engine rerun is involved. But it is *not* a bare re-threshold — see the next point.
+**Logits never need recomputing; masks do.** The logits are the durable artifact and the binary mask is a cheap re-derivation from them, so no SAM2 or Earth Engine rerun is involved.
 
-**Implementation trap in the current code.** In `SAM2_Masker.predict` the two products are not derived from the same array:
-
-```
-log_odds = best_logits + prior                       # SAM2 logit resolution
-upsampled = self.upsample_logits(log_odds, tile_shape)  # bilinear + Gaussian smooth
-mask      = (upsampled > 0)                          # <- mask thresholds THIS
-save_tile(mask, product_type="mask")
-save_tile(log_odds, product_type="logits")           # <- but THIS is saved
-```
-
-The saved `-logits.tif` is `log_odds` — before the bilinear upsample to tile resolution and before the Gaussian smoothing (`smoothing_sigma`). Re-thresholding it directly yields a coarser, unsmoothed mask that will not agree with the production mask even at threshold 0. Any re-derivation must **replay upsample + smooth, then threshold**. Both steps are deterministic and cheap. (Alternatively, save the upsampled/smoothed logits so re-thresholding is a true one-liner — worth considering, at the cost of larger logit rasters.)
-
-**Re-derive per tile, not on the logits mosaic.** Gaussian smoothing and bilinear interpolation do not commute with mosaicking, so thresholding the merged logits mosaic is not equivalent to re-deriving per-tile masks and then merging. (The max-reduce/OR equivalence noted elsewhere holds only for a *uniform threshold applied to already-comparable rasters*, which the pre-upsample logits are not.) Correct order: per-tile upsample → smooth → threshold at `t_prov,mask` → mosaic with the union rule.
+**Since 2026-08-18 it is a bare re-threshold.** Stored logits are
+`clip(smooth(upsampled_log_odds), ±16)` -- the field the production mask
+thresholds -- so `mask_from_logits(logits, threshold=t)` is the whole operation.
+This section previously documented a trap in which the saved `-logits.tif` held
+raw `log_odds`, neither upsampled nor smoothed, so re-thresholding it silently
+disagreed with the production mask (IoU ~0.84); and a second rule that
+re-derivation had to happen per tile because smoothing does not commute with the
+mosaic max-reduce. **Both are obsolete.** Thresholding now commutes with
+max-reduce -- `max(a,b) > t` is identically `(a>t) or (b>t)`, verified
+bit-identical on real overlapping tiles -- so a logits *mosaic* may be
+thresholded directly. That matters here: a basin-scale `t_prov,mask` sweep can
+run on mosaics instead of re-deriving 15,000 tiles per candidate value. See
+`core/sam2_logits.py` for the vintages and how to read each.
 
 **Current baseline:** the production mask thresholds log-odds at **0** (probability 0.5), so `t_prov,mask > 0`.
 
@@ -133,9 +133,15 @@ So the labelling effort is for *validation*, and does not block a first working 
 1. Detect → postprocess at **`t0.43`** (per-period, no temporal logic)
 2. SAM2 on the full `t0.43` set → per-tile masks, computed **once**
 3. Select detections: persistence-confirmed, or `t0.55` for the provisional edge
-4. Attribute masks to selected detections by connected component
-5. Re-derive masks from stored logits: threshold at 0 for confirmed years, at `t_prov,mask` for provisional years (replaying upsample + smooth per tile)
+4. Attribute masks to selected detections by **bounded geodesic growth** at the prior-implied cap (see "Attributing masks to confirmed detections", which supersedes the connected-component rule this step originally named)
+5. Re-derive masks from stored logits: a **plain threshold**, at 0 for confirmed years and at `t_prov,mask` for quarterly additions. Since 2026-08-18 the stored logits are already smoothed, so no upsample or smoothing replay is involved
 6. Mosaic → persistence-filter mask pixels → cumulative layer
+
+**`t_prov,mask` is only reached by quarterly additions.** The provisional edge is
+published as quarters, not as a provisional annual, so every *annual* layer --
+confirmed or not yet resolvable -- thresholds at 0. The yearly cumulative masks
+therefore contain no uncalibrated parameter, and `t_prov,mask` can be settled
+after they are built.
 
 Steps 1–2 are period-local and never recomputed. All temporal logic is in 3–5 and is pure selection over fixed inputs.
 
@@ -724,14 +730,17 @@ Persistence needs stored logits going forward, not just masks. Three decisions:
   noisy fields exceeds either mean, and the smoother then spreads that inflated max across the
   seam. Taking the max at the *binary* level, after thresholding, bounds the error instead.
 
-  So the original specification stands: **re-derive per tile — replay upsample + smooth, threshold,
-  then mosaic with the union rule.** The logits mosaic produced by `build_cog` is for inspection
-  and analysis, not a substrate for mask re-derivation.
+  So the original specification stood at the time: **re-derive per tile — replay upsample + smooth,
+  threshold, then mosaic with the union rule.**
 
-  Caveat: the test tiles available had **no genuine overlaps**, so tile disagreement was simulated
-  with additive noise. Confirm on real overlapping tiles when they are to hand; the conclusion is
-  unlikely to flip, since the upward bias of max-reduce is structural rather than noise-model
-  dependent.
+  **Superseded 2026-08-18 by storing logits smoothed.** The argument above is about max-reducing
+  *unsmoothed* logits, which is no longer what is stored. Thresholding a smoothed field commutes
+  with max-reduce exactly, so a logits mosaic *is* a valid substrate: `smooth → max → threshold`
+  came out bit-identical to `smooth → threshold → OR`, while the biased order
+  (`max raw → smooth → threshold`) inflated area 0.17%. Both were measured on a real overlapping
+  pair — which also discharges the caveat below, the original test having simulated disagreement
+  with additive noise on non-overlapping tiles. The real-data bias is ~10x smaller than the
+  synthetic estimate, but the ordering conclusion held.
 
 - **Confirmed on real tiles: thresholding stored logits does not reproduce the stored mask.**
   Mean IoU 0.84 across 8 tiles (pixel agreement 99.77%, but that is dominated by background).
@@ -1111,7 +1120,7 @@ Implementation phase (to do):
 - [ ] **Validate per-period masks against the old cumulative-derived series** on a few paired tiles, isolating the prompt-set effect from the intended change.
 - [ ] **Calibrate `t_prov,annual`** (detections) by matching precision against the persistence-confirmed layer on 2018–2022. (2024/25 currently use `t0.55` as a stand-in, uncalibrated.)
 - [ ] **Calibrate `t_prov,mask`** (logits) by the label-free sweep over 2018–2023 described above; gather labelled data to validate the result, not to find it.
-- [ ] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds`, so provisional masks are a true re-threshold. Either way, fix the re-derivation path to replay upsample + smooth per tile before thresholding.
+- [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
       annual comparison — half-run, see "The provisional edge is replaced, not
       confirmed": at 0.55, 45.5% of published provisional locations are absent
