@@ -1,17 +1,22 @@
 # Pipeline: from inference to published product
 
-**Recorded 2026-08-18.** Target design for running the whole product end to end,
-by someone who did not build it. Supersedes the step-by-step in `core/README.md`,
-which predates persistence and is out of date in several places.
+**Recorded 2026-08-18. Built 2026-08-19.** How the whole product runs end to end,
+by someone who did not build it. `core/README.md` is the operator's version of this;
+this document is why it is shaped that way.
 
-Nothing here is built yet except the individual tools it composes. The build order
-is at the end.
+`scripts/pipeline.py` is the driver. Every scripted stage has been exercised, the
+staged trees have been built end to end, and the argument handling and command
+construction are verified — but **the full chain has never been driven from
+`inference` through `publish` in one pass.** That is the next quarterly refresh.
 
 ## Constraints that shape the design
 
 - **Everything runs on the VM.** Transfers to a laptop are slow, so the pipeline
   produces its outputs on the VM and pushes once, at the end, to
-  `gs://amw-dev/`. Local review pulls from there.
+  `gs://amw-published` (the store of record), which is mirrored server-side to
+  `gs://amw-dev/published/`. Local review pulls from there. The published bucket
+  holds **one model vintage at a time**: on a model change its contents move
+  elsewhere wholesale rather than accumulating versions in the paths.
 - **Two cadences, not one.** The bulk rewrite happening now and the quarterly
   refresh are the same pipeline with a different period list. A yearly refresh
   additionally *replaces* the previous year's provisional data.
@@ -61,19 +66,21 @@ data/staging_source-coop/          # public: patches only
     config.txt
 
 data/staging_gs/                   # internal: the above, plus
-  postprocessed_t0.55_d5_3km_t-iso0.80/
+  postprocessed_t0.55_d5_3km_t-iso0.8/
   cumulative/                      # patch detections per period end
     amazon_basin_cumulative_2018-2018.geojson ... 2018-Q226
     patch_diffs/                   # SAM2 prompt set for quarters
   cumulative_dissolved/            # display product; front end converts to pmtiles
     diffs/
-  sam2/
+  mining_scar_masks/               # copied from data/outputs/sam2/
     <run>/                         # tile-wise *-msk.tif, *-logits.tif, mask_config.txt
     persistence_masks/             # per-band onset rasters
+    config.txt                     # SAM2 checkpoint and weights common to every run
 ```
 
-**Published data is patches, not dissolved polygons.** The dissolved layers stay
-internal; the front end pulls them from `gs://amw-dev/` and converts to pmtiles.
+**Published data is patches, not dissolved polygons.** The dissolved layers are not
+mirrored to Source Cooperative; the front end pulls them from `gs://amw-published`
+and converts to pmtiles.
 
 **Per-band onset rasters are kept**, not just the master COG: 25 MB against
 61 minutes to rebuild, and they are the intermediate the master is mosaicked
@@ -90,12 +97,18 @@ from, so a single band can be redone without redoing 23.
 | `persist-detections` | pipeline | `persistence.py --dissolve` |
 | `mask-annual` | **human** | `sam2_mask.py` on postprocessed t0.43 |
 | `mask-quarterly` | **human** | `sam2_mask.py` on `patch_diffs/` |
-| `accumulate-quarterly` | pipeline | **not built** — OR each quarter onto the prior |
 | `cog` | pipeline | `sam2_build_cog.py` per run |
 | `persist-masks` | pipeline | `sam2_persistence.py` per band group, then mosaic |
-| `stage` | pipeline | rename and lay out the two trees, write sidecars |
-| `publish` | pipeline | push to `gs://amw-dev/` and source.coop |
-| `manifest` | pipeline | regenerate `MANIFEST.yaml` |
+| `stage` | pipeline | `scripts/stage_outputs.py` — lay out both trees, sidecars, READMEs |
+| `manifest` | pipeline | **stub** — prints a reminder; `MANIFEST.yaml` is still hand-maintained |
+| `publish` | **human** | emits the push to `gs://amw-published`, the mirror, and source.coop |
+
+**`accumulate-quarterly` was dropped, not deferred.** The plan was to OR each
+quarter's diff mask onto the prior mask to build a `*_full` raster per quarter. The
+onset raster removes the need: a pixel stores the period mining was first confirmed
+there, so any cumulative is the threshold `0 < onset <= code` and no accumulation
+step exists to get wrong. `core/sam2_combine_masks.py` still implements the OR merge
+but nothing calls it.
 
 Stages are **idempotent** — skip what exists — and **verify their own output**,
 because the failure modes here are silent. Observed in one session: `gsutil cp -I`
@@ -105,8 +118,11 @@ mid-list. None announced itself; all are catchable by counting outputs.
 
 **For human-run stages the pipeline emits commands rather than running them.**
 That is what keeps error-prone parameters — dates, cache directories, the andes
-`_0.2_` naming, the boundary argument `geo_filter.py` requires — derived from the
-period list instead of typed.
+`_0.2_` naming, the boundary and `--outpath` arguments `geo_filter.py` requires —
+derived from the period list instead of typed. There is no flag for it: printing is
+the only thing the driver does with those stages, so asking for it would be asking
+the operator to restate what the stage already is. `--dry-run` is the one flag that
+means "change nothing", and it applies to the scripted stages.
 
 ## Ordering
 
@@ -135,15 +151,31 @@ recompute in full. No replacement: the quarter is added to the provisional edge.
   from different imagery. See persistence-planning, "The provisional edge is
   replaced, not confirmed".
 - Masks: `Y`'s annual mask **supersedes** the accumulated quarterly estimate
-  within `Y`. Not an OR — that double-counts expansion. This is the step that
-  does not exist yet.
+  within `Y`. Not an OR — that double-counts expansion. Promotion works, since
+  `published_periods` publishes an annual as soon as the rule can resolve it.
+  **Retirement does not:** the superseded quarters keep publishing alongside it, and
+  nothing deletes a layer that stops being staged. First bites Q1 2027; tracked as
+  "Retiring superseded quarterly layers" in persistence-planning.
 
-## Build order
+## What was built, and what is left
 
-1. `accumulate-quarterly` — OR each quarter's diff mask onto the prior mask.
-2. The yearly **supersede** step for masks.
-3. `stage` — the rename/layout layer and the sidecar writers.
-4. `manifest` — regenerate from the staged trees rather than by hand.
-5. `pipeline.py` — the driver tying the above together, with `--print` for the
-   human-run stages.
-6. Rewrite `core/README.md` from this spec once it runs.
+The build order this document opened with, as it stands:
+
+1. ~~`accumulate-quarterly`~~ — dropped; the onset raster removes the need.
+2. **The yearly supersede for masks — half done.** Promotion works, retirement does
+   not. See "The refresh cases" above.
+3. `stage` — done, `scripts/stage_outputs.py`, including both READMEs rendered from
+   templates in `scripts/templates/`.
+4. `manifest` — **still a stub.** It prints a reminder; `MANIFEST.yaml` is
+   hand-maintained.
+5. `pipeline.py` — done.
+6. `core/README.md` — rewritten.
+
+Two things worth knowing before the next run:
+
+- **The full chain has never run in one pass.** Scripted stages have been exercised
+  individually and the staged trees built end to end, but always with the human
+  stages performed out of band. The first true test is the next quarterly refresh.
+- **A quarterly update means editing `DEFAULT_PERIODS`,** not passing `--periods`.
+  The period list is the whole history, because persistence recomputes from the full
+  stack; a one-period list would compute onset with no witnesses.

@@ -478,6 +478,53 @@ That last point limits what the comparison can show: the +2.9% is partly
 bug-fix recovery rather than a rule effect, and the older product is corrupt in
 some of the places the new one gains. Treat the two as not cleanly comparable.
 
+### Masks — the quarterly edge (2026-08-19)
+
+All 23 groups rerun with the six quarters admitted at the provisional edge.
+`area_analysis/basin_total.py`, exact WGS84 ellipsoidal cell area.
+
+| through | increment ha | cumulative ha |
+| --- | --- | --- |
+| 2024 | 62,522 | 1,047,985 |
+| Q125 | 17,579 | 1,065,564 |
+| Q225 | 18,218 | 1,083,782 |
+| Q325 | 22,660 | 1,106,442 |
+| Q425 | 7,977 | 1,114,419 |
+| Q126 | 3,802 | 1,118,220 |
+| Q226 | 31,076 | **1,149,296** |
+
+- **The annual figures reproduce.** 1,047,985 ha through 2024 against the 1,047,949
+  measured on 2026-08-18 — 36 ha apart, 0.003%. Admitting quarters does not disturb
+  annual onsets, as recipe A's annual-only witnesses require.
+- **The quarterly edge adds 101,311 ha, 8.8% of the total.** Not compared against the
+  prior product: its quarterly masks stacked 2026 quarters on the 2025 *annual* rather
+  than on the 2025 quarters, so its quarterly series is not an accumulation and a
+  difference against it measures that compositing rule, not this one. The annual
+  comparison above stands on its own.
+- **Quarterly increments follow the season.** Q126 yields 3,802 ha against Q226's
+  31,076 — an eight-fold step between adjacent quarters, and Q226 is the largest
+  quarterly increment in the series, above the Q325 dry-season figure of 22,660.
+  The direction is rainy against drier season: cloudier mosaics resolve less scar,
+  so a wet quarter confirms less area. Quarterly increments are therefore not
+  comparable to one another without stating which season they cover.
+- **Q226 is spread, not localized, and mostly not adjacent to known scar**
+  (`area_analysis/q226_breakdown.py`). It appears in 17 of 23 groups at a
+  consistent 2–4% of each group's area — the largest single contribution is
+  `utm21_lat_0_8` at 7,683 ha, a quarter of the total — so it is not one group's
+  artifact. But only **17.2% of it lies within 3 px of an earlier-onset pixel**.
+  A drier mosaic merely resolving *more* of a known scar would put new pixels
+  against old ones, and 82.8% of this area stands alone.
+- **That adjacency test is weaker than it looks, though.** A mine wholly obscured
+  by cloud in Q126 also appears as a fresh, non-adjacent location in Q226 — so
+  "stands alone" does not separate new mining from a pre-existing mine seen for the
+  first time. Both are consistent with 17.2%. The test that *would* separate them
+  works on patches, not pixels: ask whether each Q226 location appears in any
+  earlier period's `raw_detections/` at t0.4, below the confirmation bar. A
+  location detected weakly for years is pre-existing; one absent from every prior
+  period at any threshold is genuinely new. Not yet run.
+- `utm21_lat_8_16` still yields zero: two years of coverage leaves one resolvable
+  onset year under `window=2`.
+
 ### Detections — basin-wide, annual 2018–2025
 
 Cumulative patch counts, recomputed on the 5-dp key and the deduplicated
@@ -809,6 +856,28 @@ Persistence needs stored logits going forward, not just masks. Three decisions:
   Run configuration goes in a `config.txt` beside the tiles rather than per-file metadata:
   the clamp and the spatial prior are equally irreversible, so run-level is the right grain.
 
+  **The clamp and the smooth do not commute, and the order is load-bearing.** Store
+  `clip(smooth(x))`, not `smooth(clip(x))`. About 97% of a typical tile sits at the clamp, so
+  clamping first lets the clamp value bleed across scar boundaries when smoothed. Measured over
+  the migration: **16 of 115,749 tiles differ, by 1–3 px each** — negligible for area, but it
+  means the two orderings are genuinely different files and only one reproduces the mask exactly.
+
+  **Three vintages now exist in the archive, and nothing about a raster distinguishes them** —
+  same dtype, same grid, same value range. Each run directory therefore records its own in
+  `mask_config.txt` as `logits_stored`, and that field is the only way to tell:
+
+  | `logits_stored` | how it may be used |
+  | --- | --- |
+  | `clip(smooth(upsampled_log_odds), +/-clamp)` | `logits > 0` reproduces the mask exactly |
+  | `smooth(clip(upsampled_log_odds, +/-clamp))` | same, except on the ~1-in-7,000 tiles above |
+  | absent, or raw `log_odds` | **diagnostic only** — coarser by 35/32, not co-registered with its own mask |
+
+  The current archive is mostly the second row: the eight annual runs and eight andes runs carry
+  the older ordering, and only the six quarterly runs — written after the writer changed — carry
+  the first. The third row is everything published through July 2026; deriving a mask from those
+  needs an upsample *as well as* a smoothing replay and still will not match bit-for-bit, since
+  the bilinear upsample cannot be reproduced outside the original torch path.
+
   **`smoothing_sigma` = 2.5 retained, now measured** (2026-08-18). It was originally chosen by
   visual appraisal — smooth without losing small details. Over 750 mining tiles, sigma across
   0–5 moves basin mask area by only **~2%** (+0.38% at 0, −1.60% at 5), though per-tile spread is
@@ -1040,7 +1109,9 @@ answer *how much*, **dissolved polygons and pmtiles** are what the website draws
 
 Publishing patches obliges us to state plainly that **patch geometry is not scar
 extent**, and that summing patch areas double-counts, since patches overlap by
-half a width. Area comes from the masks, with the ~0.65 correction factor.
+half a width. Area comes from the masks, with a correction factor: **0.68**,
+re-measured 2026-08-19 on the persistence masks (0.65 was the pre-persistence
+figure; the two agree to within the confidence interval).
 
 ### Publish yearly increments, not cumulative dissolves
 
@@ -1150,6 +1221,39 @@ Three consequences to settle:
    quarters, which "Design details" rejects for confirmation on seasonal-bias
    grounds; the argument may or may not carry over to display.
 
+#### Retiring superseded quarterly layers (noted 2026-08-19)
+
+**Open, and not yet coded. Not urgent:** 2025 does not become resolvable until the
+2026 annual lands, so this first bites in the Q1 2027 refresh.
+
+Promotion already works — `published_periods` seeds its output from
+`resolvable_periods`, so when a year becomes resolvable its annual layer starts
+publishing. What is missing is retiring what that annual replaces.
+
+- **Quarters publish indefinitely.** `published_periods` appends non-annual periods
+  unconditionally, so once 2025 is resolvable the 2025 annual layer and Q125–Q425
+  all publish, each claiming to represent 2025. The staging copy in
+  `scripts/stage_outputs.py` mirrors the same rule, so both sides agree — and both
+  are wrong in the same way.
+- **Nothing removes a superseded layer from the buckets.** `publish` pushes with
+  `gsutil -m rsync -r` (no `-d`) and `aws s3 cp --recursive`; neither deletes. A
+  layer that stops being staged simply lingers, so the bucket gains a second answer
+  instead of replacing the first. Note the backup step *does* use `-d`, so it would
+  faithfully mirror whatever the record bucket accumulates.
+- **The decision is what supersede should mean to a consumer**, and it is not
+  obvious: retire the quarters outright, move them to a history prefix, or leave
+  them in place marked superseded. Each changes both `published_periods` and the
+  publish commands; the third also needs a field or sidecar convention a consumer
+  can actually read. This interacts with "The provisional edge is replaced, not
+  confirmed" above — replacement is already known not to be promotion, which argues
+  against silently leaving both layers up.
+- **Q1 is when this and the annual-witness requirement bite together.** A Q1 refresh
+  needs `mask-annual` for the year just completed, not only `mask-quarterly`: that
+  year's annual mask is a witness for every later onset via
+  `sam2_persistence.RUN_PATTERNS`, even while its own layer is unpublished. A missing
+  annual mask weakens corroboration for subsequent years silently. Documented in
+  `core/README.md`; worth re-reading before the first Q1 run.
+
 ## Deliverables
 
 - **A first-detection-year layer**: for each location, the year mining was confirmed to have begun. Every cumulative figure we report derives from it and cannot decrease. This matches the convention used by Hansen Global Forest Change, so it will be familiar to technical partners.
@@ -1232,6 +1336,16 @@ Implementation phase (to do):
 - [x] **`t_prov,annual`** — moot: the provisional edge is published as quarters, so no annual layer is published provisionally. Only `t_prov,quarterly` is reached.
 - [x] **Calibrate `t_prov,mask`** — done 2026-08-18: **0**, no tightening. F1 peaks there and logits separate confirmed from rejected too weakly for a cutoff to act on; see above.
 - [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
+- [ ] **Track `area_analysis/`?** This document now quotes 0.68 for the mask area
+      correction, but the derivation behind it — method, controls, size dependence,
+      the reconciliation with GaTech's reported figures — lives only in an untracked
+      `NOTES.md`. A number given to clients should be traceable to something in the
+      repo; at minimum `NOTES.md` and `analyze_areas.py` want a home.
+- [ ] **Retire superseded quarterly layers** — promotion works, retirement does not:
+      a resolved year publishes its annual layer *and* keeps publishing its quarters,
+      and nothing deletes a layer that stops being staged. Needs a decision on what
+      supersede means to a consumer. First bites Q1 2027; see "Retiring superseded
+      quarterly layers".
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
       annual comparison — half-run, see "The provisional edge is replaced, not
       confirmed": at 0.55, 45.5% of published provisional locations are absent
