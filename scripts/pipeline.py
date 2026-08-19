@@ -110,23 +110,56 @@ def cmds_mask_quarterly(periods: Sequence[str]) -> List[str]:
     return out
 
 
-def cmds_publish(_periods: Sequence[str]) -> List[str]:
-    """Emitted, never executed: outward-facing, and the rasters want review."""
+def cmds_publish(periods: Sequence[str]) -> List[str]:
+    """Emitted, never executed: outward-facing, and the rasters want review.
+
+    Checks the staging trees before emitting anything. Whatever is in them gets
+    published, and they are assembled fresh each run, so a file stage() did not
+    put there is a file that should not go out -- a quarto preview once left
+    README.html and twelve bootstrap assets in the public tree.
+    """
     # amw-published is the store of record and is versioned; amw-dev/published is
     # its backup, synced bucket-to-bucket so nothing round-trips through a laptop
     # -- every silent transfer failure we have hit was a local<->bucket sync.
     record = "gs://amw-published"
     backup = "gs://amw-dev/published"
     coop = "s3://earthgenome/amazon-mining-watch"
-    return [
+    warn: List[str] = []
+    try:
+        from stage_outputs import check_trees
+        report = check_trees(periods)
+    except Exception as exc:                      # never block the emit on this
+        warn = [f"# NOTE: could not check the staging trees ({exc})", ""]
+        report = {}
+
+    def _lines(kind: str, files: List[str], tree: str, note: str) -> List[str]:
+        out = [f"# WARNING: {len(files)} {kind} file(s) in {tree}/. {note}"]
+        out += [f"#     {f}" for f in files[:10]]
+        if len(files) > 10:
+            out.append(f"#     ... and {len(files) - 10} more")
+        return out + [""]
+
+    for tree, r in report.items():
+        if r["stray"]:
+            warn += _lines("unexpected", r["stray"], tree.name,
+                           "Staging did not put these here and they WILL be "
+                           "published; remove them.")
+        if r["missing"]:
+            warn += _lines("MISSING", r["missing"], tree.name,
+                           "Expected but absent -- an incomplete product would go "
+                           "out. Re-run `pipeline.py stage`.")
+
+    return warn + [
         "# review the rasters before running any of this",
         "",
         "# 1. store of record",
         f"gsutil -m rsync -r data/staging_gs/ {record}/",
-        "# counts must match: cp -I has reported success while copying 2 of",
-        "# 15,752 files, and an unquoted glob exceeds ARG_MAX mid-list",
-        f"gsutil ls '{record}/**' | wc -l",
-        "find data/staging_gs -type f | wc -l",
+        "# Verify by name, not by count. Two different tools have silently",
+        "# dropped files on this project: gsutil cp -I reported success having",
+        "# copied 2 of 15,752, and aws s3 sync dropped 2 of 48. A count tells",
+        "# you something is missing; this tells you which. Empty output = clean.",
+        f"diff <(cd data/staging_gs && find . -type f | sed 's|^\./||' | sort) \\",
+        f"     <(gsutil ls '{record}/**' | sed 's|^{record}/||' | sort)",
         "",
         "# 2. backup, server-side (no egress, no local round trip)",
         f"gsutil -m rsync -r -d {record}/ {backup}/",
@@ -159,10 +192,13 @@ def cmds_publish(_periods: Sequence[str]) -> List[str]:
         "#    hand, which is what keeps archived/ -- present on the bucket, absent",
         "#    from staging -- from being swept away.",
         f"aws s3 sync data/staging_source-coop/ {coop}/",
-        "# archived/ lives on the bucket but not in staging, so exclude it or",
-        "#  the two counts can never agree and the check gets ignored",
-        f"aws s3 ls --recursive {coop}/ | grep -v '/archived/' | wc -l",
-        "find data/staging_source-coop -type f | wc -l",
+        "# Same verification. archived/ is on the bucket and not in staging, so",
+        "# it is excluded -- otherwise the comparison can never come out clean",
+        "# and the check gets ignored. Empty output = clean; re-run the sync for",
+        "# anything listed, which is what the 2-of-48 drop needed.",
+        f"diff <(cd data/staging_source-coop && find . -type f | sed 's|^\./||' | sort) \\",
+        f"     <(aws s3 ls --recursive {coop}/ | awk '{{print $4}}' \\",
+        f"        | sed 's|^amazon-mining-watch/||' | grep -v '^archived/' | sort)",
     ]
 
 

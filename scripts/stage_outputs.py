@@ -251,6 +251,68 @@ def copy(src: Path, dst: Path, dry_run: bool) -> str:
     return "copy"
 
 
+def expected_relpaths(periods: Sequence[str]) -> dict:
+    """Per tree, the set of relative paths stage() is responsible for.
+
+    Derived from the same PRODUCTS/singleton definitions stage() walks, so the
+    two cannot drift. ``mining_scar_masks/`` is returned as a prefix rather than
+    enumerated: it holds ~257,000 tile files, and listing them to compare would
+    cost more than it tells us.
+
+    The point is to catch what should *not* be there. Anything dropped into a
+    staging tree gets published -- a quarto preview left README.html and twelve
+    bootstrap assets under README_files/ in the public tree, which the next sync
+    would have shipped to consumers alongside the data.
+    """
+    trees: dict = {GS: set(), SOURCE_COOP: set()}
+    prefixes: dict = {GS: {"mining_scar_masks/"}, SOURCE_COOP: set()}
+
+    for product in PRODUCTS:
+        wanted = published_periods(periods) if product.published_only else periods
+        for tree in product.trees:
+            for tag in wanted:
+                if product.src_for(tag) is not None:
+                    trees[tree].add(str(product.dest / product.rename(tag)))
+            if product.sidecar:
+                trees[tree].add(str(product.dest / "config.txt"))
+
+    for src, name, tgt in singleton_items():
+        if not src.is_file():
+            continue                 # stage() reports the missing source itself
+        for tree in tgt:
+            trees[tree].add(name)
+            if src.suffix == ".tif":
+                trees[tree].add(name + ".aux.xml")
+
+    for _tpl, dest, _label in READMES:
+        trees[dest].add("README.md")
+    trees[GS].add("mining_scar_masks/config.txt")
+    return {"files": trees, "prefixes": prefixes}
+
+
+def check_trees(periods: Sequence[str]) -> dict:
+    """Compare each staging tree against what stage() is responsible for.
+
+    Both directions matter and they fail differently. Extra files get published
+    -- that is the quarto case. Missing files mean an incomplete product goes out
+    under a complete-looking name, which is worse, because nothing downstream
+    would flag it.
+    """
+    spec = expected_relpaths(periods)
+    out = {}
+    for tree, allowed in spec["files"].items():
+        if not tree.is_dir():
+            continue
+        prefixes = spec["prefixes"][tree]
+        found = {str(f.relative_to(tree)) for f in tree.rglob("*") if f.is_file()}
+        stray = sorted(f for f in found - allowed
+                       if not any(f.startswith(pre) for pre in prefixes))
+        missing = sorted(allowed - found)
+        if stray or missing:
+            out[tree] = {"stray": stray, "missing": missing}
+    return out
+
+
 def stage(periods: Sequence[str], dry_run: bool) -> int:
     missing_total = 0
     for product in PRODUCTS:
@@ -414,15 +476,24 @@ def ensure_statistics(raster: Path, dry_run: bool) -> bool:
     return True
 
 
-def stage_singletons(dry_run: bool) -> int:
-    """The two first-year layers, promoted to the top of each tree."""
-    missing = 0
-    items = [
+def singleton_items():
+    """(source, published name, trees) for the layers promoted to each tree top.
+
+    A function rather than an inline list so expected_relpaths() and
+    stage_singletons() cannot disagree about what belongs at the top of a tree.
+    """
+    return [
         (BASE / "cumulative" / f"Amazon_ACA_{MODEL}_detections_first_year.geojson",
          "amazon_basin_detections_first_year.geojson", (SOURCE_COOP, GS)),
         (SAM2 / "persistence_masks" / "amazon_basin_mining_scar_masks_first_year.tif",
          "amazon_basin_mining_scar_masks_first_year.tif", (SOURCE_COOP, GS)),
     ]
+
+
+def stage_singletons(dry_run: bool) -> int:
+    """The two first-year layers, promoted to the top of each tree."""
+    missing = 0
+    items = singleton_items()
     for src, name, trees in items:
         for tree in trees:
             if not src.is_file():
