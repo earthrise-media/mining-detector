@@ -1236,10 +1236,15 @@ publishing. What is missing is retiring what that annual replaces.
   `scripts/stage_outputs.py` mirrors the same rule, so both sides agree — and both
   are wrong in the same way.
 - **Nothing removes a superseded layer from the buckets.** `publish` pushes with
-  `gsutil -m rsync -r` (no `-d`) and `aws s3 cp --recursive`; neither deletes. A
-  layer that stops being staged simply lingers, so the bucket gains a second answer
-  instead of replacing the first. Note the backup step *does* use `-d`, so it would
-  faithfully mirror whatever the record bucket accumulates.
+  `gsutil -m rsync -r` (no `-d`) and `aws s3 sync` (no `--delete`); neither deletes.
+  A layer that stops being staged simply lingers, so the bucket gains a second
+  answer instead of replacing the first. Note the backup step *does* use `-d`, so it
+  would faithfully mirror whatever the record bucket accumulates.
+
+  Both push commands are now sync-shaped, so enabling deletion is one flag on each
+  rather than a change of tool — which makes the *decision* below the only real work.
+  Do not just add the flags: `archived/` is on Source Cooperative and deliberately
+  not in staging, so `--delete` would remove it.
 - **The decision is what supersede should mean to a consumer**, and it is not
   obvious: retire the quarters outright, move them to a history prefix, or leave
   them in place marked superseded. Each changes both `published_periods` and the
