@@ -1351,6 +1351,15 @@ Implementation phase (to do):
 - [x] **`t_prov,annual`** — moot: the provisional edge is published as quarters, so no annual layer is published provisionally. Only `t_prov,quarterly` is reached.
 - [x] **Calibrate `t_prov,mask`** — done 2026-08-18: **0**, no tightening. F1 peaks there and logits separate confirmed from rejected too weakly for a cutoff to act on; see above.
 - [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
+- [ ] **A `pull` stage: fetch prior periods back to the VM.** A quarterly refresh on a
+      fresh VM starts with an empty `data/outputs/`, and persistence recomputes from the
+      whole period stack, so the run needs everything before it. Emit it as a human
+      command alongside the other transfers.
+      Note the asymmetry: `mining_scar_masks/` on `gs://amw-published` is a verbatim copy
+      of `data/outputs/sam2/` and restores directly, but the detection folders were
+      renamed to short consumer names by `stage_outputs.py` and will not rebuild a working
+      tree. Either pull those from a working-tree-shaped copy, or teach the pull to
+      reverse the rename.
 - [ ] **Fold in `collated_areas`.** Draft on the `collated_areas` branch (2 commits
       ahead of main, `18b8161`): `scripts/boundaries/collate_jurisdiction_yearly.ipynb`,
       which rolls mask area up to jurisdictions for the website. Written against the
