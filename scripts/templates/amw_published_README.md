@@ -58,9 +58,15 @@ repo. If storage has to be reclaimed, reclaim derived products.
 
 ## Backup
 
-Object versioning is enabled on this bucket, with noncurrent versions expiring
-after 90 days: the realistic risk is an accidental overwrite or delete, not media
-failure. A second copy lives at `gs://amw-dev/published/`, synced server-side.
+Object versioning is enabled on this bucket, keeping at most 3 noncurrent
+versions and expiring them after 200 days: the realistic risk is an accidental
+overwrite or delete, not media failure. The version count covers repeated pushes
+within one review cycle and bounds what this costs; the 200 days covers noticing
+a bad write a couple of refreshes later.
+
+A second copy lives at `gs://amw-dev/published/`, synced server-side. Note that
+the sync deletes as well as adds, so it protects against losing this bucket, not
+against a bad write to it — versioning is the recovery path for that.
 
 **Verify counts after any bulk transfer.** `gsutil cp -I` has been observed
 reporting success while copying 2 of 15,752 files, and an unquoted shell glob
