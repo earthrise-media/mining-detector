@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import glob
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -389,6 +390,30 @@ def stage_mask_dirs(dry_run: bool) -> int:
     return 0
 
 
+def ensure_statistics(raster: Path, dry_run: bool) -> bool:
+    """Make sure ``raster`` has a current .aux.xml of full statistics.
+
+    Computed once on the source and copied to each tree rather than scanned per
+    tree: it is a full pass over 118 Gpx and takes minutes. Full, not
+    ``-approx_stats`` -- onset pixels are 0.0985% of the raster, so approximate
+    sampling finds none of them, reports STATISTICS_VALID_PERCENT=0, and GIS
+    software then draws an empty layer. That is the failure this sidecar exists
+    to prevent, so the cheap option is the wrong one.
+
+    Skipped when the sidecar is already newer than the raster.
+    """
+    aux = raster.with_suffix(raster.suffix + ".aux.xml")
+    if aux.is_file() and aux.stat().st_mtime >= raster.stat().st_mtime:
+        return False
+    if dry_run:
+        print(f"  statistics: would compute for {raster.name}")
+        return False
+    aux.unlink(missing_ok=True)          # stale stats would otherwise be reused
+    subprocess.run(["gdalinfo", "-stats", str(raster)],
+                   check=True, capture_output=True, text=True)
+    return True
+
+
 def stage_singletons(dry_run: bool) -> int:
     """The two first-year layers, promoted to the top of each tree."""
     missing = 0
@@ -408,6 +433,22 @@ def stage_singletons(dry_run: bool) -> int:
                 tree.mkdir(parents=True, exist_ok=True)
             action = copy(src, tree / name, dry_run)
             print(f"  {name:<62} {action} -> {tree.name}/")
+
+    # Statistics sidecars, after the rasters are in place. The README documents
+    # these as part of the product, so the pipeline has to produce them -- left
+    # to hand they go stale the first time a raster is rebuilt, which is exactly
+    # what happened after the quarterly-edge fix.
+    for src, name, trees in items:
+        if src.suffix != ".tif" or not src.is_file():
+            continue
+        fresh = ensure_statistics(src, dry_run)
+        aux = src.with_suffix(src.suffix + ".aux.xml")
+        if not aux.is_file():
+            continue
+        for tree in trees:
+            act = copy(aux, tree / (name + ".aux.xml"), dry_run)
+            print(f"  {name + '.aux.xml':<62} {act} -> {tree.name}/"
+                  + ("   (recomputed)" if fresh else ""))
     return missing
 
 
