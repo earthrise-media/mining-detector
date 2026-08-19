@@ -153,6 +153,8 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "# review the rasters before running any of this",
         "",
         "# 1. store of record",
+        "# add -c if objects were pre-populated by cp: rsync compares mtime, cp",
+        "# does not set it, so those objects re-upload however identical they are",
         f"gsutil -m rsync -r data/staging_gs/ {record}/",
         "# Verify by name, not by count. Two different tools have silently",
         "# dropped files on this project: gsutil cp -I reported success having",
