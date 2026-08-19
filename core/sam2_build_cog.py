@@ -201,10 +201,10 @@ def build_chunk_rasters(input_files, extent, raster_type, resampling, nodata,
         # Each chunk gets its own directory: build_mask_union_vrt writes a
         # fixed-name stack.vrt beside its output and the derived band refers to
         # it relatively, so chunks sharing a directory would overwrite it.
-        chunk_dir = os.path.join(tmpdir, f"chunk_{n}")
-        os.makedirs(chunk_dir)
-        vrt_path = os.path.join(chunk_dir, "tmp.vrt")
-        chunk_tif = os.path.join(chunk_dir, "chunk.tif")
+        chunk_dir = Path(tmpdir) / f"chunk_{n}"
+        chunk_dir.mkdir()
+        vrt_path = chunk_dir / "tmp.vrt"
+        chunk_tif = chunk_dir / "chunk.tif"
 
         if raster_type == "mask":
             build_mask_union_vrt(
@@ -279,8 +279,7 @@ def build_mask_union_vrt(input_files, derived_vrt_path, nodata_val,
     with a nodata-aware OR: output is 1 if any input is 1, nodata only if
     every input is nodata, and 0 otherwise.
     """
-    vrt_dir = os.path.dirname(derived_vrt_path)
-    stack_vrt = os.path.join(vrt_dir, "stack.vrt")
+    stack_vrt = Path(derived_vrt_path).parent / "stack.vrt"
 
     grid_args = (
         _buildvrt_grid_args(extent, resolution, resampling, nodata_val)
@@ -314,7 +313,7 @@ def mask_or(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize,
         np.where((stack == 1).any(axis=0), 1, 0),
     )
 """
-    stack_basename = os.path.basename(stack_vrt)
+    stack_basename = Path(stack_vrt).name
     for band_index in range(1, len(input_files) + 1):
         src = ET.SubElement(derived, "SimpleSource")
         ET.SubElement(src, "SourceFilename", {"relativeToVRT": "1"}).text = stack_basename
@@ -334,8 +333,7 @@ def build_logit_max_vrt(input_files, derived_vrt_path, extent=None,
     logit-space equivalent of the mask OR: with a shared threshold,
     max(logits) > t iff any per-tile mask would be 1.)
     """
-    vrt_dir = os.path.dirname(derived_vrt_path)
-    stack_vrt = os.path.join(vrt_dir, "stack.vrt")
+    stack_vrt = Path(derived_vrt_path).parent / "stack.vrt"
 
     grid_args = (
         _buildvrt_grid_args(extent, resolution, resampling, LOGIT_NODATA)
@@ -366,7 +364,7 @@ def logit_max(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysiz
     reduced = filled.max(axis=0)
     out_ar[:] = np.where(np.isneginf(reduced), np.nan, reduced)
 """
-    stack_basename = os.path.basename(stack_vrt)
+    stack_basename = Path(stack_vrt).name
     for band_index in range(1, len(input_files) + 1):
         src = ET.SubElement(derived, "SimpleSource")
         ET.SubElement(src, "SourceFilename", {"relativeToVRT": "1"}).text = stack_basename
@@ -434,7 +432,7 @@ def build_cog(
         raise ValueError(f"Unknown raster_type: {raster_type}")
 
     extent = resolve_extent(
-        input_files, extent, resolution, label=os.path.basename(output_path))
+        input_files, extent, resolution, label=Path(output_path).name)
 
     with tempfile.TemporaryDirectory(prefix="sam2_build_cog_") as tmpdir:
         chunk_paths = build_chunk_rasters(
@@ -449,7 +447,7 @@ def build_cog(
         # never has to resolve a conflict: plain last-wins is exact here, and
         # cheap because GDAL reads only the sources a block intersects. The
         # expensive union already happened, once, inside each chunk.
-        mosaic_vrt = os.path.join(tmpdir, "mosaic.vrt")
+        mosaic_vrt = Path(tmpdir) / "mosaic.vrt"
         run(["gdalbuildvrt"]
             + _buildvrt_grid_args(extent, resolution, resampling, nodata)
             + [mosaic_vrt] + chunk_paths)
@@ -470,7 +468,7 @@ def build_cog(
 def main(input_dir, output_dir, index_out, stac_out, max_workers,
          extent_mode="union", raster_types=("mask",)):
 
-    os.makedirs(output_dir, exist_ok=True)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     groups = {}
     tile_index_rows = []
@@ -534,7 +532,7 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
         utm_zone, lat_start, lat_end, raster_type, start_date, end_date = group_key
         date_tag = f"{start_date}_{end_date}" if start_date and end_date else "nodate"
         tag = f"{date_tag}_utm{utm_zone}_lat_{lat_start}_{lat_end}_epsg4326"
-        cog_path = os.path.join(output_dir, f"mining_{raster_type}_{tag}.tif")
+        cog_path = Path(output_dir) / f"mining_{raster_type}_{tag}.tif"
         build_cog(
             input_files=groups[group_key],
             output_path=cog_path,
@@ -569,12 +567,10 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
         else:
             raise ValueError("Mask groups have inconsistent date ranges.")
 
-        big_vrt = os.path.join(output_dir, "big_mask.vrt")
-        tmp_tif = os.path.join(output_dir, "big_mask_tmp.tif")
-        big_mask_path = os.path.join(
-            output_dir,
-            f"mining_mask_{start_date}_{end_date}_epsg4326.tif"
-        )
+        big_vrt = Path(output_dir) / "big_mask.vrt"
+        tmp_tif = Path(output_dir) / "big_mask_tmp.tif"
+        big_mask_path = (Path(output_dir)
+                         / f"mining_mask_{start_date}_{end_date}_epsg4326.tif")
         build_cog(
             input_files=mask_cogs,
             output_path=big_mask_path,
@@ -598,10 +594,8 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
         else:
             raise ValueError("Logits groups have inconsistent date ranges.")
 
-        big_logits_path = os.path.join(
-            output_dir,
-            f"mining_logits_{start_date}_{end_date}_epsg4326.tif"
-        )
+        big_logits_path = (Path(output_dir)
+                           / f"mining_logits_{start_date}_{end_date}_epsg4326.tif")
         build_cog(
             input_files=logit_cogs,
             output_path=big_logits_path,
@@ -633,7 +627,7 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
         stac_items.append({
             "type": "Feature",
             "stac_version": "1.0.0",
-            "id": os.path.basename(cog_path),
+            "id": Path(cog_path).name,
             "properties": properties,
             "geometry": {
                 "type": "Polygon",
@@ -648,7 +642,8 @@ def main(input_dir, output_dir, index_out, stac_out, max_workers,
             "bbox": [bounds.left, bounds.bottom, bounds.right, bounds.top],
             "assets": {
                 raster_type: {
-                    "href": cog_path,
+                    # str(): the catalog is JSON, and a Path is not serializable
+                    "href": str(cog_path),
                     "type": "image/tiff; application=geotiff; profile=cloud-optimized"
                 }
             }
@@ -710,9 +705,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     input_dir = args.input_dir
-    output_dir = args.output_dir or os.path.join(input_dir, "cog_outputs")
-    index_out = args.index_out or os.path.join(output_dir, "tile_index.parquet")
-    stac_out = args.stac_out or os.path.join(output_dir, "stac_catalog.json")
+    output_dir = Path(args.output_dir or Path(input_dir) / "cog_outputs")
+    index_out = args.index_out or output_dir / "tile_index.parquet"
+    stac_out = args.stac_out or output_dir / "stac_catalog.json"
 
     main(input_dir, output_dir, index_out, stac_out, args.max_workers,
          extent_mode=args.extent_mode, raster_types=tuple(args.raster_types))
