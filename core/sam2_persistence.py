@@ -59,10 +59,10 @@ from rasterio.windows import Window
 from skimage.graph import MCP_Geometric
 
 try:
-    from .persistence import PersistenceConfig
+    from .persistence import PersistenceConfig, Period
     from .sam2_logits import MASK_NODATA
 except ImportError:
-    from persistence import PersistenceConfig
+    from persistence import PersistenceConfig, Period
     from sam2_logits import MASK_NODATA
 
 REPO = Path(__file__).resolve().parent.parent
@@ -109,18 +109,65 @@ class MaskPersistenceConfig:
 # inputs
 # --------------------------------------------------------------------------
 
+#: Runs contributing mask to a band group. The Andes supplemental is a second
+#: pass at a lower raw threshold over ground *inside* Amazon_ACA, so its masks
+#: are additional coverage of the same band groups, not separate regions --
+#: omitting it left utm18 lat[-16,-8] 86% below the published product.
+RUN_PATTERNS = ("Amazon_ACA*_{y}-01-01_{y}-12-31_t0.43*",
+                "andes_supplemental*_{y}-01-01_{y}-12-31")
+
+
 def band_group_paths(sam2_root: Path, years: Sequence[int], group: str,
-                     pattern: str = "Amazon_ACA*_{y}-01-01_{y}-12-31_t0.43*"
-                     ) -> Dict[int, Path]:
-    """Per-year mask mosaic for one UTM/lat band group."""
-    out = {}
+                     patterns: Sequence[str] = RUN_PATTERNS
+                     ) -> Dict[int, List[Path]]:
+    """Per-year mask mosaics for one UTM/lat band group, across runs.
+
+    A year maps to *every* run's mosaic for that group; the driver unions them.
+    Detections are deduplicated where the runs overlap, but masks need no
+    equivalent step -- the union is idempotent, so a pixel masked by both runs is
+    simply masked.
+    """
+    out: Dict[int, List[Path]] = {}
     for year in years:
-        hits = glob.glob(str(sam2_root / pattern.format(y=year) / "cog_outputs"
-                             / f"mining_mask_*_{group}_epsg4326.tif"))
-        if len(hits) > 1:
-            raise ValueError(f"{year} {group}: {len(hits)} candidates")
+        found: List[Path] = []
+        for pattern in patterns:
+            for hit in glob.glob(str(sam2_root / pattern.format(y=year)
+                                     / "cog_outputs"
+                                     / f"mining_mask_*_{group}_epsg4326.tif")):
+                found.append(Path(hit))
+        if found:
+            out[year] = sorted(found)
+    return out
+
+
+def encode_period(tag: str) -> int:
+    """Sortable uint16 code for a period tag: ``2024`` -> 2024, ``Q125`` -> 20251.
+
+    Chronological under plain comparison (2024 < 20251 < 20252 < 20261), so any
+    cumulative is ``0 < onset <= code``. Years and quarters share one raster,
+    which is what makes the year-boundary supersede structural: quarters are only
+    emitted for years the rule cannot yet resolve, so recomputing after the next
+    annual lands replaces them with the confirmed year automatically.
+    """
+    period = Period.parse(tag)
+    return period.year if period.is_annual else period.year * 10 + period.quarter
+
+
+def quarter_group_paths(sam2_root: Path, quarters: Sequence[str], group: str
+                        ) -> Dict[str, List[Path]]:
+    """Per-quarter diff-mask mosaics for one band group.
+
+    Quarterly SAM2 runs segment the *increment* (patch_diffs), not the period, so
+    these cover only locations new to that quarter.
+    """
+    out: Dict[str, List[Path]] = {}
+    for tag in quarters:
+        span = Period.parse(tag).date_span
+        hits = [Path(h) for h in glob.glob(str(
+            sam2_root / f"*growth_{tag}" / "cog_outputs"
+            / f"mining_mask_{span}_{group}_epsg4326.tif"))]
         if hits:
-            out[year] = Path(hits[0])
+            out[tag] = sorted(hits)
     return out
 
 
@@ -235,10 +282,15 @@ def attribute(mask: np.ndarray, seeds: np.ndarray, config: MaskPersistenceConfig
     raise ValueError(f"unknown attribution rule {rule!r}")
 
 
-def confirmed_detection_mask(dets: gpd.GeoDataFrame, sindex, through_year: int,
-                             transform: rasterio.Affine, window: Window
-                             ) -> np.ndarray:
-    """Rasterize detections confirmed at or before ``through_year``."""
+def selected_detection_mask(dets: gpd.GeoDataFrame, sindex, through_code: int,
+                            transform: rasterio.Affine, window: Window,
+                            statuses: Tuple[str, ...] = ("confirmed",)
+                            ) -> np.ndarray:
+    """Rasterize detections selected at or before ``through_code``.
+
+    ``statuses`` is ``("confirmed",)`` for annual onsets and includes
+    ``"provisional"`` at the quarterly edge, where nothing is confirmed yet.
+    """
     win_transform = rasterio.windows.transform(window, transform)
     bounds = rasterio.windows.bounds(window, transform)
     hits = list(sindex.intersection(bounds))
@@ -246,7 +298,7 @@ def confirmed_detection_mask(dets: gpd.GeoDataFrame, sindex, through_year: int,
     if not hits:
         return np.zeros(shape, dtype=bool)
     sub = dets.iloc[hits]
-    sub = sub[(sub["status"] == "confirmed") & (sub["onset_year"] <= through_year)]
+    sub = sub[sub["status"].isin(statuses) & (sub["_code"] <= through_code)]
     if sub.empty:
         return np.zeros(shape, dtype=bool)
     return rasterio.features.rasterize(
@@ -259,9 +311,11 @@ def confirmed_detection_mask(dets: gpd.GeoDataFrame, sindex, through_year: int,
 # driver
 # --------------------------------------------------------------------------
 
-def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
+def build_onset_raster(mask_paths: Dict[int, List[Path]], detections: Path,
                        out_path: Path, config: MaskPersistenceConfig,
-                       cap_px: Optional[float] = None) -> dict:
+                       cap_px: Optional[float] = None,
+                       quarter_paths: Optional[Dict[str, List[Path]]] = None
+                       ) -> dict:
     """Write the onset-year raster for one band group.
 
     Windows are read with a ``cap_px`` halo and only their interior is written:
@@ -270,10 +324,13 @@ def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
     arbitrary boundary.
     """
     years = sorted(mask_paths)
-    paths = [mask_paths[y] for y in years]
-    transform, width, height = union_grid(paths)
+    quarter_paths = quarter_paths or {}
+    quarters = sorted(quarter_paths, key=encode_period)
+    flat = ([p for y in years for p in mask_paths[y]]
+            + [p for q in quarters for p in quarter_paths[q]])
+    transform, width, height = union_grid(flat)
     if cap_px is None:
-        cap_px = config.cap_px or derive_cap_px(paths, config)
+        cap_px = config.cap_px or derive_cap_px(flat, config)
     halo = int(math.ceil(cap_px)) + 2
 
     resolvable = years[:len(years) - config.window + 1]
@@ -281,7 +338,8 @@ def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
     print(f"  onset candidates: {resolvable[0]}-{resolvable[-1]} "
           f"(window {config.window} needs {config.window - 1} following year(s))")
 
-    dets = gpd.read_file(detections, columns=["onset_year", "status"])
+    dets = gpd.read_file(detections, columns=["onset", "onset_year", "status"])
+    dets["_code"] = [encode_period(v) for v in dets["onset"]]
     sindex = dets.sindex
 
     profile = dict(driver="GTiff", height=height, width=width, count=1,
@@ -307,8 +365,10 @@ def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
                 ph = min(height, row + h + halo) - pr
                 padded = Window(pc, pr, pw, ph)
 
-                stack = np.stack([read_on_grid(p, transform, padded) == 1
-                                  for p in paths])
+                stack = np.stack([
+                    np.logical_or.reduce([read_on_grid(p, transform, padded) == 1
+                                          for p in mask_paths[y]])
+                    for y in years])
                 if not stack.any():
                     continue
 
@@ -318,11 +378,30 @@ def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
                     persistent = (mask_onset >= 0) & (mask_onset <= idx)
                     if not persistent.any():
                         continue
-                    seeds = confirmed_detection_mask(
+                    seeds = selected_detection_mask(
                         dets, sindex, year, transform, padded)
                     admitted = attribute(persistent, seeds, config, cap_px)
                     fresh = admitted & (onset == NO_ONSET)
                     onset[fresh] = year
+
+                # Quarterly edge: no corroboration is possible yet, so a
+                # quarter's diff mask is admitted wherever a provisional
+                # detection of that quarter can reach it. Applied after the
+                # annual years so a confirmed onset always wins -- which is also
+                # why re-running after the next annual supersedes these.
+                for tag in quarters:
+                    code = encode_period(tag)
+                    diff = np.logical_or.reduce(
+                        [read_on_grid(p, transform, padded) == 1
+                         for p in quarter_paths[tag]])
+                    if not diff.any():
+                        continue
+                    seeds = selected_detection_mask(
+                        dets, sindex, code, transform, padded,
+                        statuses=("confirmed", "provisional"))
+                    admitted = attribute(diff, seeds, config, cap_px)
+                    fresh = admitted & (onset == NO_ONSET)
+                    onset[fresh] = code
 
                 interior = onset[row - pr:row - pr + h, col - pc:col - pc + w]
                 if interior.any():
@@ -335,6 +414,34 @@ def build_onset_raster(mask_paths: Dict[int, Path], detections: Path,
     return stats
 
 
+def mosaic_onset_rasters(rasters: Sequence[Path], out_path: Path,
+                         blocksize: int = 512) -> dict:
+    """Merge the per-band onset rasters into one COG.
+
+    Band groups partition the basin -- a tile belongs to exactly one, by its
+    centre -- so the parts are disjoint and a plain mosaic is exact. No derived
+    band, no pixel function: the expensive union happened upstream.
+    """
+    import subprocess
+    import tempfile
+
+    rasters = [Path(r) for r in rasters]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="onset_mosaic_") as tmp:
+        vrt = Path(tmp) / "onset.vrt"
+        subprocess.run(["gdalbuildvrt", "-srcnodata", str(NO_ONSET),
+                        "-vrtnodata", str(NO_ONSET), str(vrt)]
+                       + [str(r) for r in rasters], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(["gdal_translate", str(vrt), str(out_path), "-of", "COG",
+                        "-co", "COMPRESS=ZSTD", "-co", f"BLOCKSIZE={blocksize}",
+                        "-co", "BIGTIFF=YES", "-co", "NUM_THREADS=ALL_CPUS",
+                        "-a_nodata", str(NO_ONSET)],
+                       check=True, capture_output=True, text=True)
+    with rasterio.open(out_path) as ds:
+        return dict(width=ds.width, height=ds.height, parts=len(rasters))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -343,7 +450,13 @@ def main() -> None:
                     default=REPO / "data/outputs/sam2")
     ap.add_argument("--years", type=int, nargs="+",
                     default=list(range(2018, 2026)))
-    ap.add_argument("--group", required=True,
+    ap.add_argument("--quarters", nargs="*", default=[],
+                    help="Quarterly diff runs to append at the provisional edge, "
+                         "e.g. --quarters Q125 Q225")
+    ap.add_argument("--mosaic", type=Path, default=None,
+                    help="Merge existing per-band onset rasters into this COG "
+                         "and exit; --group is then ignored")
+    ap.add_argument("--group", default=None,
                     help="band group tag, e.g. utm21_lat_-8_0")
     ap.add_argument("--detections", type=Path, default=(
         REPO / "data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative"
@@ -359,20 +472,40 @@ def main() -> None:
     ap.add_argument("--window", type=int, default=defaults.window)
     args = ap.parse_args()
 
+    if args.mosaic:
+        outdir = args.outdir or (REPO / "data/outputs/sam2/persistence_masks")
+        parts = sorted(Path(outdir).glob("mask_onset_*_bounded_growth.tif"))
+        if not parts:
+            raise SystemExit(f"no per-band onset rasters in {outdir}")
+        info = mosaic_onset_rasters(parts, args.mosaic)
+        print(f"{info['parts']} band rasters -> {info['width']:,}x{info['height']:,}"
+              f"  {args.mosaic}")
+        return
+    if not args.group:
+        raise SystemExit("--group is required (or use --mosaic)")
+
     config = MaskPersistenceConfig(
         k=args.k, window=args.window, attribution=args.attribution,
         cap_px=args.cap_px, window_px=args.window_px)
 
     paths = band_group_paths(args.sam2_root, args.years, args.group)
     missing = sorted(set(args.years) - set(paths))
-    print(f"{args.group}: {len(paths)} of {len(args.years)} years"
+    n_runs = sum(len(v) for v in paths.values())
+    print(f"{args.group}: {len(paths)} of {len(args.years)} years, "
+          f"{n_runs} run-mosaics"
           + (f"  (missing {missing})" if missing else ""))
     if len(paths) < config.window:
         raise SystemExit(f"need at least {config.window} years")
 
     outdir = args.outdir or (REPO / "data/outputs/sam2/persistence_masks")
     out = outdir / f"mask_onset_{args.group}_{config.attribution}.tif"
-    stats = build_onset_raster(paths, args.detections, out, config)
+    qpaths = quarter_group_paths(args.sam2_root, args.quarters, args.group)
+    if args.quarters:
+        missing = [q for q in args.quarters if q not in qpaths]
+        print(f"  quarterly edge: {len(qpaths)} of {len(args.quarters)} runs"
+              + (f"  (missing {missing})" if missing else ""))
+    stats = build_onset_raster(paths, args.detections, out, config,
+                               quarter_paths=qpaths)
     print(f"\n  {stats['onset_px']:,} confirmed px in "
           f"{stats['nonempty']:,}/{stats['windows']:,} windows -> {out}")
 
