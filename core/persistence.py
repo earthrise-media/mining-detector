@@ -374,7 +374,7 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
                             periods: Sequence[Period],
                             outdir: Path,
                             stem: str,
-                            patch_diffs: bool = False,
+                            patch_diffs: bool = True,
                             precision: int = PostprocessConfig.coordinate_precision
                             ) -> List[Tuple[Period, int, int]]:
     """Write one cumulative patch layer per period.
@@ -383,8 +383,9 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
     redundant with ``layer`` -- each is a filter on ``onset`` -- but are what
     consumers actually load, and per-period files are what QGIS wants for review.
 
-    ``patch_diffs`` additionally writes each period's new patches to
-    ``patch_diffs/``. These are the SAM2 prompt set for quarterly segmentation:
+    ``patch_diffs`` writes each period's new patches to ``patch_diffs/``. On by
+    default: these are the SAM2 prompt set for quarterly segmentation, so the
+    quarterly masks cannot be built without them. Specifically:
     the quarter's detections minus everything already accumulated, which is what
     keeps SAM2 off the cloud-wrecked bulk of a quarterly mosaic. Note the
     threshold differs by cadence and that is deliberate -- annual increments come
@@ -393,10 +394,10 @@ def write_cumulative_series(layer: gpd.GeoDataFrame,
     looser quarterly prompt to be promoted into. See the planning doc,
     "Quarterly masks: segment the diff, not the period".
 
-    Off by default because the published product does not need them: for patches
-    the increment is just the rows carrying that onset, recoverable from any
-    cumulative. The published increments are the dissolved polygons, which are
-    genuinely not recoverable by filtering -- see write_dissolved_series.
+    They are not part of the published product -- for patches the increment is
+    just the rows carrying that onset, recoverable from any cumulative. The
+    published increments are the dissolved polygons, which are genuinely not
+    recoverable by filtering; see write_dissolved_series.
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -638,8 +639,9 @@ if __name__ == "__main__":
                         help="Skip the Andes supplemental union")
     parser.add_argument("--no-series", action="store_true",
                         help="Write only the first-detection layer, not the per-period series")
-    parser.add_argument("--patch-diffs", action="store_true",
-                        help="Also write per-period new patches to patch_diffs/")
+    parser.add_argument("--no-patch-diffs", dest="patch_diffs",
+                        action="store_false",
+                        help="Skip patch_diffs/; they are the SAM2 quarterly prompt set")
     parser.add_argument("--dissolve", action="store_true",
                         help=("Also write dissolved cumulative polygons and their "
                               "geometric yearly increments to <outdir>_dissolved/"))
