@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -253,10 +254,24 @@ def stage_cog(periods, dry) -> int:
     return rc
 
 
+#: Band group in a per-band mask COG name, e.g. utm21_lat_-16_-8.
+GROUP_RE = re.compile(
+    r"^mining_mask_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}_(utm\S+?)_epsg4326\.tif$")
+
+
 def stage_persist_masks(periods, dry) -> int:
     quarters = [t for t in periods if not Period.parse(t).is_annual]
-    groups = sorted({g for p in SAM2.glob("*/cog_outputs/mining_mask_*utm*.tif")
-                     for g in [p.name.split("_epsg4326")[0].split("_", 3)[-1]]})
+    # mining_mask_<start>_<end>_<group>_epsg4326.tif. Matched explicitly rather
+    # than by maxsplit on "_": the group itself contains underscores, so a
+    # maxsplit off by one silently yields "2018-12-31_utm17_lat_-8_0" and every
+    # downstream glob then matches nothing while the run still reports success.
+    names = [p.name for p in SAM2.glob("*/cog_outputs/mining_mask_*utm*.tif")]
+    groups = sorted({m.group(1) for m in (GROUP_RE.match(n) for n in names) if m})
+    unparsed = [n for n in names if not GROUP_RE.match(n)]
+    if unparsed or not groups:
+        raise SystemExit(
+            f"could not parse band group from {len(unparsed)} filename(s), "
+            f"e.g. {unparsed[:2]}; got {len(groups)} groups")
     rc = 0
     for g in groups:
         rc |= run([sys.executable, str(CORE / "sam2_persistence.py"),
