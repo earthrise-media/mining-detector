@@ -233,8 +233,16 @@ def write_sidecar(kind: str, directory: Path, dry_run: bool) -> None:
 
 
 def copy(src: Path, dst: Path, dry_run: bool) -> str:
-    """Copy unless an identical-size destination is already there."""
-    if dst.exists() and dst.stat().st_size == src.stat().st_size:
+    """Copy unless the destination is already the same size and no older.
+
+    Size alone is not enough. A rebuilt raster can land at the same byte count
+    as the one it replaces -- the master onset COG differed by 58 KB out of
+    63 MB after a bug fix, which is well inside coincidence -- and a size-only
+    check would then keep the stale copy silently. The mtime comparison costs
+    nothing and turns that into a copy.
+    """
+    if (dst.exists() and dst.stat().st_size == src.stat().st_size
+            and dst.stat().st_mtime >= src.stat().st_mtime):
         return "skip"
     if not dry_run:
         dst.parent.mkdir(parents=True, exist_ok=True)
