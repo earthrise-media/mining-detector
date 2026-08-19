@@ -1336,6 +1336,13 @@ Implementation phase (to do):
 - [x] **`t_prov,annual`** — moot: the provisional edge is published as quarters, so no annual layer is published provisionally. Only `t_prov,quarterly` is reached.
 - [x] **Calibrate `t_prov,mask`** — done 2026-08-18: **0**, no tightening. F1 peaks there and logits separate confirmed from rejected too weakly for a cutoff to act on; see above.
 - [x] **Decide whether to save upsampled/smoothed logits** rather than raw `log_odds` — done 2026-08-18: stored smoothed, so a provisional mask is a true re-threshold. Archive migrated by `scripts/convert_logits_to_smoothed.py` (115,749 tiles, 16 differing by 1-3 px).
+- [ ] **Fold in `collated_areas`.** Draft on the `collated_areas` branch (2 commits
+      ahead of main, `18b8161`): `scripts/boundaries/collate_jurisdiction_yearly.ipynb`,
+      which rolls mask area up to jurisdictions for the website. Written against the
+      pre-persistence masks, so the onset raster changes what it reads — any cumulative
+      is now `0 < onset <= code` rather than a per-period mask, and the area correction
+      is 0.68. Untracked outputs already exist at
+      `data/boundaries/jurisdiction_yearly_20260724.{csv,parquet}`.
 - [ ] **Track `area_analysis/`?** This document now quotes 0.68 for the mask area
       correction, but the derivation behind it — method, controls, size dependence,
       the reconciliation with GaTech's reported figures — lives only in an untracked
