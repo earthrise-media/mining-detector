@@ -369,20 +369,27 @@ def build_onset_raster(mask_paths: Dict[int, List[Path]], detections: Path,
                     np.logical_or.reduce([read_on_grid(p, transform, padded) == 1
                                           for p in mask_paths[y]])
                     for y in years])
-                if not stack.any():
-                    continue
 
-                mask_onset = mask_onset_index(stack, config)
+                # Do NOT skip the window when the annual stack is empty: a
+                # location first segmented in a quarter has no annual mask
+                # anywhere in its window, and an early-out here dropped exactly
+                # the newest mining. Found on Q226 detections near
+                # 8.106S 55.740W, where 4,221 quarterly pixels sat in a window
+                # with zero annual coverage.
                 onset = np.zeros((ph, pw), dtype=np.uint16)
-                for idx, year in enumerate(resolvable):
-                    persistent = (mask_onset >= 0) & (mask_onset <= idx)
-                    if not persistent.any():
-                        continue
-                    seeds = selected_detection_mask(
-                        dets, sindex, year, transform, padded)
-                    admitted = attribute(persistent, seeds, config, cap_px)
-                    fresh = admitted & (onset == NO_ONSET)
-                    onset[fresh] = year
+                if stack.any():
+                    mask_onset = mask_onset_index(stack, config)
+                    for idx, year in enumerate(resolvable):
+                        persistent = (mask_onset >= 0) & (mask_onset <= idx)
+                        if not persistent.any():
+                            continue
+                        seeds = selected_detection_mask(
+                            dets, sindex, year, transform, padded)
+                        admitted = attribute(persistent, seeds, config, cap_px)
+                        fresh = admitted & (onset == NO_ONSET)
+                        onset[fresh] = year
+                elif not quarters:
+                    continue        # nothing annual, and no quarterly edge to add
 
                 # Quarterly edge: no corroboration is possible yet, so a
                 # quarter's diff mask is admitted wherever a provisional
