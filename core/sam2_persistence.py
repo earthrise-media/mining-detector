@@ -468,7 +468,7 @@ def main() -> None:
     ap.add_argument("--detections", type=Path, default=(
         REPO / "data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative"
         / "Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble"
-          "_detections_first_year.geojson"))
+          "_detections.geojson"))
     ap.add_argument("--outdir", type=Path, default=None)
     ap.add_argument("--attribution", choices=ATTRIBUTION_RULES,
                     default=defaults.attribution)

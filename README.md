@@ -18,9 +18,9 @@ Quick links:
 
 Notes on earlier model releases (November 2025 foundation-model experiments, March 2024 CNN rebuild, and prior vintages) remain in git history: see the [README at commit `2ce1738`](https://github.com/earthrise-media/mining-detector/blob/2ce17387445321b4d9cb8292e015386390c853f1/README.md).
 
-## July 2026 updates
+## August 2026 updates
 
-In July 2026 we published a full rebuild of Amazon Mining Watch models and data, to improve model sensitivity and to account for monitoring conditions on shorter time intervals (especially, increased cloud cover).
+In August 2026 we published a full rebuild of Amazon Mining Watch models and data, to improve model sensitivity and to account for monitoring conditions on shorter time intervals (especially, increased cloud cover).
 
 * **Models rebuilt from the ground up.** The production detector is an ensemble of convolutional networks trained from scratch on Sentinel-2 image patches. Details are in the [Methodology](#methodology).
 
@@ -29,6 +29,8 @@ In July 2026 we published a full rebuild of Amazon Mining Watch models and data,
 * **New output data, 2018–present.** Detections have been recomputed yearly for  2018-2025 and quarterly starting in 2025.  The new data provides a consistent time series from the beginning of monitoring and removes the earlier break where older years and newer years came from different model generations.
 
 * **Improved handling of clouds.**  The new model gracefully suppresses cloud artefacts, important for monitoring on shorter time windows. Especially at the start of each year, low-cloud satellite views are typically unavailable over large parts of the Amazon basin.
+
+* **Detections corroborated across time.** A detection now enters the cumulative record once it appears in two annual periods within a two-year window, rather than by clearing a stricter confidence threshold. The most recent periods have no later year to corroborate against and are published as provisional. Details are under [Persistence](#persistence).
 
 Published products and download links are summarized under [Results](#results).
 
@@ -59,7 +61,7 @@ On the whole, false detections are relatively few given how widespread the minin
 
 #### Detection accuracy
 
-The Amazon basin is enormous: for each period the model scores on the order of a hundred million patches. By contrast, the labeled evaluation sets consists of thousand examples. Metrics on those labels are useful, but they are not a full census of performance across Amazonia. See [Model training and evaluation](#model-training-and-evaluation) for how we report **sensitivity** (share of labeled mines found) and **specificity** (share of labeled non-mines correctly rejected), and for the numbers attached to the recommended single-period and cumulative products.
+The Amazon basin is enormous: for each period the model scores on the order of a hundred million patches. By contrast, the labeled evaluation sets consists of thousand examples. Metrics on those labels are useful, but they are not a full census of performance across Amazonia. See [Model training and evaluation](#model-training-and-evaluation) for how we report **sensitivity** (share of labeled mines found) and **specificity** (share of labeled non-mines correctly rejected), and for the numbers attached to the recommended single-period product.
 
 #### Area estimation
 
@@ -123,7 +125,7 @@ We report performance with two complementary rates:
 * **Sensitivity** (also called *recall*) — of the sites we labeled as mines, what fraction does the system flag? (How completely do we catch known mines?)
 * **Specificity** — of the sites we labeled as *not* mines, what fraction does the system correctly leave alone? (How successfully do we reject non-mines?)
 
-For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed_t0.43_d5_3km_t-iso0.75/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of the F0.5 curve, and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
+For **individual years or quarters**, we recommend the relaxed dual-threshold product under [`postprocessed/`](https://source.coop/earthgenome/amazon-mining-watch/postprocessed) on Source Cooperative. The main confidence cutoff (`t_main = 0.43`) sits at the peak of the F0.5 curve, and isolated candidate patches must clear a higher bar (`t_iso = 0.75`). That is our most deliberate tuning of the catch-mines vs. avoid-false-alarms tradeoff for single-period maps.
 
 On that product:
 
@@ -138,20 +140,21 @@ Architectures we tested before settling on the production ensemble included ~100
 
 After inference we apply a dual confidence threshold based on a simple spatial prior: patches with mine scars tend to cluster. Candidate patches must meet a main confidence cutoff; isolated patches (far from other candidates) must meet a higher cutoff. That two-tier rule removes scattershot noise and preserves more true mines than imposing a uniformly strict cutoff.
 
-### Cumulative detections
+### Persistence
 
-In recent years Amazon Mining Watch has emphasized cumulative detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. Because both true coverage and errors accumulate year on year, we use stricter confidence settings for cumulatives than for single-period maps: product folder [`postprocessed_t0.55_d5_3km_t-iso0.8/`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) (`t_main = 0.55`, `t_iso = 0.8`). Metrics on that operating point (as of the July 2026 rebuild):
+Amazon Mining Watch emphasizes cumulative detections: the union of mining evidence from the start of monitoring in 2018 through each later date. In our view that best establishes a historical record of lands impacted by mining since monitoring began. But errors accumulate year on year alongside true coverage, so a cumulative needs a defence against false detections that a single-period map does not.
 
-* Venezuela holdout: specificity **1.0**, sensitivity **0.720**
-* Combined evaluation set: specificity **0.9997**, sensitivity **0.809**
+We now require corroboration across time rather than higher confidence. A detection enters the record as **confirmed** once it appears in two annual periods within a two-year window; the period recorded is the first of those. A confirmed detection is never withdrawn by a later update.
 
-As the cumulative layer grows through time, sensitivity tends to rise and the false-alarm rate among detections tends to worsen somewhat, which is the reason for the stricter thresholds.
+The most recent periods have no later year to corroborate against. Detections there are marked **provisional** and are held to a stricter confidence threshold in place of that corroboration, then replaced by annual data once the corroborating year arrives. Onset is recomputed from the whole period stack at every update rather than patched, so earlier periods do not drift as new data lands.
 
 For the website we also fold in lower-threshold detections (`t_main = 0.2`) for a few small partner regions in Peru ([`data/boundaries/andes_supplemental.geojson`](data/boundaries/andes_supplemental.geojson)), where the goal is to capture very small-scale mining. We found that we could not train against those sites without driving up false detections elsewhere, indicating a practical lower size limit for a Sentinel-2–based system.
 
 ### Area estimation (SAM2)
 
-Patch classification alone overstates or understates scar area. We delineate scars with a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) segmentation model—a clear improvement over estimating area from whole patches or from NDVI masking alone. The model still needs more fine-tuning on hard cases.
+Patch classification alone overstates or understates scar area. We delineate scars with a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) segmentation model—a clear improvement over estimating area from whole patches or from NDVI masking alone. The same two-year corroboration rule is applied at the pixel level, so a mask pixel enters the record when it is segmented in two annual periods within a two-year window.
+
+Segmentation is the least mature part of the pipeline. Measured against 184 hand-annotated validation chips, segmented area runs about 1.5× the annotated extent, so multiply an aggregate area by ~0.68 to estimate true scar area. The bias is largely systematic, which makes comparisons between periods more trustworthy than any single total. The model still needs more fine-tuning on hard cases.
 
 We gratefully acknowledge **Michael Braun**, **Daemon Li**, and **Divas Subedi**, master’s students in the Department of Computer Science at Georgia Tech, for developing the fine-tuned SAM2 segmentation model as part of their course work.
 
@@ -159,19 +162,21 @@ We gratefully acknowledge **Michael Braun**, **Daemon Li**, and **Divas Subedi**
 
 Historical result tables and maps from earlier model generations are retained in git; see the [Results section of the README at `2ce1738`](https://github.com/earthrise-media/mining-detector/blob/2ce17387445321b4d9cb8292e015386390c853f1/README.md#results).
 
-### July 2026 data products
+### August 2026 data products
 
 Bulk outputs are not stored in this git repository. (They are multiple gigabytes.) Public copies live on [Source Cooperative — earthgenome/amazon-mining-watch](https://source.coop/earthgenome/amazon-mining-watch). An in-repo catalog of product layout, thresholds, and mirror paths can be found at [`data/outputs/MANIFEST.yaml`](data/outputs/MANIFEST.yaml).
 
 Browse folders and download via the product page ([source.coop](https://source.coop/earthgenome/amazon-mining-watch)). Programmatic download of individual files is available via `https://data.source.coop/earthgenome/amazon-mining-watch/<path/to/file>`.
 
-| Product | What it is | Browse on Source Cooperative |
+| Product | What it is | On Source Cooperative |
 | --- | --- | --- |
-| **Cumulative detections** | Year-end and quarterly cumulatives (2018→tag) used on the website, plus period-over-period `diffs/` | [`cumulative_detections`](https://source.coop/earthgenome/amazon-mining-watch/cumulative_detections) |
-| **Single-period, recommended** | Dual-threshold postprocess for individual years/quarters (`t_main=0.43`, `t_iso=0.75`) | [`single_periods/postprocessed_t0.43_d5_3km_t-iso0.75`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75) |
-| **Single-period, stringent** | Same dual-threshold rule at cumulative settings (`t_main=0.55`, `t_iso=0.8`) | [`single_periods/postprocessed_t0.55_d5_3km_t-iso0.8`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8) |
-| **Raw detections** | Patches with confidence ≥ 0.4 before dual-threshold filtering (Amazon ACA; Andes supplemental nested underneath) | [`single_periods/raw_detections`](https://source.coop/earthgenome/amazon-mining-watch/single_periods/raw_detections) |
-| **Mining scar masks** | SAM2 COG rasters for area estimation (yearly masks and quarterly `*_full` mosaics) | [`mining_scar_masks`](https://source.coop/earthgenome/amazon-mining-watch/mining_scar_masks) |
+| **Detections** | The primary product: one entry per location, with model confidence, the period mining was first confirmed, and confirmed or provisional status. Every cumulative is a filter on this — for mining confirmed through 2023, take the entries whose first-confirmed period is ≤ 2023. | [`amazon_basin_detections.geojson`](https://data.source.coop/earthgenome/amazon-mining-watch/amazon_basin_detections.geojson) |
+| **Scar masks** | The raster analogue, at 10 m. Pixel values are the period: a year is the year, a quarter is `year*10+quarter`, so Q1 2025 is `20251`. Zero means no confirmed mining. A `.tif.aux.xml` alongside holds precomputed statistics for GIS rendering. | [`amazon_basin_mining_scar_masks.tif`](https://data.source.coop/earthgenome/amazon-mining-watch/amazon_basin_mining_scar_masks.tif) |
+| **Single-period, recommended** | Dual-threshold postprocess for individual years and quarters (`t_main=0.43`, `t_iso=0.75`), unaggregated. Also the set the segmentation model is prompted from. | [`postprocessed`](https://source.coop/earthgenome/amazon-mining-watch/postprocessed) |
+| **Raw detections** | Patches with confidence ≥ 0.4 before dual-threshold filtering, Amazon basin and Andes supplemental together in one folder. | [`raw_detections`](https://source.coop/earthgenome/amazon-mining-watch/raw_detections) |
+| **Archive** | Published January 2026 from a superseded experimental model, retained for the record. Extensively cleaned by hand, which is both its limitation and its virtue. | [`archived`](https://source.coop/earthgenome/amazon-mining-watch/archived) |
+
+The per-period cumulative files and the stringent `t_main=0.55` single-period set were published earlier in 2026 and have been removed: the first-year layers replace the former, and the latter now serves only as the provisional-edge threshold described under [Persistence](#persistence).
 
 Model file (in this repo): [`models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5`](models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5).
 

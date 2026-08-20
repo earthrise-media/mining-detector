@@ -342,7 +342,7 @@ def stage_persist_masks(periods, dry) -> int:
                    "--outdir", str(SAM2 / "persistence_masks")], dry)
     rc |= run([sys.executable, str(CORE / "sam2_persistence.py"), "--mosaic",
                str(SAM2 / "persistence_masks"
-                   / "amazon_basin_mining_scar_masks_first_year.tif"),
+                   / "amazon_basin_mining_scar_masks.tif"),
                "--outdir", str(SAM2 / "persistence_masks")], dry)
     return rc
 

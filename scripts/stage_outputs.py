@@ -483,10 +483,10 @@ def singleton_items():
     stage_singletons() cannot disagree about what belongs at the top of a tree.
     """
     return [
-        (BASE / "cumulative" / f"Amazon_ACA_{MODEL}_detections_first_year.geojson",
-         "amazon_basin_detections_first_year.geojson", (SOURCE_COOP, GS)),
-        (SAM2 / "persistence_masks" / "amazon_basin_mining_scar_masks_first_year.tif",
-         "amazon_basin_mining_scar_masks_first_year.tif", (SOURCE_COOP, GS)),
+        (BASE / "cumulative" / f"Amazon_ACA_{MODEL}_detections.geojson",
+         "amazon_basin_detections.geojson", (SOURCE_COOP, GS)),
+        (SAM2 / "persistence_masks" / "amazon_basin_mining_scar_masks.tif",
+         "amazon_basin_mining_scar_masks.tif", (SOURCE_COOP, GS)),
     ]
 
 

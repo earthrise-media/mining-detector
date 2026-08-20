@@ -26,9 +26,9 @@ vintage that is.
 
 | | |
 | --- | --- |
-| `amazon_basin_detections_first_year.geojson` | The authoritative detection product: one row per location, the year mining was confirmed to have begun, and confirmed/provisional status. Every cumulative derives from it. |
-| `amazon_basin_mining_scar_masks_first_year.tif` | The raster analogue. uint16; years are the year, quarters are `year*10+quarter` (Q125 = 20251), so any cumulative is `0 < onset <= code`. 0 means no confirmed mining. |
-| `amazon_basin_mining_scar_masks_first_year.tif.aux.xml` | GDAL statistics sidecar for the COG above. Keep it. Onset pixels are 0.008% of the raster, so without precomputed statistics QGIS's approximate sampling finds none of them and renders the layer blank. Regenerate with `gdalinfo -stats` if it is ever lost. |
+| `amazon_basin_detections.geojson` | The authoritative detection product: one row per location, the year mining was confirmed to have begun, and confirmed/provisional status. Every cumulative derives from it. |
+| `amazon_basin_mining_scar_masks.tif` | The raster analogue. uint16; years are the year, quarters are `year*10+quarter` (Q125 = 20251), so any cumulative is `0 < onset <= code`. 0 means no confirmed mining. |
+| `amazon_basin_mining_scar_masks.tif.aux.xml` | GDAL statistics sidecar for the COG above. Keep it. Onset pixels are 0.008% of the raster, so without precomputed statistics QGIS's approximate sampling finds none of them and renders the layer blank. Regenerate with `gdalinfo -stats` if it is ever lost. |
 | `raw_detections/` | Per-period, unpostprocessed. Basin at t0.4, andes supplemental at t0.2, flat in one directory. |
 | `postprocessed/` | Per-period at t0.43 / t-iso0.75. The loose set; SAM2 is prompted from this. |
 | `postprocessed_t0.55_d5_3km_t-iso0.8/` | Stringent set. Stands in for temporal corroboration at the provisional edge only. |

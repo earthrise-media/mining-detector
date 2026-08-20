@@ -567,7 +567,7 @@ def main(args: argparse.Namespace) -> None:
     for suffix in (f"_{args.t_main:g}", "_0.40"):
         stem = stem.replace(suffix, "")
 
-    dest = out / f"{stem}_detections_first_year.geojson"
+    dest = out / f"{stem}_detections.geojson"
     layer.to_file(dest, driver="GeoJSON", index=False,
                   COORDINATE_PRECISION=PostprocessConfig.coordinate_precision)
 

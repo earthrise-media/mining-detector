@@ -307,7 +307,7 @@ python sam2_persistence.py --group utm19_lat_-8_0 \
 
 # then mosaic the groups into the master COG
 python sam2_persistence.py --mosaic \
-    ../data/outputs/sam2/persistence_masks/amazon_basin_mining_scar_masks_first_year.tif \
+    ../data/outputs/sam2/persistence_masks/amazon_basin_mining_scar_masks.tif \
     --outdir ../data/outputs/sam2/persistence_masks
 ```
 

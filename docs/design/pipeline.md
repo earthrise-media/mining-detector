@@ -55,8 +55,8 @@ Everything lands under two staging trees, neither ever checked in:
 
 ```
 data/staging_source-coop/          # public: patches only
-  amazon_basin_detections_first_year.geojson
-  amazon_basin_mining_scar_masks_first_year.tif
+  amazon_basin_detections.geojson
+  amazon_basin_mining_scar_masks.tif
   postprocessed/
     amazon_basin_2018_t0.43_t-iso0.75.geojson   ... 2025, Q125 ... Q226
     config.txt

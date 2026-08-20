@@ -35,7 +35,7 @@ are covered by provisional quarterly detections.
 
 | file | what it is |
 | --- | --- |
-| `amazon_basin_detections_first_year.geojson` | One entry per location, carrying model confidence, the period in which mining was first confirmed, and a confirmed or provisional status. |
+| `amazon_basin_detections.geojson` | One entry per location, carrying model confidence, the period in which mining was first confirmed, and a confirmed or provisional status. |
 
 This file replaces the per-period cumulative files published earlier in 2026, which have been removed.
 
@@ -48,8 +48,8 @@ The mining scar raster masks are still in development. They provide
 
 | file | what it is |
 | --- | --- |
-| `amazon_basin_mining_scar_masks_first_year.tif` | Pixelwise mine-scar extent at 10 m Sentinel-2 resolution, from a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) model prompted by the detections above. |
-| `amazon_basin_mining_scar_masks_first_year.tif.aux.xml` | Precomputed statistics to help with rendering in GIS software.|
+| `amazon_basin_mining_scar_masks.tif` | Pixelwise mine-scar extent at 10 m Sentinel-2 resolution, from a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) model prompted by the detections above. |
+| `amazon_basin_mining_scar_masks.tif.aux.xml` | Precomputed statistics to help with rendering in GIS software.|
 
 
 ### Confirmed and provisional detections
