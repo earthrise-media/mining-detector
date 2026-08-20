@@ -12,38 +12,79 @@
 # path_map.source_coop values below are prefixes under the product root (not full URLs).
 
 schema_version: 1
-updated: 2026-07-24
+updated: 2026-08-19
 
 license: CC-BY-4.0
 contact: info@earthgenome.org
 
 stores:
+  # Three buckets, split by how the data behaves rather than by project:
+  # small-and-precious (versioned), working, and bulk (archived).
+  amw_published:
+    visibility: internal
+    root: gs://amw-published
+    versioning: enabled, noncurrent versions expire after 90 days
+    storage_class: standard
+    notes: >
+      **The data store of record.** Published detection and mine-scar outputs
+      for the current model, ~30 GB dominated by SAM2 logits. Source Cooperative
+      mirrors the public subset from here; never the reverse. If the two
+      disagree, this bucket is correct. Carries its own README.md.
+
+      Holds more than is public: the t0.55 series, cumulative patches, dissolved
+      polygons and per-tile SAM2 outputs are required to produce the next
+      refresh, because persistence recomputes from the full period stack rather
+      than patching incrementally.
+
+  amw_dev:
+    visibility: internal
+    root: gs://amw-dev
+    notes: >
+      Working storage, and the backup of the record at published/, synced
+      bucket-to-bucket (server-side, no local round trip). Also holds
+      prior-model outputs under outputs/ and training patches. Not versioned:
+      the image caches that used to live here made that unaffordable, which is
+      why the record was split out.
+
+  amw_image_caches:
+    visibility: internal
+    root: gs://amw-image-caches
+    storage_class: archive
+    status: planned — caches move here after the current dev cycle
+    notes: >
+      Sentinel-2 image caches, ~1 TB per period, ~14 TB total. Useful only for
+      re-running inference or SAM2 against a new model; Earth Engine can
+      re-serve the imagery, so these are a compute optimisation, not data of
+      record.
+
+      Write new caches to standard or nearline and transition by lifecycle rule:
+      Archive has a 365-day minimum storage duration, so a cache written there
+      and deleted after a dev cycle is billed for the full year regardless.
+      Retrieval is ~$0.05/GB, about $50 for one period.
+
   source_coop:
     visibility: public
     product: https://source.coop/earthgenome/amazon-mining-watch
     browse_root: https://source.coop/earthgenome/amazon-mining-watch
     https_root: https://data.source.coop/earthgenome/amazon-mining-watch
     notes: >
-      Browse folders on browse_root (source.coop). https_root is for individual
-      object keys only; trailing slashes and bare prefixes return InvalidRequest
-      on the data proxy. Prefer browse_root links in public docs.
-    # Example object URL:
-    #   {https_root}/cumulative_detections/..._cumulative2018-2023.geojson
+      Public distribution. Carries the subset intended for outside use:
+      the first-year detection and mask layers, postprocessed per-period
+      detections, and raw detections. Deliberately not the full t0.55 series —
+      publishing two thresholds side by side has caused partners to ask which
+      of t0.43 / t0.55 they should use, which has no good answer outside the
+      provisional-edge context.
 
-  gcs:
-    # Internal Earth Genome redundancy only — not a public distribution channel.
-    visibility: internal
-    root: gs://amw-dev/outputs
-    notes: >
-      Team-only mirror. Layout follows local model-output folder names under
-      outputs/, not the source.coop public tree. Prefer source_coop URLs in
-      public docs and notebooks.
+      Browse folders on browse_root. https_root is for individual object keys
+      only; trailing slashes and bare prefixes return InvalidRequest on the data
+      proxy. Prefer browse_root links in public docs.
 
   local:
     visibility: workspace
-    # Paths relative to the mining-detector repo root (data/outputs/...).
-    # Only older checked-in products (v0.X archive) still have local: entries.
-    outputs_root: data/outputs
+    # Staging trees, built by scripts/stage_outputs.py and pushed wholesale.
+    staging_record: data/staging_gs          # -> gs://amw-published
+    staging_public: data/staging_source-coop # -> source.coop
+    outputs_root: data/outputs               # working outputs, not published
 
 # ---------------------------------------------------------------------------
 # Current production model (2026 recompute) — not stored in git
@@ -71,54 +112,115 @@ products:
         k: 5
         D_km: 3
       andes_supplemental_confidence: 0.2
+      persistence:
+        # Recipe A. A detection or mask pixel enters the confirmed record only
+        # when corroborated in the following year; see
+        # docs/design/persistence-planning.md, "Decision: recipe A".
+        k: 2
+        window_years: 2
+        witnesses: annual        # quarters corroborate nothing; they only display
+        t_prov: 0.55             # instantaneous stand-in at the provisional edge
+        t_prov_mask: 0           # no tightening; logits separate confirmed from
+                                 # rejected too weakly for a cutoff to act on
+        mask_attribution: bounded geodesic growth, cap 43 px (prior-implied)
     periods:
       years: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
       quarters: [Q125, Q225, Q325, Q425, Q126, Q226]
     filename_grammar:
-      raw: >
-        Amazon_ACA_{model}_0.40_{start}_{end}.geojson
-      postprocessed: >
-        Amazon_ACA_{model}_0.40_{start}_{end}_t{t_main}_d{k}_{D}km_t-iso{t_iso}.geojson
-      cumulative: >
-        Amazon_ACA_{model}_t{t_main}_d{k}_{D}km_t-iso{t_iso}_cumulative2018-{tag}.geojson
-      cumulative_diff: >
-        Amazon_ACA_{model}_t{t_main}_d{k}_{D}km_t-iso{t_iso}_cumulative2018-{tag}-diff.geojson
+      # Consumer-facing names deliberately drop the model version and the
+      # isolation parameters, which live here and in a config.txt sidecar
+      # beside each directory. Thresholds are trimmed of trailing zeros.
+      raw: amazon_basin_{tag}_t0.4.geojson
+      raw_andes: andes_supplemental_{tag}_t0.2.geojson
+      postprocessed: amazon_basin_{tag}_t0.43_t-iso0.75.geojson
+      postprocessed_stringent: amazon_basin_{tag}_t0.55_t-iso0.8.geojson
+      cumulative: amazon_basin_cumulative_2018-{tag}.geojson
+      cumulative_dissolved: amazon_basin_cumulative_2018-{tag}-dissolved.geojson
+      growth: amazon_basin_growth_{tag}.geojson
+      detections_onset: amazon_basin_detections.geojson
+      masks_onset: amazon_basin_mining_scar_masks.tif
+      # {tag} is a year (2018) or a quarter (Q125). Superseded grammar, still
+      # present in older vintages on gcs:
+      #   Amazon_ACA_{model}_0.40_{start}_{end}_t{t_main}_d{k}_{D}km_t-iso{t_iso}.geojson
+
     path_map:
-      # source_coop keys are under the public product root; gcs paths are under
-      # gs://amw-dev/outputs/ (shown relative to stores.gcs.root).
-      cumulative_detections:
-        source_coop: cumulative_detections/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative_t0.55_d5_3km_t-iso0.8/
-        notes: Website layers. Includes diffs/ (period-over-period growth).
+      # Local staging trees are built by scripts/stage_outputs.py and pushed
+      # wholesale; source_coop keys are under the public product root, gcs paths
+      # under stores.gcs.root. Published data is *patches*: the dissolved
+      # polygons are a display rendering and stay internal, where the front end
+      # converts them to pmtiles.
+      detections_onset:
+        local: staging_source-coop/amazon_basin_detections.geojson
+        source_coop: amazon_basin_detections.geojson
+        gcs: staging_gs/amazon_basin_detections.geojson
+        notes: >
+          The authoritative detection product. One row per location, carrying
+          the year mining was confirmed to have begun there, plus status
+          (confirmed / provisional). Every cumulative derives from it by
+          filtering on onset, so the per-period cumulatives are a convenience,
+          not a separate source of truth.
 
-      single_periods_raw:
-        source_coop: single_periods/raw_detections/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/
+      masks_onset:
+        local: staging_source-coop/amazon_basin_mining_scar_masks.tif
+        source_coop: amazon_basin_mining_scar_masks.tif
+        gcs: staging_gs/amazon_basin_mining_scar_masks.tif
+        notes: >
+          The raster analogue: uint16, each pixel holding the period its mining
+          was confirmed. Years are the year (2018-2024); quarters are
+          year*10+quarter (Q125 = 20251), so the encoding sorts chronologically
+          and any cumulative is `0 < onset <= code`. 0 means no confirmed
+          mining, and does not distinguish unobserved ground.
 
-      single_periods_raw_andes:
-        source_coop: single_periods/raw_detections/andes_supplemental/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/andes_supplemental/
+      raw_detections:
+        local: staging_source-coop/raw_detections/
+        source_coop: raw_detections/
+        gcs: staging_gs/raw_detections/
+        notes: >
+          Basin and andes supplemental, flat in one directory. Unpostprocessed;
+          the andes pass runs at a lower raw threshold (0.2 against 0.4) over
+          ground inside the basin region, and is clipped to its own boundary.
 
-      single_periods_post_relaxed:
-        source_coop: single_periods/postprocessed_t0.43_d5_3km_t-iso0.75/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.43_d5_3km_t-iso0.75/
+      postprocessed:
+        local: staging_source-coop/postprocessed/
+        source_coop: postprocessed/
+        gcs: staging_gs/postprocessed/
+        notes: The loose per-period set. SAM2 is prompted from this.
 
-      single_periods_post_stringent:
-        source_coop: single_periods/postprocessed_t0.55_d5_3km_t-iso0.8/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.55_d5_3km_t-iso0.8/
+      postprocessed_stringent:
+        gcs: staging_gs/postprocessed_t0.55_d5_3km_t-iso0.8/
+        notes: >
+          Internal. t0.55 stands in for temporal corroboration at the
+          provisional edge only; once a period is confirmable its t0.55 layer
+          has served its purpose. Publishing both thresholds side by side
+          invites the question of which to use, which has no good answer
+          outside that context.
+
+      cumulative:
+        gcs: staging_gs/cumulative/
+        notes: >
+          Internal. Per-period cumulative patches, redundant with
+          detections_onset. patch_diffs/ holds each period's new patches,
+          which are the SAM2 prompt set for quarterly segmentation.
+
+      cumulative_dissolved:
+        gcs: staging_gs/cumulative_dissolved/
+        notes: >
+          Internal display product, with diffs/ carrying the yearly increments
+          as a geometric difference against the running union. Polygons ≤ 11 ha
+          are dropped from the increments, which leaks slightly: a consumer
+          unioning them falls short of the true cumulative. Anyone wanting an
+          exact figure should dissolve the patch layer.
 
       mining_scar_masks:
-        source_coop: mining_scar_masks/
-        gcs: 48px_v4.10b-18d-20g-21a-22bc-ensemble/mining_scar_masks/
+        local: staging_gs/mining_scar_masks/
+        gcs: mining_scar_masks/
         notes: >
-          SAM2 COGs for area estimates. Yearly masks are named
-          mining_mask_{start}_{end}_epsg4326.tif. Quarterly
-          mining_mask_Q{n}{yy}_full.tif files are built from SAM2 masks on
-          that quarter's incremental detections, then OR-merged with the prior
-          full-year mask (and any intervening quarter incrementals) via
-          core/sam2_combine_masks.py — quarterly mosaics have large cloud gaps,
-          so a quarter-only mask would under-cover known scars. Example:
-          Q226_full = 2025 year mask ∪ Q126 incremental ∪ Q226 incremental.
+          Internal. Per-run tile directories (*-msk.tif, *-logits.tif) with a
+          mask_config.txt recording how the logits were made, plus
+          persistence_masks/ holding the per-band onset rasters the master COG
+          is mosaicked from. Logits are stored **smoothed** since 2026-08-18,
+          so thresholding them reproduces the mask directly; earlier vintages
+          do not, and the sidecar is what distinguishes them.
 
   - id: amazon-basin-ssl4eo-archived
     status: archived
@@ -154,9 +256,41 @@ products:
 # ---------------------------------------------------------------------------
 # Accumulation rules (for regenerating cumulatives / interpreting tags)
 # ---------------------------------------------------------------------------
-cumulative_rules:
-  notebook: core/cumulatives_and_diffs.ipynb
-  year_end: union of Amazon postprocessed (t0.55) + Andes supplemental through year Y
-  quarters_2025: through-2024 years + progressive 2025 quarters (exclude full-year 2025)
-  quarters_2026: full years through 2025 + progressive 2026 quarters (no 2025 quarters)
-  diffs: current cumulative minus previous tag; drop polygons ≤ 11 ha
+persistence_rules:
+  # Replaces the cumulatives_and_diffs notebook, retired 2026-08.
+  detections: core/persistence.py
+  masks: core/sam2_persistence.py
+  staging: scripts/stage_outputs.py
+
+  rule: >
+    Recipe A. An onset year Y is confirmed when the location is detected at Y
+    and again within [Y, Y+1]; k=2, window=2, annual witnesses only. Quarters
+    corroborate nothing -- they do not exist before 2025, so admitting them
+    would make the rule stricter for earlier years and break comparability.
+
+  stateless: >
+    Onset is a pure function of the full period stack, so a refresh recomputes
+    rather than patches and cannot drift. This is what makes the year-boundary
+    replacement automatic: quarters are only emitted for years the rule cannot
+    yet resolve, so once the next annual lands they are superseded by the
+    confirmed year with no separate step.
+
+  published_periods: >
+    Annual periods the rule can resolve publish as themselves; past the last of
+    those, the provisional edge publishes as quarters. An annual period covered
+    by its own quarters is loaded as a *witness* but not published -- 2025 lets
+    2024 confirm, yet coverage past 2024 arrives quarterly, so there is no 2025
+    layer.
+
+  provisional_edge: >
+    Provisional entries are **replaced, not promoted**. They come from quarterly
+    composites at t_prov, while the confirmed layer comes from the annual
+    composite at t0.43, so 45.5% of published provisional locations can never
+    confirm. Treat the provisional band as an early indicator, not a draft of
+    the confirmed record.
+
+  diffs: >
+    Dissolved increments are a geometric difference against the running union,
+    not dissolve(patches with onset Y) -- patches overlap by half a width, so
+    the latter would overlap the previous year's polygons instead of
+    partitioning them. Polygons ≤ 11 ha are dropped.
