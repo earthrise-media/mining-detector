@@ -562,16 +562,11 @@ sensitivity/specificity.
   in 792 negatives, so the detector is not over-calling in that terrain -- it is
   missing small workings, which is the same limitation the supplemental label
   experiment below measures directly.
-- **Not comparable with the patch-level figures** quoted for earlier vintages. A
-  chip counts positive if it intersects any detected patch; patch-level scoring
-  runs against a vastly larger negative set and reaches 0.9997 specificity on the
-  same product.
-- **Treat as an estimator, not a test.** The labels were drawn against imagery from
+- **Not comparable with the patch-level figures** quoted for earlier vintages /  **treat as an estimator, not a test.** The labels were drawn against imagery from
   one moment while a cumulative accumulates landscape change after it, so a
   location correctly labelled mine-free may since have been mined and scores as a
   false positive. The inference grid does not align with the training patches
-  either. It is the best measure available for the cumulative product, and it is
-  not a clean one.
+  either. By the nature of a cumulative product, specificity decreases and sensitivity increases as the record grows through time. It is the best measure available for the cumulative product, and it is not a clean one.
 
 ### Detections — basin-wide, annual 2018–2025
 
@@ -647,7 +642,7 @@ could change whether a site appears at all is small and lower-confidence than th
 bulk. Combined with the comparability problem, this is why B was dropped rather
 than pursued.
 
-### Test-set metrics
+### Eval-set metrics
 
 `core/persistence_evaluation.ipynb`, protocol matching `model_evaluation.ipynb`
 §3 (chip positive iff it intersects any patch). Pooled val+test2+test3, 3,879
@@ -656,6 +651,8 @@ the t0.55 provisional layer for annual periods whose window has not closed;
 `[confirmed only]` drops the provisional part. Quarters serve as witnesses in
 B/D but are not themselves added to the layer, so the comparison isolates the
 rule.
+
+These numbers are not comparable to patch-level sensitivty/specificity quoted for earlier vintages. They are derived from the production outputs at the locations labeled for evaluation, not a direct run on image chips from the evaluation datasets. 
 
 | layer | patches | TP | FP | FN | TN | Precision | Recall | Specificity | F1 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -671,18 +668,6 @@ rule.
 | C [confirmed only] | 198,794 | 711 | **29** | 12 | 3127 | 0.9608 | 0.9834 | **0.9908** | 0.9720 |
 | D [confirmed only] | 199,388 | 711 | 31 | 12 | 3125 | 0.9582 | 0.9834 | 0.9902 | 0.9706 |
 
-Specificity carries no information the FP column does not: the negative count is
-3,156 for every row, so it is exactly `1 - FP/3156`. It is tabulated because this
-model generation is reported as sensitivity/specificity elsewhere, not because it
-separates the recipes -- the caveat below applies to it identically.
-
-**These are chip-level and are not comparable with the patch-level
-sensitivity/specificity quoted for earlier vintages.** A chip counts positive if
-it intersects any detected patch, over 3,879 chips; the patch-level figures score
-individual patches over a vastly larger negative set, which is why they run to
-0.9997 specificity while the same product is 0.9883 here. Neither is wrong; they
-answer different questions, and swapping one for the other in the same paragraph
-would read as a regression that did not happen.
 
 **The critical point: this protocol cannot separate the recipes.** The whole
 spread is 5 false-positive chips out of 3,879 — far short of the statistics
@@ -1264,7 +1249,8 @@ where the supplemental went in by plain union with no corroboration required.
 complements of a Peruvian gold-mining database, points carrying `Area_ha`. The
 fullest is `curated2026-04-06`, 1,024 points with **973 inside the supplemental
 boundary**, median area **1.10 ha** against a 23 ha patch. Recall and hit rate
-(share of confirmed patches containing a labelled mine), supplemental only --
+(share of confirmed patches containing a labelled mine) over the t0.10 series in
+`raw_detections_andes_supplemental_t0.10/`, supplemental only --
 main-run detections inside the boundary are redundant, 4 of 576 absent from the
 0.10 set:
 
@@ -1273,6 +1259,11 @@ main-run detections inside the boundary are redundant, 4 of 576 absent from the
 | 0.2 / 0.2 (current) | 551 | 30.3% | 54.6% | — |
 | 0.2 / 0.10 | 966 | 44.4% | 51.3% | 33.0% |
 | 0.10 / 0.10 | 1,190 | 49.1% | 47.8% | 20.5% |
+
+Nothing is lost going down -- a lower threshold only adds candidates -- and of the
+locations newly confirmed at 0.10/0.10, **52% reach 0.2+ in at least one year**:
+the old setup saw them once and lost them only because the *witness* year dipped.
+That asymmetry is why 0.2 detect / 0.10 witness was worth testing.
 
 **No threshold change is the answer.** Both variants buy recall at a worse
 marginal rate than the current set achieves, and on the full basin cumulative the
@@ -1285,35 +1276,6 @@ tested, so half these mines are invisible to the detector rather than
 mis-thresholded. At a median 1.10 ha in a 480 m patch that is a resolution limit,
 not a tuning problem, and it reframes the question from "which threshold" to "what
 size can this detector see".
-
-**A lower detection threshold is the obvious lever, and it is on disk** at
-`raw_detections_andes_supplemental_t0.10/`. Applying the same k=2 window=2 rule:
-
-| rule (detect / witness) | confirmed andes-only |
-| --- | --- |
-| 0.2 / 0.2 (current) | 320 |
-| 0.3 / 0.10 | 391 |
-| **0.2 / 0.10** | **678** |
-| 0.10 / 0.10 | 897 |
-
-Nothing is lost going down -- lowering the threshold only adds candidates -- so
-0.10/0.10 nearly triples the confirmed set. The gain splits in two, though: of the
-577 newly confirmed at 0.10/0.10, **52% reach 0.2+ in at least one year**, meaning
-the old setup already saw them once and lost them only because the *witness* year
-dipped. The other 48% never exceed 0.2 in either year, median peak 0.204.
-
-That second half is the concern, and persistence does not protect against it:
-corroboration filters flicker, not consistent error, and "What this does not fix"
-above notes that landscape confusers -- sandbars, exposed rock, roads -- recur every
-period and pass any persistence check. A location faint-but-present in both years
-is exactly that regime. The asymmetric 0.2/0.10 rule buys +112% while requiring
-every location to have cleared the old bar at least once, which is the same
-detect-versus-witness threshold split the provisional edge already uses.
-
-**Unmeasurable from here:** there are no labels inside the supplemental boundary --
-the Andes holdout is disjoint from it -- so precision on the new detections can only
-be reviewed visually, not scored. And this is patch-level; each new location still
-needs SAM2 to find a scar before it contributes area.
 
 #### The provisional edge is replaced, not confirmed (measured 2026-08-17)
 
