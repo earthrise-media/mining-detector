@@ -525,6 +525,36 @@ All 23 groups rerun with the six quarters admitted at the provisional edge.
 - `utm21_lat_8_16` still yields zero: two years of coverage leaves one resolvable
   onset year under `window=2`.
 
+### Sensitivity and specificity, recipe A cumulative (2026-08-20)
+
+Recipe A's cumulative through 2024 -- the last period the rule can resolve --
+scored against all four evaluation splits on the chip protocol above. 202,744
+patches, all confirmed. Reported because this model generation is published as
+sensitivity/specificity.
+
+| split | chips | TP | FP | FN | TN | Sens | Spec | Prec |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| val | 2,067 | 245 | 9 | 4 | 1809 | 0.9839 | 0.9950 | 0.9646 |
+| test1 (Andes holdout) | 974 | 165 | **0** | 17 | 792 | **0.9066** | **1.0000** | 1.0000 |
+| test2 | 804 | 130 | 5 | 1 | 668 | 0.9924 | 0.9926 | 0.9630 |
+| test3 (Venezuela) | 1,008 | 340 | 16 | 3 | 649 | 0.9913 | 0.9759 | 0.9551 |
+| **all four pooled** | 4,853 | 880 | 30 | 25 | 3918 | **0.9724** | **0.9924** | 0.9670 |
+
+- **The Andes holdout carries the whole shortfall.** Sensitivity is 0.98-0.99 on
+  the other three and 0.907 there, which is what drags the pooled figure to 0.972.
+  Its specificity is 1.0 with zero false positives in 792 negatives, so the
+  detector is not over-calling in that terrain -- it is missing small workings.
+- **Not comparable with the patch-level figures** quoted for earlier vintages. A
+  chip counts positive if it intersects any detected patch; patch-level scoring
+  runs against a vastly larger negative set and reaches 0.9997 specificity on the
+  same product.
+- **Treat as an estimator, not a test.** The labels were drawn against imagery from
+  one moment while a cumulative accumulates landscape change after it, so a
+  location correctly labelled mine-free may since have been mined and scores as a
+  false positive. The inference grid does not align with the training patches
+  either. It is the best measure available for the cumulative product, and it is
+  not a clean one.
+
 ### Detections — basin-wide, annual 2018–2025
 
 Cumulative patch counts, recomputed on the 5-dp key and the deduplicated
@@ -1191,6 +1221,54 @@ than introduced by persistence:
   reason the archive deduplicates before it. Changing the order would perturb the
   Amazon product wherever the two overlap, which is not worth doing for a region
   contributing ~570 confirmed locations.
+
+#### Persistence cuts the Andes supplemental hard (measured 2026-08-20)
+
+**Open.** The supplemental is folded in per period inside `load_period`, so its
+detections face the same `k`-of-`n` rule as everything else. On a 0.2 raw set with
+median confidence ~0.29 that is a much heavier test than on the basin's t0.43 set,
+because faint detections are the ones that flicker between periods:
+
+| source, 2018–2024 union | candidates | survive persistence |
+| --- | --- | --- |
+| Amazon t0.43 | 256,396 | 78.9% |
+| andes 0.2, all | 1,550 | 43.2% |
+| andes-only (disjoint from Amazon) | 1,178 | **33.4%** |
+
+So the rule keeps four fifths of the basin and a third of the andes-only set. The
+effective bar in those partner regions is now higher than the 0.2 threshold
+implies, which is the opposite of the supplemental's purpose. It also explains the
+recall drop observed in the Andean band groups against the old t0.55 cumulative,
+where the supplemental went in by plain union with no corroboration required.
+
+**A lower detection threshold is the obvious lever, and it is on disk** at
+`raw_detections_andes_supplemental_t0.10/`. Applying the same k=2 window=2 rule:
+
+| rule (detect / witness) | confirmed andes-only |
+| --- | --- |
+| 0.2 / 0.2 (current) | 320 |
+| 0.3 / 0.10 | 391 |
+| **0.2 / 0.10** | **678** |
+| 0.10 / 0.10 | 897 |
+
+Nothing is lost going down -- lowering the threshold only adds candidates -- so
+0.10/0.10 nearly triples the confirmed set. The gain splits in two, though: of the
+577 newly confirmed at 0.10/0.10, **52% reach 0.2+ in at least one year**, meaning
+the old setup already saw them once and lost them only because the *witness* year
+dipped. The other 48% never exceed 0.2 in either year, median peak 0.204.
+
+That second half is the concern, and persistence does not protect against it:
+corroboration filters flicker, not consistent error, and "What this does not fix"
+above notes that landscape confusers -- sandbars, exposed rock, roads -- recur every
+period and pass any persistence check. A location faint-but-present in both years
+is exactly that regime. The asymmetric 0.2/0.10 rule buys +112% while requiring
+every location to have cleared the old bar at least once, which is the same
+detect-versus-witness threshold split the provisional edge already uses.
+
+**Unmeasurable from here:** there are no labels inside the supplemental boundary --
+the Andes holdout is disjoint from it -- so precision on the new detections can only
+be reviewed visually, not scored. And this is patch-level; each new location still
+needs SAM2 to find a scar before it contributes area.
 
 #### The provisional edge is replaced, not confirmed (measured 2026-08-17)
 
