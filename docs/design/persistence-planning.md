@@ -1241,6 +1241,33 @@ implies, which is the opposite of the supplemental's purpose. It also explains t
 recall drop observed in the Andean band groups against the old t0.55 cumulative,
 where the supplemental went in by plain union with no corroboration required.
 
+**Measured against labels, 2026-08-21.** This region is measurable after all:
+`data/sampling_locations/BD_MineriaAurifera_Peru-*.geojson` are curated
+complements of a Peruvian gold-mining database, points carrying `Area_ha`. The
+fullest is `curated2026-04-06`, 1,024 points with **973 inside the supplemental
+boundary**, median area **1.10 ha** against a 23 ha patch. Recall and hit rate
+(share of confirmed patches containing a labelled mine), supplemental only --
+main-run detections inside the boundary are redundant, 4 of 576 absent from the
+0.10 set:
+
+| rule (detect / witness) | patches | recall | hit rate | marginal hit rate |
+| --- | --- | --- | --- | --- |
+| 0.2 / 0.2 (current) | 551 | 30.3% | 54.6% | — |
+| 0.2 / 0.10 | 966 | 44.4% | 51.3% | 33.0% |
+| 0.10 / 0.10 | 1,190 | 49.1% | 47.8% | 20.5% |
+
+**No threshold change is the answer.** Both variants buy recall at a worse
+marginal rate than the current set achieves, and on the full basin cumulative the
+patches new at 0.10/0.10 contain a labelled mine only 49.7% of the time against
+63.6% for production. The asymmetric rule is the better of the two, but not enough
+to justify a second rule.
+
+**The ceiling is the real finding.** Recall tops out near 49% at any threshold
+tested, so half these mines are invisible to the detector rather than
+mis-thresholded. At a median 1.10 ha in a 480 m patch that is a resolution limit,
+not a tuning problem, and it reframes the question from "which threshold" to "what
+size can this detector see".
+
 **A lower detection threshold is the obvious lever, and it is on disk** at
 `raw_detections_andes_supplemental_t0.10/`. Applying the same k=2 window=2 rule:
 
