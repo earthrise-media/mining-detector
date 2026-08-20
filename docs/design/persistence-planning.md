@@ -609,19 +609,32 @@ the t0.55 provisional layer for annual periods whose window has not closed;
 B/D but are not themselves added to the layer, so the comparison isolates the
 rule.
 
-| layer | patches | TP | FP | FN | TN | Precision | Recall | F1 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `or_t055_2025` (current) | 250,398 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9716 |
-| `or_t043_2025` (loose) | 302,520 | 718 | 82 | 5 | 3074 | 0.8975 | 0.9931 | 0.9429 |
-| **A** window2 annual | 236,125 | 718 | **32** | 5 | 3124 | 0.9573 | 0.9931 | **0.9749** |
-| **B** window2 + quarters | 239,527 | 718 | 34 | 5 | 3122 | 0.9548 | 0.9931 | 0.9736 |
-| **C** window3 annual | 245,569 | 718 | 33 | 5 | 3123 | 0.9561 | 0.9931 | 0.9742 |
-| **D** window3 + quarters | 246,163 | 718 | 35 | 5 | 3121 | 0.9535 | 0.9931 | 0.9729 |
-| **D+** window3 + quarters, early | 251,274 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9716 |
-| A [confirmed only] | 202,173 | 715 | 30 | 8 | 3126 | 0.9597 | 0.9889 | 0.9741 |
-| B [confirmed only] | 205,575 | 715 | 33 | 8 | 3123 | 0.9559 | 0.9889 | 0.9721 |
-| C [confirmed only] | 198,794 | 711 | **29** | 12 | 3127 | 0.9608 | 0.9834 | 0.9720 |
-| D [confirmed only] | 199,388 | 711 | 31 | 12 | 3125 | 0.9582 | 0.9834 | 0.9706 |
+| layer | patches | TP | FP | FN | TN | Precision | Recall | Specificity | F1 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `or_t055_2025` (current) | 250,398 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9883 | 0.9716 |
+| `or_t043_2025` (loose) | 302,520 | 718 | 82 | 5 | 3074 | 0.8975 | 0.9931 | 0.9740 | 0.9429 |
+| **A** window2 annual | 236,125 | 718 | **32** | 5 | 3124 | 0.9573 | 0.9931 | **0.9899** | **0.9749** |
+| **B** window2 + quarters | 239,527 | 718 | 34 | 5 | 3122 | 0.9548 | 0.9931 | 0.9892 | 0.9736 |
+| **C** window3 annual | 245,569 | 718 | 33 | 5 | 3123 | 0.9561 | 0.9931 | 0.9895 | 0.9742 |
+| **D** window3 + quarters | 246,163 | 718 | 35 | 5 | 3121 | 0.9535 | 0.9931 | 0.9889 | 0.9729 |
+| **D+** window3 + quarters, early | 251,274 | 718 | 37 | 5 | 3119 | 0.9510 | 0.9931 | 0.9883 | 0.9716 |
+| A [confirmed only] | 202,173 | 715 | 30 | 8 | 3126 | 0.9597 | 0.9889 | 0.9905 | 0.9741 |
+| B [confirmed only] | 205,575 | 715 | 33 | 8 | 3123 | 0.9559 | 0.9889 | 0.9895 | 0.9721 |
+| C [confirmed only] | 198,794 | 711 | **29** | 12 | 3127 | 0.9608 | 0.9834 | **0.9908** | 0.9720 |
+| D [confirmed only] | 199,388 | 711 | 31 | 12 | 3125 | 0.9582 | 0.9834 | 0.9902 | 0.9706 |
+
+Specificity carries no information the FP column does not: the negative count is
+3,156 for every row, so it is exactly `1 - FP/3156`. It is tabulated because this
+model generation is reported as sensitivity/specificity elsewhere, not because it
+separates the recipes -- the caveat below applies to it identically.
+
+**These are chip-level and are not comparable with the patch-level
+sensitivity/specificity quoted for earlier vintages.** A chip counts positive if
+it intersects any detected patch, over 3,879 chips; the patch-level figures score
+individual patches over a vastly larger negative set, which is why they run to
+0.9997 specificity while the same product is 0.9883 here. Neither is wrong; they
+answer different questions, and swapping one for the other in the same paragraph
+would read as a regression that did not happen.
 
 **The critical point: this protocol cannot separate the recipes.** The whole
 spread is 5 false-positive chips out of 3,879 — far short of the statistics
