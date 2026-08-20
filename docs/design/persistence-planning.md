@@ -537,13 +537,31 @@ sensitivity/specificity.
 | val | 2,067 | 245 | 9 | 4 | 1809 | 0.9839 | 0.9950 | 0.9646 |
 | test1 (Andes holdout) | 974 | 165 | **0** | 17 | 792 | **0.9066** | **1.0000** | 1.0000 |
 | test2 | 804 | 130 | 5 | 1 | 668 | 0.9924 | 0.9926 | 0.9630 |
-| test3 (Venezuela) | 1,008 | 340 | 16 | 3 | 649 | 0.9913 | 0.9759 | 0.9551 |
-| **all four pooled** | 4,853 | 880 | 30 | 25 | 3918 | **0.9724** | **0.9924** | 0.9670 |
+| test3 (caroni, Venezuela) | 1,008 | 340 | 16 | 3 | 649 | 0.9913 | 0.9759 | 0.9551 |
+| **val + test2 + test3** (published) | 3,879 | 715 | 30 | 8 | 3126 | **0.9889** | **0.9905** | 0.9597 |
+| all four pooled | 4,853 | 880 | 30 | 25 | 3918 | 0.9724 | 0.9924 | 0.9670 |
 
+- **The published pair excludes test1, and the exclusion is right.** The README
+  quotes `val + test2 + test3` -- 0.9889 / 0.9905 -- matching the "Combined
+  validation + geographic holdouts" convention established for the single-period
+  product, whose 723 mines and 3,156 not-mines identify the same pool. test1
+  (napo-caquetá) is out because it stopped being a holdout: it was used when
+  training two of the six ensemble members, and that training measurably improved
+  recall there. So its 0.907 is a partly-trained-on score, optimistic as a
+  generalisation estimate -- and still the lowest of the four, which means true
+  performance in that terrain is worse than the table shows. Pooling it in would
+  give a lower figure (0.9724) that is not a cleaner one: it mixes a contaminated
+  measurement into a valid one. Both rows are tabulated so the arithmetic is
+  visible, not because the four-set row is the better number.
+- **What the published pair does not cover is the Andes.** No valid holdout
+  measurement exists for that terrain, and it is the terrain the supplemental
+  exists to serve -- where the label experiment below finds recall capping near
+  49%. The two belong read together.
 - **The Andes holdout carries the whole shortfall.** Sensitivity is 0.98-0.99 on
-  the other three and 0.907 there, which is what drags the pooled figure to 0.972.
-  Its specificity is 1.0 with zero false positives in 792 negatives, so the
-  detector is not over-calling in that terrain -- it is missing small workings.
+  the other three and 0.907 there. Its specificity is 1.0 with zero false positives
+  in 792 negatives, so the detector is not over-calling in that terrain -- it is
+  missing small workings, which is the same limitation the supplemental label
+  experiment below measures directly.
 - **Not comparable with the patch-level figures** quoted for earlier vintages. A
   chip counts positive if it intersects any detected patch; patch-level scoring
   runs against a vastly larger negative set and reaches 0.9997 specificity on the
