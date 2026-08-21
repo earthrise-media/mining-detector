@@ -66,7 +66,7 @@ same sequence of commands as a bulk rewrite — with one more tag in the period 
 
 ```
 python ../scripts/pipeline.py --list                    # stage order, and who runs each
-python ../scripts/pipeline.py review-periods --all      # stage 0: the period list
+python ../scripts/pipeline.py review-periods            # stage 0: the period list
 python ../scripts/pipeline.py <stage> --periods Q226    # work on one period
 python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild would do
 ```
@@ -91,7 +91,7 @@ step is how you resume after an interruption.
 cd core
 
 # 0. the period list -- add what you are about to run, then carry on.
-python ../scripts/pipeline.py review-periods --all
+python ../scripts/pipeline.py review-periods
 
 # 1. patch detections. Long VM job; launch under tmux and watch.
 python ../scripts/pipeline.py inference --all

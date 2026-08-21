@@ -424,8 +424,18 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
+    # Only demand --periods when a requested stage actually consumes it.
+    # review-periods and the whole-history stages read ALL_CURRENT_PERIODS
+    # directly, so requiring a flag they ignore trains the operator to type
+    # --all reflexively -- and made `review-periods` refuse to run without the
+    # very argument it exists to explain.
+    consumers = [s for s in args.stages
+                 if s not in WHOLE_HISTORY and s != "review-periods"]
+
     if args.use_all:
         working = list(ALL_CURRENT_PERIODS)
+    elif not consumers:
+        working = list(ALL_CURRENT_PERIODS)      # not consumed by these stages
     elif args.periods:
         # Membership is required, not advisory: the whole-history stages read
         # ALL_CURRENT_PERIODS, so a period outside it silently never reaches the
@@ -441,9 +451,15 @@ def main() -> None:
         working = list(args.periods)
     else:
         raise SystemExit(
-            "--periods is required (or --all for every period).\n"
-            "  Run `pipeline.py review-periods` first; the period list is the "
-            "one thing\n  this pipeline needs a human to set.")
+            f"--periods is required for {consumers} (or --all for every period).\n"
+            f"  It must name periods listed as ALL_CURRENT_PERIODS in "
+            f"core/periods.py,\n"
+            f"  which currently holds {len(ALL_CURRENT_PERIODS)}: "
+            f"{' '.join(ALL_CURRENT_PERIODS)}\n"
+            f"  e.g. --periods {ALL_CURRENT_PERIODS[-1]:<10} one period\n"
+            f"       {'--all':<20} a full rebuild\n"
+            f"  `pipeline.py review-periods` prints this list and what depends "
+            f"on it.")
 
     for s in args.stages:
         print(f"\n=== {s}", flush=True)
