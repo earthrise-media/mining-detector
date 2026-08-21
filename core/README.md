@@ -74,7 +74,7 @@ python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild wo
 ### What you may change
 
 Everything a human sets lives in
-[`scripts/pipeline_config.py`](../scripts/pipeline_config.py): `MODEL`,
+[`pipeline_config.py`](pipeline_config.py): `MODEL`,
 `ALL_CURRENT_PERIODS`, `SUBREGIONS`, and the thresholds. Stage 0 prints it.
 
 Those are **contract parameters** — they appear in filenames, and every stage
@@ -131,7 +131,7 @@ python ../scripts/pipeline.py publish --all
 ```
 
 **Quarterly update.** Add the new tag to `ALL_CURRENT_PERIODS` in
-`scripts/pipeline_config.py`, then walk the same steps with `--periods Q326` in place of
+`pipeline_config.py`, then walk the same steps with `--periods Q326` in place of
 `--all` — or `--periods 2026 Q127` in a January, when a new annual witness lands
 alongside the quarter. Only the new period has work
 to do; everything else is skipped.

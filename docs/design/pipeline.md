@@ -29,7 +29,7 @@ construction are verified — but **the full chain has never been driven from
   what makes the incremental case cheap: seconds for detections, ~1 hour for the
   mask side.
 
-**Two kinds of configuration.** `scripts/pipeline_config.py` holds what a human
+**Two kinds of configuration.** `core/pipeline_config.py` holds what a human
 sets — `MODEL`, `ALL_CURRENT_PERIODS`, `SUBREGIONS` and the thresholds — because
 those are the contract *between* stages: they appear in filenames, so every stage
 must agree. `Config` dataclasses hold what belongs to one module. Threshold-named
@@ -192,10 +192,9 @@ Two things worth knowing before the next run:
   individually and the staged trees built end to end, but always with the human
   stages performed out of band. The first true test is the next quarterly refresh.
 - **A quarterly update means editing `ALL_CURRENT_PERIODS` in
-  `scripts/pipeline_config.py`,**
-  then naming the new period with `--periods`. The flag is required and its values
-  must be members of that list, because `persist-detections`, `persist-masks` and
-  `stage` read the list rather than the flag -- they recompute from the whole
-  history, and a one-period stack has no witnesses. `pipeline.py` refuses an
-  unlisted period rather than half-running it, and stage 0 exists to put the list
-  in front of the operator first.
+  `core/pipeline_config.py`,** then naming the new period with `--periods`. The
+  flag is required and its values must be members of that list, because
+  `persist-detections`, `persist-masks` and `stage` read the list rather than the
+  flag -- they recompute from the whole history, and a one-period stack has no
+  witnesses. `pipeline.py` refuses an unlisted period rather than half-running
+  it, and stage 0 exists to put the list in front of the operator first.

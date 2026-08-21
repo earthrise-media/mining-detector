@@ -34,7 +34,6 @@ from typing import List, Sequence
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "core"))
-sys.path.insert(0, str(REPO / "scripts"))
 
 from periods import Period
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_TAG, ANDES_THRESHOLD,
@@ -75,7 +74,7 @@ def cmds_review_config(periods: Sequence[str]) -> List[str]:
     annual = [p for p in ALL_CURRENT_PERIODS if Period.parse(p).is_annual]
     quarters = [p for p in ALL_CURRENT_PERIODS if not Period.parse(p).is_annual]
     return [
-        "# 0. Review scripts/pipeline_config.py before running anything.",
+        "# 0. Review core/pipeline_config.py before running anything.",
         "#",
         f"#    MODEL      {MODEL}",
         f"#    PERIODS    {len(annual)} annual   {' '.join(annual)}",

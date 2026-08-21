@@ -62,6 +62,7 @@ LocKey = Tuple[float, float]
 # `from persistence import Period` is the established import across the repo.
 from periods import (QUARTER_SPANS, QUARTER_TAG_RE,  # noqa: F401
                      Period, encode_period)
+from pipeline_config import ANDES_TAG, BASE, MODEL, RAW_TAG
 
 
 # --------------------------------------------------------------------------
@@ -550,10 +551,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     defaults = PersistenceConfig()
-    parser.add_argument("--base", default="../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble",
+    parser.add_argument("--base", default=str(BASE),
                         help="Model output directory holding postprocessed_*/ folders")
     parser.add_argument("--region_stem",
-                        default="Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40")
+                        default=f"Amazon_ACA_{MODEL}_{RAW_TAG}")
     parser.add_argument("--years", nargs="*", default=[],
                         help="Annual periods, e.g. --years 2018 2019 2020")
     parser.add_argument("--quarters", nargs="*", default=[],
@@ -579,8 +580,8 @@ if __name__ == "__main__":
     parser.add_argument("--supplemental_dir", default="raw_detections/andes_supplemental",
                         help="Supplemental detections, relative to --base ('' to disable)")
     parser.add_argument("--supplemental_stem",
-                        default="andes_supplemental_48px_v4.10b-18d-20g-21a-22bc-ensemble")
-    parser.add_argument("--supplemental_threshold", default="0.2",
+                        default=f"andes_supplemental_{MODEL}")
+    parser.add_argument("--supplemental_threshold", default=ANDES_TAG,
                         help="Raw threshold in the supplemental filenames")
     parser.add_argument("--no-supplemental", action="store_true",
                         help="Skip the Andes supplemental union")

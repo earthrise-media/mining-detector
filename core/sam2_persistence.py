@@ -63,6 +63,7 @@ try:
     from .sam2_logits import MASK_NODATA
 except ImportError:
     from periods import Period, encode_period
+    from pipeline_config import BASE, MODEL
     from persistence import PersistenceConfig
     from sam2_logits import MASK_NODATA
 
@@ -486,10 +487,8 @@ def main() -> None:
                          "and exit; --group is then ignored")
     ap.add_argument("--group", default=None,
                     help="band group tag, e.g. utm21_lat_-8_0")
-    ap.add_argument("--detections", type=Path, default=(
-        REPO / "data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative"
-        / "Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble"
-          "_detections.geojson"))
+    ap.add_argument("--detections", type=Path,
+                    default=BASE / "cumulative" / f"Amazon_ACA_{MODEL}_detections.geojson")
     ap.add_argument("--outdir", type=Path, default=None)
     ap.add_argument("--attribution", choices=ATTRIBUTION_RULES,
                     default=defaults.attribution)
