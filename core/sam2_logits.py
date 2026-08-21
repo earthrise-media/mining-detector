@@ -18,9 +18,7 @@ re-threshold::
 
 Thresholding commutes with the max-reduce that merges overlapping tiles --
 ``max(a,b) > t`` is identically ``(a>t) or (b>t)`` -- so a logits *mosaic* may be
-thresholded directly. This holds only for smoothed logits; check the run's
-``mask_config.txt`` before relying on it, since the archive also holds unsmoothed
-vintages.
+thresholded directly.
 
 The ±16 clamp is lossless with respect to the mask: verified bit-identical to
 the unclamped mask on every real tile tested. See ``MaskConfig.logit_clamp``.
@@ -31,29 +29,6 @@ moves basin mask area only ~2%, and an IoU scan against hand annotations found
 the optimum at 1-1.5 worth +0.015 mean IoU while *worsening* the area ratio. The
 two criteria conflict and both effects are small, so the flexibility did not pay
 for a stored field that silently mis-thresholds.
-
-Earlier vintages
-----------------
-Two, both superseded:
-
-**August 2026 -- unsmoothed.** ``clip(upsampled_log_odds, ±16)``, co-registered
-with its mask but not smoothed, so ``stored > 0`` gives IoU ~0.84 rather than the
-mask. Pass ``smoothing_sigma=2.5`` to :func:`mask_from_logits` to read one, and
-mind that per-tile smoothing must precede mosaicking for these: max-reduce on
-unsmoothed logits is biased upward and smoothing across that seam inflates area
-(0.17% measured on a real overlapping pair, up to 1.8% synthetic at 12 px).
-``scripts/convert_logits_to_smoothed.py`` migrates them.
-
-**Through July 2026 -- raw ``log_odds``.** Prior included but neither upsampled
-nor smoothed, so not co-registered with their own masks: the logits raster is
-coarser by exactly 35/32 in every UTM/lat band. Not rescuable here -- they need
-an upsample as well, and would still not match bit-for-bit because the bilinear
-upsample cannot be reproduced outside the original torch path. Use them as
-diagnostic rasters, not as a substrate for masks.
-
-Which vintage a file belongs to is recorded in the ``*_config.txt`` written
-beside the tiles, not in the raster itself: the clamp and the spatial prior are
-equally irreversible, so run-level is the right granularity.
 
 Background and measurements: docs/design/persistence-planning.md.
 """
@@ -81,7 +56,7 @@ MASK_NODATA = 2
 def smooth_logits(logits: np.ndarray,
                   smoothing_sigma: float = DEFAULT_SMOOTHING_SIGMA
                   ) -> np.ndarray:
-    """Replay the Gaussian regularization on saved (unsmoothed) logits.
+    """Replay the Gaussian regularization on logits that lack it.
 
     NaN marks unobserved ground. ``ndi.gaussian_filter`` would smear NaN across
     the whole neighbourhood, so NaNs are held out and the result renormalized
@@ -110,16 +85,15 @@ def mask_from_logits(logits: np.ndarray,
                      as_uint8: bool = False) -> np.ndarray:
     """Mask from saved logits: a plain threshold.
 
-    Current logits are stored **smoothed**, so thresholding is the whole
-    operation and it reproduces the production mask at ``threshold=0``. Raise
-    the threshold for a stricter provisional mask (``t_prov,mask``).
+    Logits are stored smoothed, so thresholding is the whole operation and
+    reproduces the production mask at ``threshold=0``. Raise the threshold for a
+    stricter provisional mask (``t_prov,mask``).
 
     Args:
-        logits: saved (smoothed) log-odds for a single tile. NaN = unobserved.
+        logits: saved log-odds for a single tile. NaN = unobserved.
         threshold: log-odds cutoff. 0 is the production operating point.
-        smoothing_sigma: replay smoothing before thresholding. Only for the
-            **unsmoothed** August 2026 vintage; leave ``None`` for current files.
-            Applying it to a smoothed file smooths twice.
+        smoothing_sigma: replay smoothing before thresholding, for logits that
+            lack it. Applying it to a smoothed file smooths twice.
         as_uint8: return 0/1/``MASK_NODATA`` uint8 instead of a boolean array.
             Only this form can represent "not observed".
 

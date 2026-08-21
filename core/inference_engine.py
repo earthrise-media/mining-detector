@@ -262,8 +262,9 @@ class MaskConfig:
 
         Run-level rather than per-raster metadata: a reader needs to know how the
         stored logits were made, and that is a property of the run. Without it,
-        the smoothed and unsmoothed vintages are indistinguishable -- same dtype,
-        grid and value range -- and thresholding the wrong one fails silently.
+        a reader needs to know how the stored logits were made, and two
+        differently-made files are indistinguishable by dtype, grid and value
+        range alike.
         """
         path = Path(self.mask_dir) / name
         lines = ["logits_stored = clip(smooth(upsampled_log_odds), +/-clamp)"]
@@ -1208,9 +1209,9 @@ class SAM2_Masker:
         """Resample SAM2 logits to target raster resolution.
 
         ``smooth=True`` additionally applies the Gaussian regularization that
-        the production mask thresholds. Pass ``smooth=False`` to get the
-        upsampled-but-unsmoothed field that is persisted as the ``-logits.tif``
-        artifact; see :meth:`predict`.
+        the production mask thresholds. ``smooth=False`` returns the upsampled
+        field before that step; :meth:`predict` smooths and clamps it to build
+        the persisted ``-logits.tif``.
         """
         logits_tensor = torch.from_numpy(logits[None, None, ...]).float()
         upsampled = F.interpolate(
@@ -1266,20 +1267,15 @@ class SAM2_Masker:
         # Persist the logits on the *mask* grid, prior included, smoothing
         # applied. Three deliberate choices:
         #
-        # - Upsampled, so mask and logits share a grid. Saving the raw 256-px
-        #   SAM2 output instead leaves the two products not co-registered, the
-        #   logits coarser by exactly 35/32.
+        # - Upsampled, so mask and logits share a grid.
         # - Prior included, because soft_spatial_prior is a function of the
         #   frozen t0.43 detection set. Excluding it would mean carrying every
         #   tile's detection set forever just to reconstruct log_odds.
         # - Smoothing APPLIED, so (stored logits > 0) reproduces the mask and
-        #   any stricter cutoff is a true re-threshold. Storing unsmoothed kept
-        #   smoothing_sigma retunable, but thresholding such a file looks correct
-        #   and silently gives IoU ~0.84; sigma is also worth only ~2% of basin
-        #   area, so the flexibility did not pay for the trap. It additionally
-        #   makes thresholding commute with the max-reduce mosaic, since
-        #   max(a,b) > t is identically (a>t) or (b>t) -- so a logits mosaic can
-        #   be thresholded directly. See docs/design/persistence-planning.md.
+        #   any stricter cutoff is a true re-threshold. It also makes
+        #   thresholding commute with the max-reduce mosaic -- max(a,b) > t is
+        #   identically (a>t) or (b>t) -- so a logits mosaic can be thresholded
+        #   directly. See docs/design/persistence-planning.md.
         #
         # Clamp AFTER smoothing. The mask is smooth(unclipped) > 0, and clipping
         # a smoothed field at +/-16 cannot change its sign, so this reproduces
