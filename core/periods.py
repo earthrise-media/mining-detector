@@ -2,8 +2,7 @@
 
 A leaf module on purpose -- no third-party imports. Everything downstream needs
 to know what dates a period spans, and asking that question should not load the
-geospatial stack. It previously lived in ``persistence.py``, which meant
-``pipeline.py --list`` imported geopandas, numpy and pyproj to print stage names.
+geospatial stack.
 
 `date_span` is the single source of every calendar date in the pipeline. Emitted
 inference commands, SAM2 date arguments and detection filenames all derive from

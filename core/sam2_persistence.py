@@ -394,12 +394,9 @@ def build_onset_raster(mask_paths: Dict[int, List[Path]], detections: Path,
                                           for p in mask_paths[y]])
                     for y in years])
 
-                # Do NOT skip the window when the annual stack is empty: a
+                # An empty annual stack does not mean an empty window: a
                 # location first segmented in a quarter has no annual mask
-                # anywhere in its window, and an early-out here dropped exactly
-                # the newest mining. Found on Q226 detections near
-                # 8.106S 55.740W, where 4,221 quarterly pixels sat in a window
-                # with zero annual coverage.
+                # anywhere near it, so the quarterly edge below must still run.
                 onset = np.zeros((ph, pw), dtype=np.uint16)
                 if stack.any():
                     mask_onset = mask_onset_index(stack, config)

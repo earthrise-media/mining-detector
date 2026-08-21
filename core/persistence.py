@@ -6,8 +6,8 @@ A detection enters the confirmed record only when corroborated by later
 observation. Real mine scars are permanent and recur; cloud artefacts and
 mosaic noise appear once and vanish. Requiring ``k`` detections within a window
 of ``n`` consecutive periods removes most transient error while leaving genuine
-features essentially untouched, and replaces the ad-hoc threshold-tightening
-that cumulative products previously relied on.
+features essentially untouched. Cumulatives need no threshold-tightening of
+their own as a result.
 
 Two properties make this safe to re-run at any time:
 

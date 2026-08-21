@@ -12,11 +12,8 @@ from postprocess import PostprocessConfig  # noqa: E402
 def filter(path, boundary_path, outpath):
     """Filter detections to those intersecting a boundary.
 
-    The caller names the destination. Earlier versions wrote a ``-filt`` sibling,
-    which left the filtered file somewhere no downstream stage read from, so every
-    caller had to move it afterwards -- and a consumer had to know that andes
-    detections live under ``-filt`` while Amazon detections do not. The input is
-    left alone as the pristine inference output.
+    The caller names the destination, so the filtered file lands where downstream
+    stages read from. The input is left as the pristine inference output.
     """
     gdf = gpd.read_file(path)
     boundary = gpd.read_file(boundary_path)

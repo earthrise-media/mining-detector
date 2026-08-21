@@ -353,10 +353,9 @@ GROUP_RE = re.compile(
 
 def stage_persist_masks(periods, dry) -> int:
     quarters = [t for t in periods if not Period.parse(t).is_annual]
-    # mining_mask_<start>_<end>_<group>_epsg4326.tif. Matched explicitly rather
-    # than by maxsplit on "_": the group itself contains underscores, so a
-    # maxsplit off by one silently yields "2018-12-31_utm17_lat_-8_0" and every
-    # downstream glob then matches nothing while the run still reports success.
+    # mining_mask_<start>_<end>_<group>_epsg4326.tif. Matched by pattern rather
+    # than by splitting on "_": the group name contains underscores itself, and a
+    # wrong split yields a plausible string that matches nothing downstream.
     names = [p.name for p in SAM2.glob("*/cog_outputs/mining_mask_*utm*.tif")]
     groups = sorted({m.group(1) for m in (GROUP_RE.match(n) for n in names) if m})
     unparsed = [n for n in names if not GROUP_RE.match(n)]
@@ -424,11 +423,8 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
-    # Only demand --periods when a requested stage actually consumes it.
     # review-periods and the whole-history stages read ALL_CURRENT_PERIODS
-    # directly, so requiring a flag they ignore trains the operator to type
-    # --all reflexively -- and made `review-periods` refuse to run without the
-    # very argument it exists to explain.
+    # directly, so only the remaining stages need --periods.
     consumers = [s for s in args.stages
                  if s not in WHOLE_HISTORY and s != "review-periods"]
 

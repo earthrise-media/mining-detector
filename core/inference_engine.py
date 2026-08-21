@@ -1266,10 +1266,9 @@ class SAM2_Masker:
         # Persist the logits on the *mask* grid, prior included, smoothing
         # applied. Three deliberate choices:
         #
-        # - Upsampled, so mask and logits share a grid. Previously the raw
-        #   256-px SAM2 output was saved while the mask was written at tile
-        #   resolution, so the two products were not even co-registered: for the
-        #   2026 vintage the logits raster is coarser by exactly 35/32.
+        # - Upsampled, so mask and logits share a grid. Saving the raw 256-px
+        #   SAM2 output instead leaves the two products not co-registered, the
+        #   logits coarser by exactly 35/32.
         # - Prior included, because soft_spatial_prior is a function of the
         #   frozen t0.43 detection set. Excluding it would mean carrying every
         #   tile's detection set forever just to reconstruct log_odds.

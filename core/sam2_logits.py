@@ -16,10 +16,11 @@ re-threshold::
     mask = mask_from_logits(logits_array)                   # the product mask
     mask = mask_from_logits(logits_array, threshold=1.5)    # a stricter t_prov
 
-Because thresholding now commutes with the max-reduce used to merge overlapping
-tiles -- ``max(a,b) > t`` is identically ``(a>t) or (b>t)`` -- a logits *mosaic*
-may be thresholded directly. That was not true of the unsmoothed vintage and is
-the main reason for the change.
+Thresholding commutes with the max-reduce that merges overlapping tiles --
+``max(a,b) > t`` is identically ``(a>t) or (b>t)`` -- so a logits *mosaic* may be
+thresholded directly. This holds only for smoothed logits; check the run's
+``mask_config.txt`` before relying on it, since the archive also holds unsmoothed
+vintages.
 
 The ±16 clamp is lossless with respect to the mask: verified bit-identical to
 the unclamped mask on every real tile tested. See ``MaskConfig.logit_clamp``.

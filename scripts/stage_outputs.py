@@ -232,13 +232,10 @@ def write_sidecar(kind: str, directory: Path, dry_run: bool) -> None:
 
 
 def copy(src: Path, dst: Path, dry_run: bool) -> str:
-    """Copy unless the destination is already the same size and no older.
+    """Copy unless the destination is the same size and no older.
 
-    Size alone is not enough. A rebuilt raster can land at the same byte count
-    as the one it replaces -- the master onset COG differed by 58 KB out of
-    63 MB after a bug fix, which is well inside coincidence -- and a size-only
-    check would then keep the stale copy silently. The mtime comparison costs
-    nothing and turns that into a copy.
+    Size alone would keep a stale copy: a rebuilt raster can land at the same
+    byte count as the one it replaces. The mtime check costs nothing.
     """
     if (dst.exists() and dst.stat().st_size == src.stat().st_size
             and dst.stat().st_mtime >= src.stat().st_mtime):
@@ -503,10 +500,9 @@ def stage_singletons(dry_run: bool) -> int:
             action = copy(src, tree / name, dry_run)
             print(f"  {name:<62} {action} -> {tree.name}/")
 
-    # Statistics sidecars, after the rasters are in place. The README documents
-    # these as part of the product, so the pipeline has to produce them -- left
-    # to hand they go stale the first time a raster is rebuilt, which is exactly
-    # what happened after the quarterly-edge fix.
+    # Statistics sidecars, after the rasters are in place. Documented as part of
+    # the product, so the pipeline produces them rather than leaving them to hand,
+    # where they go stale the first time a raster is rebuilt.
     for src, name, trees in items:
         if src.suffix != ".tif" or not src.is_file():
             continue
