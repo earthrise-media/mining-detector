@@ -75,7 +75,7 @@ def cmds_review_periods(periods: Sequence[str]) -> List[str]:
     annual = [p for p in ALL_CURRENT_PERIODS if Period.parse(p).is_annual]
     quarters = [p for p in ALL_CURRENT_PERIODS if not Period.parse(p).is_annual]
     return [
-        "# 0. Review the period list. Nothing else here needs hand-setting.",
+        "# 0. Review and, if necessary, edit the period list in core/periods.py.",
         "#",
         "#    core/periods.py :: ALL_CURRENT_PERIODS",
         f"#      {len(annual)} annual:    {' '.join(annual)}",
@@ -333,16 +333,40 @@ def stage_persist_detections(periods, dry) -> int:
                 "--years", *years, "--quarters", *quarters, "--dissolve"], dry)
 
 
+def run_dirs(tag: str) -> List[Path]:
+    """SAM2 run directories for one period.
+
+    An annual period is segmented twice, basin and andes supplemental; a quarter
+    once, from patch_diffs. sam2_mask.py names each directory after the detections
+    file that prompted it, so the names are a function of the period.
+    """
+    period = Period.parse(tag)
+    if period.is_annual:
+        span = period.date_span
+        return [SAM2 / f"Amazon_ACA_{MODEL}_0.40_{span}_t0.43_d5_3km_t-iso0.75",
+                SAM2 / f"andes_supplemental_{MODEL}_0.2_{span}"]
+    return [SAM2 / f"Amazon_ACA_{MODEL}_growth_{tag}"]
+
+
 def stage_cog(periods, dry) -> int:
+    """COG the run directories for the given periods.
+
+    Named rather than discovered: data/outputs/sam2 also holds prior vintages and
+    test output, and a stage that walks the directory has to recognise those to
+    leave them alone.
+    """
     rc = 0
-    for d in sorted(SAM2.iterdir()):
-        if not d.is_dir() or d.name.endswith("-logits-unsmoothed"):
-            continue
-        if not glob.glob(str(d / "*-msk.tif")):
-            continue
-        if glob.glob(str(d / "cog_outputs" / "*utm*.tif")):
-            continue
-        rc |= run([sys.executable, str(CORE / "sam2_build_cog.py"), str(d)], dry)
+    for tag in periods:
+        for d in run_dirs(tag):
+            if not d.is_dir():
+                print(f"    {tag}: no run directory {d.name}")
+                continue
+            if glob.glob(str(d / "cog_outputs" / "*utm*.tif")):
+                continue
+            if not glob.glob(str(d / "*-msk.tif")):
+                print(f"    {tag}: {d.name} holds no mask tiles")
+                continue
+            rc |= run([sys.executable, str(CORE / "sam2_build_cog.py"), str(d)], dry)
     return rc
 
 

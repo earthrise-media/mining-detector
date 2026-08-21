@@ -106,7 +106,7 @@ from, so a single band can be redone without redoing 23.
 | `persist-detections` | pipeline | `persistence.py --dissolve` |
 | `mask-annual` | **human** | `sam2_mask.py` on postprocessed t0.43 |
 | `mask-quarterly` | **human** | `sam2_mask.py` on `patch_diffs/` |
-| `cog` | pipeline | `sam2_build_cog.py` per run |
+| `cog` | pipeline | `sam2_build_cog.py`, on the run directories the given periods name |
 | `persist-masks` | pipeline | `sam2_persistence.py` per band group, then mosaic |
 | `stage` | pipeline | `scripts/stage_outputs.py` — lay out both trees, sidecars, READMEs |
 | `manifest` | pipeline | **stub** — prints a reminder; `MANIFEST.yaml` is still hand-maintained |
