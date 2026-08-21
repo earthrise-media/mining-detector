@@ -458,7 +458,7 @@ def main() -> None:
     ap.add_argument("--periods", nargs="+", default=None,
                     help=("Periods this run works on, e.g. --periods Q326, or "
                           "--periods 2026 Q127. Each must be a member of "
-                          "ALL_CURRENT_PERIODS in core/periods.py. No default: "
+                          "ALL_CURRENT_PERIODS in core/pipeline_config.py. No default: "
                           "a stale list is the one silent failure here."))
     ap.add_argument("--all", action="store_true", dest="use_all",
                     help="Work on every period in ALL_CURRENT_PERIODS (full rebuild)")
@@ -498,7 +498,7 @@ def main() -> None:
         if stray:
             raise SystemExit(
                 f"period(s) {stray} are not in ALL_CURRENT_PERIODS.\n"
-                f"  Add them to core/periods.py first -- see "
+                f"  Add them to core/pipeline_config.py first -- see "
                 f"`pipeline.py review-config`.\n"
                 f"  Without that, persist-detections / persist-masks / stage "
                 f"cannot see them.")
@@ -507,7 +507,7 @@ def main() -> None:
         raise SystemExit(
             f"--periods is required for {consumers} (or --all for every period).\n"
             f"  It must name periods listed as ALL_CURRENT_PERIODS in "
-            f"core/periods.py,\n"
+            f"core/pipeline_config.py,\n"
             f"  which currently holds {len(ALL_CURRENT_PERIODS)}: "
             f"{' '.join(ALL_CURRENT_PERIODS)}\n"
             f"  e.g. --periods {ALL_CURRENT_PERIODS[-1]:<10} one period\n"
