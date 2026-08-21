@@ -34,25 +34,25 @@ from typing import List, Sequence
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "core"))
+sys.path.insert(0, str(REPO / "scripts"))
 
-from periods import ALL_CURRENT_PERIODS, Period
+from periods import Period
+from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_TAG, ANDES_THRESHOLD,
+                             BASE, CORE, ISOLATION_KM, LOOSE, MODEL,
+                             NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
+                             SCRIPTS, STRINGENT, SUBREGIONS, postprocess_tag)
 
-MODEL = "48px_v4.10b-18d-20g-21a-22bc-ensemble"
-BASE = REPO / "data/outputs" / MODEL
-SAM2 = REPO / "data/outputs/sam2"
-CORE = REPO / "core"
-SCRIPTS = REPO / "scripts"
+LOOSE_TAG = postprocess_tag(*LOOSE)
+STRINGENT_TAG = postprocess_tag(*STRINGENT)
 
-SUBREGIONS = [1, 2, 3, 4, 5, 6]
-
-HUMAN = {"review-periods", "inference", "mask-annual", "mask-quarterly", "publish"}
+HUMAN = {"review-config", "inference", "mask-annual", "mask-quarterly", "publish"}
 
 #: These recompute from the whole history rather than from the periods named on
 #: the command line, so they read ALL_CURRENT_PERIODS. Passing them one period
 #: would compute onset with nothing to corroborate against.
 WHOLE_HISTORY = {"persist-detections", "persist-masks", "stage", "manifest"}
 
-ORDER = ["review-periods", "inference", "concat", "filter", "postprocess", "persist-detections",
+ORDER = ["review-config", "inference", "concat", "filter", "postprocess", "persist-detections",
          "mask-annual", "mask-quarterly", "cog", "persist-masks", "stage",
          "manifest", "publish"]
 
@@ -70,27 +70,40 @@ def cache_dir(tag: str) -> str:
 # emitted commands (human-run)
 # --------------------------------------------------------------------------
 
-def cmds_review_periods(periods: Sequence[str]) -> List[str]:
-    """Stage 0: the one variable a human sets, surfaced as a step of its own."""
+def cmds_review_config(periods: Sequence[str]) -> List[str]:
+    """Stage 0: what a human sets, and where."""
     annual = [p for p in ALL_CURRENT_PERIODS if Period.parse(p).is_annual]
     quarters = [p for p in ALL_CURRENT_PERIODS if not Period.parse(p).is_annual]
     return [
-        "# 0. Review and, if necessary, edit the period list in core/periods.py.",
+        "# 0. Review scripts/pipeline_config.py before running anything.",
         "#",
-        "#    core/periods.py :: ALL_CURRENT_PERIODS",
-        f"#      {len(annual)} annual:    {' '.join(annual)}",
-        f"#      {len(quarters)} quarterly: {' '.join(quarters)}",
+        f"#    MODEL      {MODEL}",
+        f"#    PERIODS    {len(annual)} annual   {' '.join(annual)}",
+        f"#               {len(quarters)} quarterly {' '.join(quarters)}",
+        f"#    SUBREGIONS {SUBREGIONS}",
+        f"#    thresholds raw {RAW_THRESHOLD:g} (basin) / {ANDES_THRESHOLD:g} (andes)",
+        f"#               loose     {LOOSE_TAG}",
+        f"#               stringent {STRINGENT_TAG}",
         "#",
         "#    Add the period you are about to run, then pass it as --periods.",
-        "#    Every --periods value must be a member of that list: "
+        "#    Every --periods value must be a member of the list: "
         "persist-detections,",
-        "#    persist-masks and stage read ALL_CURRENT_PERIODS rather than "
-        "--periods,",
-        "#    because they recompute from the whole history. A period missing "
-        "from the",
-        "#    list is invisible to them and will not reach the product.",
+        "#    persist-masks and stage read it rather than --periods, because they",
+        "#    recompute from the whole history. A missing period is invisible to",
+        "#    them and will not reach the product. --all uses the whole list.",
         "#",
-        "#    A full rebuild is --all, which uses the whole list as the working set.",
+        "#    Those values appear in filenames, so every stage must agree on them.",
+        "#    Changing one on an emitted command line does not reconfigure the",
+        "#    pipeline -- the next stage looks for a file that was never written.",
+        "#",
+        "#    Parameters that change a computation but not a path -- pad, tilesize,",
+        "#    clear_threshold in core/gee.py::DataConfig; prior_sigma,",
+        "#    smoothing_sigma in MaskConfig -- are edited in the dataclass. The",
+        "#    outputs will be named identically to any produced before the change,",
+        "#    and nothing in the published provenance records it, so note it.",
+        "#",
+        "#    To explore a parameter rather than change the product, call the",
+        "#    underlying script directly with --outdir somewhere separate.",
     ]
 
 
@@ -116,10 +129,10 @@ def cmds_mask_annual(periods: Sequence[str]) -> List[str]:
     out = []
     for tag in (t for t in periods if Period.parse(t).is_annual):
         s, e = dates(tag)
-        pp = (f"../data/outputs/{MODEL}/postprocessed_t0.43_d5_3km_t-iso0.75/"
-              f"Amazon_ACA_{MODEL}_0.40_{s}_{e}_t0.43_d5_3km_t-iso0.75.geojson")
+        pp = (f"../data/outputs/{MODEL}/postprocessed_{LOOSE_TAG}/"
+              f"Amazon_ACA_{MODEL}_{RAW_TAG}_{s}_{e}_{LOOSE_TAG}.geojson")
         andes = (f"../data/outputs/{MODEL}/raw_detections/andes_supplemental/"
-                 f"andes_supplemental_{MODEL}_0.2_{s}_{e}.geojson")
+                 f"andes_supplemental_{MODEL}_{ANDES_TAG}_{s}_{e}.geojson")
         out.append(f"python sam2_mask.py {pp} --start_date {s} --end_date {e} "
                    f"--cog --image_cache_dir {cache_dir(tag)}")
         out.append(f"python sam2_mask.py {andes} --start_date {s} --end_date {e} "
@@ -232,7 +245,7 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
     ]
 
 
-EMITTERS = {"review-periods": cmds_review_periods,
+EMITTERS = {"review-config": cmds_review_config,
             "inference": cmds_inference, "mask-annual": cmds_mask_annual,
             "mask-quarterly": cmds_mask_quarterly, "publish": cmds_publish}
 
@@ -256,17 +269,33 @@ def stage_concat(periods, dry) -> int:
     out = BASE / "raw_detections"
     out.mkdir(parents=True, exist_ok=True)
     rc = 0
+    missing: List[str] = []
     for tag in periods:
         s, e = dates(tag)
-        dest = out / f"Amazon_ACA_{MODEL}_0.40_{s}_{e}.geojson"
+        dest = out / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{s}_{e}.geojson"
         if dest.is_file():
             continue
-        parts = sorted(glob.glob(str(BASE / f"Amazon_ACA_?_{MODEL}_0.40_{s}_{e}.geojson")))
+        pattern = f"Amazon_ACA_?_{MODEL}_{RAW_TAG}_{s}_{e}.geojson"
+        parts = sorted(glob.glob(str(BASE / pattern)))
+        if len(parts) not in (0, len(SUBREGIONS)):
+            # A partial concatenation is named exactly like a complete basin and
+            # every later stage accepts it, so this stops rather than warns.
+            raise SystemExit(
+                f"{tag}: {len(parts)} of {len(SUBREGIONS)} subregion parts.\n"
+                f"  Concatenating these would write a basin file missing whole "
+                f"regions,\n  under a name nothing downstream can distinguish "
+                f"from a complete one.\n"
+                f"  Found: {[Path(x).name for x in parts]}")
         if not parts:
-            print(f"    {tag}: no subregion parts")
+            print(f"    {tag}: no subregion parts matching {pattern}")
+            missing.append(tag)
             continue
         rc |= run([sys.executable, str(SCRIPTS / "concatenate.py"), *parts,
                    "--outpath", str(dest)], dry)
+    if missing:
+        print(f"    {len(missing)} period(s) had no inference output: "
+              f"{', '.join(missing)}")
+        rc |= 1
     return rc
 
 
@@ -287,10 +316,10 @@ def stage_filter(periods, dry) -> int:
     rc = 0
     for tag in periods:
         s, e = dates(tag)
-        dest = out / f"andes_supplemental_{MODEL}_0.2_{s}_{e}.geojson"
+        dest = out / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{s}_{e}.geojson"
         if dest.is_file():
             continue
-        src = BASE / f"andes_supplemental_{MODEL}_0.20_{s}_{e}.geojson"
+        src = BASE / f"andes_supplemental_{MODEL}_{RAW_THRESHOLD:.2f}_{s}_{e}.geojson"
         if not src.is_file():
             print(f"    {tag}: no andes inference output")
             continue
@@ -301,21 +330,22 @@ def stage_filter(periods, dry) -> int:
 
 def stage_postprocess(periods, dry) -> int:
     rc = 0
-    for t_main, t_iso in (("0.43", "0.75"), ("0.55", "0.8")):
-        target = BASE / f"postprocessed_t{t_main}_d5_3km_t-iso{t_iso}"
+    for t_main, t_iso in (LOOSE, STRINGENT):
+        tag_ = postprocess_tag(t_main, t_iso)
+        target = BASE / f"postprocessed_{tag_}"
         target.mkdir(parents=True, exist_ok=True)
         for tag in periods:
             s, e = dates(tag)
-            name = (f"Amazon_ACA_{MODEL}_0.40_{s}_{e}"
-                    f"_t{t_main}_d5_3km_t-iso{t_iso}.geojson")
+            name = f"Amazon_ACA_{MODEL}_{RAW_TAG}_{s}_{e}_{tag_}.geojson"
             if (target / name).is_file():
                 continue
-            src = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_0.40_{s}_{e}.geojson"
+            src = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{s}_{e}.geojson"
             if not src.is_file():
                 print(f"    {tag}: no raw detections")
                 continue
             rc |= run([sys.executable, str(CORE / "postprocess.py"), str(src),
-                       "--t-main", t_main, "--t-iso", t_iso], dry)
+                       "--t-main", f"{t_main:g}", "--t-iso", f"{t_iso:g}",
+                       "--k", str(NEIGHBOURS), "--D", f"{ISOLATION_KM:g}"], dry)
             produced = src.with_name(name)
             if produced.is_file() and not dry:
                 produced.rename(target / name)
@@ -343,8 +373,8 @@ def run_dirs(tag: str) -> List[Path]:
     period = Period.parse(tag)
     if period.is_annual:
         span = period.date_span
-        return [SAM2 / f"Amazon_ACA_{MODEL}_0.40_{span}_t0.43_d5_3km_t-iso0.75",
-                SAM2 / f"andes_supplemental_{MODEL}_0.2_{span}"]
+        return [SAM2 / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span}_{LOOSE_TAG}",
+                SAM2 / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{span}"]
     return [SAM2 / f"Amazon_ACA_{MODEL}_growth_{tag}"]
 
 
@@ -447,10 +477,10 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
-    # review-periods and the whole-history stages read ALL_CURRENT_PERIODS
+    # review-config and the whole-history stages read ALL_CURRENT_PERIODS
     # directly, so only the remaining stages need --periods.
     consumers = [s for s in args.stages
-                 if s not in WHOLE_HISTORY and s != "review-periods"]
+                 if s not in WHOLE_HISTORY and s != "review-config"]
 
     if args.use_all:
         working = list(ALL_CURRENT_PERIODS)
@@ -465,7 +495,7 @@ def main() -> None:
             raise SystemExit(
                 f"period(s) {stray} are not in ALL_CURRENT_PERIODS.\n"
                 f"  Add them to core/periods.py first -- see "
-                f"`pipeline.py review-periods`.\n"
+                f"`pipeline.py review-config`.\n"
                 f"  Without that, persist-detections / persist-masks / stage "
                 f"cannot see them.")
         working = list(args.periods)
@@ -478,7 +508,7 @@ def main() -> None:
             f"{' '.join(ALL_CURRENT_PERIODS)}\n"
             f"  e.g. --periods {ALL_CURRENT_PERIODS[-1]:<10} one period\n"
             f"       {'--all':<20} a full rebuild\n"
-            f"  `pipeline.py review-periods` prints this list and what depends "
+            f"  `pipeline.py review-config` prints this list and what depends "
             f"on it.")
 
     for s in args.stages:

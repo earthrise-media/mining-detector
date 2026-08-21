@@ -40,19 +40,19 @@ from pathlib import Path
 from typing import Callable, List, Optional, Sequence
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "scripts"))
+
 sys.path.insert(0, str(REPO / "core"))
 
-from periods import ALL_CURRENT_PERIODS, Period
+from periods import Period
 from postprocess import PostprocessConfig
-# From sam2_logits, not inference_engine: the numbers are the same, and
-# inference_engine imports tensorflow, which staging has no use for.
-from sam2_logits import DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA
+from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_TAG, ANDES_THRESHOLD,
+                             BASE, GS, LOOSE, MODEL, RAW_TAG, RAW_THRESHOLD,
+                             SAM2, SOURCE_COOP, STRINGENT, postprocess_tag)
 
-MODEL = "48px_v4.10b-18d-20g-21a-22bc-ensemble"
-BASE = REPO / "data/outputs" / MODEL
-SAM2 = REPO / "data/outputs/sam2"
-SOURCE_COOP = REPO / "data/staging_source-coop"
-GS = REPO / "data/staging_gs"
+RAW_THRESHOLD_G = "0.4"          # consumer-facing name, one decimal
+LOOSE_TAG = postprocess_tag(*LOOSE)
+STRINGENT_TAG = postprocess_tag(*STRINGENT)
 
 
 
@@ -91,26 +91,26 @@ def span(tag: str) -> str:
 # --------------------------------------------------------------------------
 
 def raw_amazon(tag: str) -> Optional[Path]:
-    p = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_0.40_{span(tag)}.geojson"
+    p = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}.geojson"
     return p if p.is_file() else None
 
 
 def raw_andes(tag: str) -> Optional[Path]:
     p = (BASE / "raw_detections" / "andes_supplemental"
-         / f"andes_supplemental_{MODEL}_0.2_{span(tag)}.geojson")
+         / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{span(tag)}.geojson")
     return p if p.is_file() else None
 
 
-def postprocessed(tag: str, t_main: str = "0.43", t_iso: str = "0.75"
+def postprocessed(tag: str, t_main: float = LOOSE[0], t_iso: float = LOOSE[1]
                   ) -> Optional[Path]:
-    d = BASE / f"postprocessed_t{t_main}_d5_3km_t-iso{t_iso}"
-    p = d / (f"Amazon_ACA_{MODEL}_0.40_{span(tag)}"
-             f"_t{t_main}_d5_3km_t-iso{t_iso}.geojson")
+    d = BASE / f"postprocessed_{postprocess_tag(t_main, t_iso)}"
+    p = d / (f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}"
+             f"_{postprocess_tag(t_main, t_iso)}.geojson")
     return p if p.is_file() else None
 
 
 def postprocessed_strict(tag: str) -> Optional[Path]:
-    return postprocessed(tag, "0.55", "0.8")
+    return postprocessed(tag, *STRINGENT)
 
 
 def cumulative(tag: str) -> Optional[Path]:
@@ -139,18 +139,18 @@ def patch_diff(tag: str) -> Optional[Path]:
 PRODUCTS = [
     Product("raw detections (basin)", Path("raw_detections"),
             (SOURCE_COOP, GS), raw_amazon,
-            lambda t: f"amazon_basin_{t}_t0.4.geojson",
+            lambda t: f"amazon_basin_{t}_t{RAW_THRESHOLD_G}.geojson",
             sidecar="raw"),
     Product("raw detections (andes)", Path("raw_detections"),
             (SOURCE_COOP, GS), raw_andes,
-            lambda t: f"andes_supplemental_{t}_t0.2.geojson"),
+            lambda t: f"andes_supplemental_{t}_t{ANDES_TAG}.geojson"),
     Product("postprocessed t0.43", Path("postprocessed"),
             (SOURCE_COOP, GS), postprocessed,
-            lambda t: f"amazon_basin_{t}_t0.43_t-iso0.75.geojson",
+            lambda t: f"amazon_basin_{t}_t{LOOSE[0]:g}_t-iso{LOOSE[1]:g}.geojson",
             sidecar="pp043"),
-    Product("postprocessed t0.55", Path("postprocessed_t0.55_d5_3km_t-iso0.8"),
+    Product("postprocessed t0.55", Path(f"postprocessed_{STRINGENT_TAG}"),
             (GS,), postprocessed_strict,
-            lambda t: f"amazon_basin_{t}_t0.55_t-iso0.8.geojson",
+            lambda t: f"amazon_basin_{t}_t{STRINGENT[0]:g}_t-iso{STRINGENT[1]:g}.geojson",
             sidecar="pp055"),
     Product("cumulative patches", Path("cumulative"), (GS,), cumulative,
             lambda t: f"amazon_basin_cumulative_2018-{t}.geojson",
@@ -168,53 +168,26 @@ PRODUCTS = [
             published_only=True),
 ]
 
-# The SAM2 identity is declared, not imported: MaskConfig leaves the checkpoint
-# and weights as None and resolves them at run time from models/sam2/, so there
-# is no default to read. These are the values every run in the archive used --
-# confirmed by Ed, and matching the sam2_* fields in the per-run mask_config.txt
-# written by the live path.
-SAM2_PRIOR_SIGMA = 12.0   # mirrors MaskConfig.prior_sigma
-SAM2_CHECKPOINT = "sam2.1_hiera_small.pt"
-SAM2_FINETUNED_WEIGHTS = "SAM_model_96_px_final.pth"
-SAM2_MODEL_CFG = "configs/sam2.1/sam2.1_hiera_s.yaml"
-
 SIDECARS = {
     "raw": ("model = {model}\n"
             "region = Amazon_ACA (six subregions, concatenated and deduplicated)\n"
             "supplemental = andes_supplemental, clipped to its boundary\n"
-            "pred_threshold = 0.40 (basin), 0.2 (andes supplemental)\n"
+            "pred_threshold = {raw:g} (basin), {andes:g} (andes supplemental)\n"
             "postprocessing = none\n"
             "coordinate_precision = {precision}\n"),
     "pp043": ("model = {model}\n"
-              "source = raw detections at pred_threshold 0.40\n"
-              "t_main = 0.43\nt_iso = 0.75\nk = {k}\n"
+              "source = raw detections at pred_threshold {raw:g}\n"
+              "t_main = {loose_main:g}\nt_iso = {loose_iso:g}\nk = {k}\n"
               "isolation_km = {iso}\n"
               "note = the loose per-period set; SAM2 is prompted from this\n"
               "coordinate_precision = {precision}\n"),
     "pp055": ("model = {model}\n"
-              "source = raw detections at pred_threshold 0.40\n"
-              "t_main = 0.55\nt_iso = 0.8\nk = {k}\n"
+              "source = raw detections at pred_threshold {raw:g}\n"
+              "t_main = {strict_main:g}\nt_iso = {strict_iso:g}\nk = {k}\n"
               "isolation_km = {iso}\n"
               "note = the stringent set; stands in for temporal evidence at the "
               "provisional edge\n"
               "coordinate_precision = {precision}\n"),
-    "masks": ("detection_model = {model}\n"
-              "segmentation = fine-tuned SAM2, prompted in the near field of "
-              "view around each detection\n"
-              "sam2_checkpoint = {ckpt}\n"
-              "finetuned_weights = {weights}\n"
-              "sam2_model_cfg = {cfg}\n"
-              "prior_sigma = {prior_sigma}          # spatial prior, pixels\n"
-              "smoothing_sigma = {smoothing_sigma}          # after upsampling, pixels\n"
-              "logit_clamp = {logit_clamp}\n"
-              "note = every run directory here used these settings\n"
-              "logits_stored = varies; see the mask_config.txt inside each run "
-              "directory\n"
-              "  both clip(smooth(x)) and smooth(clip(x)) are present in the "
-              "archive. Either\n"
-              "  gives the mask as logits > 0; they disagree on roughly 1 tile "
-              "in 7,000, by\n"
-              "  1-3 px, because most of a tile sits at the clamp.\n"),
 }
 
 
@@ -223,12 +196,55 @@ def write_sidecar(kind: str, directory: Path, dry_run: bool) -> None:
         model=MODEL, k=PostprocessConfig.k,
         iso=PostprocessConfig.isolation_km,
         precision=PostprocessConfig.coordinate_precision,
-        ckpt=SAM2_CHECKPOINT, weights=SAM2_FINETUNED_WEIGHTS,
-        cfg=SAM2_MODEL_CFG, prior_sigma=SAM2_PRIOR_SIGMA,
-        smoothing_sigma=DEFAULT_SMOOTHING_SIGMA,
-        logit_clamp=DEFAULT_LOGIT_CLAMP)
+        raw=RAW_THRESHOLD, andes=ANDES_THRESHOLD,
+        loose_main=LOOSE[0], loose_iso=LOOSE[1],
+        strict_main=STRINGENT[0], strict_iso=STRINGENT[1])
     if not dry_run:
         (directory / "config.txt").write_text(text)
+
+
+def mask_provenance(run_dirs: Sequence[Path]) -> str:
+    """Summarise the per-run mask_config.txt files for the folder above them.
+
+    Read rather than declared: the SAM2 checkpoint and weights are resolved at
+    run time, so no constant in this repo holds them -- the run's own sidecar is
+    the only record. Fields common to every run are reported as such; a field
+    that differs is listed per value, so a mixed folder says so instead of
+    asserting uniformity.
+    """
+    seen: dict = {}
+    for d in run_dirs:
+        cfg = d / "mask_config.txt"
+        if not cfg.is_file():
+            seen.setdefault("_missing", set()).add(d.name)
+            continue
+        for line in cfg.read_text().splitlines():
+            if "=" not in line or line.lstrip().startswith("#"):
+                continue
+            key, _, val = line.partition("=")
+            val = val.split("#")[0].strip()
+            if key.strip().endswith(("checkpoint", "weights")):
+                val = Path(val).name          # drop the run machine's paths
+            seen.setdefault(key.strip(), set()).add(val)
+
+    n = len(run_dirs)
+    out = [f"# Summarised from the mask_config.txt in each of {n} run directories.",
+           f"detection_model = {MODEL}",
+           "segmentation = fine-tuned SAM2, prompted in the near field of view "
+           "around each detection"]
+    for key in ("sam2_checkpoint", "finetuned_weights", "sam2_model_cfg",
+                "prior_sigma", "smoothing_sigma", "logit_clamp", "logits_stored"):
+        vals = seen.get(key)
+        if not vals:
+            continue
+        if len(vals) == 1:
+            out.append(f"{key} = {vals.pop()}")
+        else:
+            out.append(f"{key} = varies across runs; see each mask_config.txt")
+            out += [f"    {v}" for v in sorted(vals)]
+    if "_missing" in seen:
+        out.append(f"# no mask_config.txt in: {', '.join(sorted(seen['_missing']))}")
+    return "\n".join(out) + "\n"
 
 
 def copy(src: Path, dst: Path, dry_run: bool) -> str:
@@ -335,19 +351,6 @@ def stage(periods: Sequence[str], dry_run: bool) -> int:
     return missing_total
 
 
-#: SAM2 run directories belonging to the current model. Everything else under
-#: data/outputs/sam2 is a prior vintage or a test: the unsmoothed-logits stash,
-#: the pre-persistence t0.55 cumulative masks, masks_July2026, masks2026-02 and
-#: the persistence-tests folders. Matching explicitly rather than excluding by
-#: name keeps a new stray directory out by default.
-MASK_DIR_GLOBS = (
-    f"Amazon_ACA_{MODEL}_0.40_*_t0.43_d5_3km_t-iso0.75",
-    f"andes_supplemental_{MODEL}_0.2_*",
-    f"Amazon_ACA_{MODEL}_growth_*",
-    "persistence_masks",
-)
-
-
 # Each tree gets its own README: the public mirror carries a subset of the
 # products and a different audience, so one shared file would have to hedge on
 # every path. Same token set, so the substitution below is unchanged.
@@ -411,7 +414,22 @@ def _render_one(template: Path, dest: Path, label: str,
     return 0
 
 
-def stage_mask_dirs(dry_run: bool) -> int:
+def run_dirs(tag: str) -> List[Path]:
+    """SAM2 run directories for one period.
+
+    An annual period is segmented twice, basin and andes supplemental; a quarter
+    once, from patch_diffs. sam2_mask.py names each directory after the detections
+    file that prompted it, so the names follow from the period.
+    """
+    period = Period.parse(tag)
+    if period.is_annual:
+        span = period.date_span
+        return [SAM2 / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span}_{LOOSE_TAG}",
+                SAM2 / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{span}"]
+    return [SAM2 / f"Amazon_ACA_{MODEL}_growth_{tag}"]
+
+
+def stage_mask_dirs(periods: Sequence[str], dry_run: bool) -> int:
     """Copy the SAM2 run directories, under the published name.
 
     Destination is ``mining_scar_masks/``, not ``sam2/`` -- consumers get the
@@ -423,13 +441,16 @@ def stage_mask_dirs(dry_run: bool) -> int:
     dest_root = GS / "mining_scar_masks"
     if not dry_run:
         dest_root.mkdir(parents=True, exist_ok=True)
-    write_sidecar("masks", dest_root, dry_run)
-    srcs = []
-    for pattern in MASK_DIR_GLOBS:
-        srcs += [Path(d) for d in glob.glob(str(SAM2 / pattern)) if Path(d).is_dir()]
-    if not srcs:
-        print("  mask dirs: none matched")
-        return 1
+    runs = [d for tag in periods for d in run_dirs(tag) if d.is_dir()]
+    # persistence_masks holds the onset rasters, not a segmentation run, so it is
+    # staged but carries no mask_config.txt to summarise.
+    srcs = runs + [SAM2 / "persistence_masks"]
+    absent = [d.name for tag in periods for d in run_dirs(tag) if not d.is_dir()]
+    if absent:
+        print(f"  mask dirs: no run directory for {len(absent)} period(s): "
+              f"{', '.join(absent[:3])}{' ...' if len(absent) > 3 else ''}")
+    if not dry_run:
+        (dest_root / "config.txt").write_text(mask_provenance(runs))
 
     copied = skipped = 0
     for src in sorted(srcs):
@@ -530,7 +551,7 @@ def main() -> None:
     print()
     missing += stage_singletons(args.dry_run)
     print()
-    missing += stage_mask_dirs(args.dry_run)
+    missing += stage_mask_dirs(args.periods, args.dry_run)
     print()
     missing += render_readme(args.periods, args.dry_run)
     print(f"\n{'DRY RUN, nothing written' if args.dry_run else 'staged'}"

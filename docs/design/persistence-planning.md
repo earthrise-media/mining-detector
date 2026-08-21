@@ -1403,6 +1403,13 @@ Notes from the design discussion that are not part of the summary above but bear
   compares CRC32C instead and skips matching files for the price of a local
   checksum pass; after one successful rsync the objects carry mtime and plain
   rsync is cheap again. Check with `gsutil stat` on any object.
+- **Detection-side provenance does not record `DataConfig`.** The mask side is
+  covered: `MaskConfig.write_config()` writes what the run actually used. The
+  raw-detections `config.txt` is hand-written text naming the model, region and
+  thresholds, so `pad`, `tilesize` and `clear_threshold` appear nowhere. Change one
+  and the outputs are named identically to anything produced before, with no record
+  of the difference. Editing the dataclass default is the right way to change it;
+  noting the change is on the operator.
 - **Exploit nodata when processing the mask rasters.** Only 3.6% (2018) to 6.1% (2025) of the band's bounding box carries data. Probing occupancy once at 1/32 resolution (which hits the COG overviews, ~0.1 s/year) and skipping empty blocks cuts the per-pixel work by ~68%. Net end-to-end gain is only ~2×, though: reading uniform nodata blocks was already cheap, and the `gdal_translate -of COG` writes are a fixed cost the skip cannot touch. Note also that in pass 1 skipped blocks need *no* write (GeoTIFF initialises to 0 = "never detected"), but in pass 2 they *must* be written, since the correct value there is nodata (2) — skipping that write silently mislabels every unobserved pixel as "observed, not mining".
 - **The training patch sets are symlink farms.** `data/training_patches2026-05-04T09:47` symlinks most of its content into earlier directories. `Path.glob` follows these correctly, but `find` without `-L` reports the splits as nearly empty — which will make a complete eval set look unusable.
 - **Per-year cumulative layers are derivationally redundant, but still worth writing.** All of them are thresholds of the `first_year_*` layer (`first_year <= Y`), so the first-year layer is the thing to store and the one that must be correct. The claim originally made here — that it is also *easier to review* — is wrong, and was corrected in practice: filtering by attribute in QGIS is awkward, and flipping layer visibility on and off is the natural way to compare snapshots. Emit the first-year layer as the product, and materialise the per-year files as review artifacts.

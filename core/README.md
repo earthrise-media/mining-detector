@@ -66,15 +66,35 @@ same sequence of commands as a bulk rewrite — with one more tag in the period 
 
 ```
 python ../scripts/pipeline.py --list                    # stage order, and who runs each
-python ../scripts/pipeline.py review-periods            # stage 0: the period list
+python ../scripts/pipeline.py review-config            # stage 0: the period list
 python ../scripts/pipeline.py <stage> --periods Q226    # work on one period
 python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild would do
 ```
 
-**`--periods` is required, and every value must be listed in
-[`core/periods.py`](periods.py) as `ALL_CURRENT_PERIODS`.** That list is the only
-variable this pipeline needs a human to set; everything else defaults correctly.
-Stage 0 exists to put it in front of you before anything runs.
+### What you may change
+
+Everything a human sets lives in
+[`scripts/pipeline_config.py`](../scripts/pipeline_config.py): `MODEL`,
+`ALL_CURRENT_PERIODS`, `SUBREGIONS`, and the thresholds. Stage 0 prints it.
+
+Those are **contract parameters** — they appear in filenames, and every stage
+finds its input by constructing a path that embeds them. Changing one in the
+config changes every derived path at once, which is the point. Changing one on an
+emitted command line does not: the next stage looks for a file that was never
+written, and reports success having done nothing.
+
+**Behaviour parameters** change what a stage computes but not where anything
+lands — `pad`, `tilesize`, `clear_threshold` in
+[`core/gee.py`](gee.py)`::DataConfig`, `prior_sigma` and `smoothing_sigma` in
+`MaskConfig`. Edit the dataclass default. Note it somewhere, because the outputs
+will be named identically to any produced before the change and nothing in the
+published provenance records it.
+
+To explore a parameter rather than change the product, bypass the pipeline: call
+the underlying script with `--outdir` pointing somewhere separate.
+
+**`--periods` is required, and every value must be a member of
+`ALL_CURRENT_PERIODS`.**
 
 The requirement is not bureaucratic. `persist-detections`, `persist-masks` and
 `stage` recompute from the whole history rather than from the periods you name, so
@@ -91,7 +111,7 @@ step is how you resume after an interruption.
 cd core
 
 # 0. the period list -- add what you are about to run, then carry on.
-python ../scripts/pipeline.py review-periods
+python ../scripts/pipeline.py review-config
 
 # 1. patch detections. Long VM job; launch under tmux and watch.
 python ../scripts/pipeline.py inference --all
@@ -111,7 +131,7 @@ python ../scripts/pipeline.py publish --all
 ```
 
 **Quarterly update.** Add the new tag to `ALL_CURRENT_PERIODS` in
-`core/periods.py`, then walk the same steps with `--periods Q326` in place of
+`scripts/pipeline_config.py`, then walk the same steps with `--periods Q326` in place of
 `--all` — or `--periods 2026 Q127` in a January, when a new annual witness lands
 alongside the quarter. Only the new period has work
 to do; everything else is skipped.

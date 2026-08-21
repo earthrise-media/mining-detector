@@ -1,4 +1,4 @@
-"""Inference periods: the vocabulary, and the list the product currently covers.
+"""Inference periods: what one is, and what dates it spans.
 
 A leaf module on purpose -- no third-party imports. Everything downstream needs
 to know what dates a period spans, and asking that question should not load the
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 QUARTER_SPANS = {
     1: ("01-01", "03-31"),
@@ -21,31 +21,6 @@ QUARTER_SPANS = {
     4: ("10-01", "12-31"),
 }
 QUARTER_TAG_RE = re.compile(r"^Q([1-4])(\d{2})$")
-
-
-# --------------------------------------------------------------------------
-# THE ONE THING A HUMAN SETS
-# --------------------------------------------------------------------------
-
-#: Every period the published product covers. **Edit this when adding a period,
-#: before running anything.**
-#:
-#: This is the only variable the pipeline needs a human to set -- every other
-#: default is correct as it stands. Three stages read it rather than the
-#: ``--periods`` argument, because they recompute from the whole history rather
-#: than from one period: ``persist-detections``, ``persist-masks`` and ``stage``.
-#: A period absent from this list is therefore invisible to them and cannot
-#: reach the product, which is why ``pipeline.py`` refuses a ``--periods`` value
-#: that is not a member.
-#:
-#: Quarters exist only for years the corroboration rule cannot yet resolve. When
-#: a year becomes resolvable its quarters stay listed -- see "Retiring superseded
-#: quarterly layers" in docs/design/persistence-planning.md.
-ALL_CURRENT_PERIODS: List[str] = [
-    "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025",
-    "Q125", "Q225", "Q325", "Q425",
-    "Q126", "Q226",
-]
 
 
 # --------------------------------------------------------------------------

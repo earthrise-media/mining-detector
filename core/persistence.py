@@ -60,8 +60,8 @@ LocKey = Tuple[float, float]
 # Period vocabulary lives in periods.py -- a leaf module, so asking what dates a
 # quarter spans does not import the geospatial stack. Re-exported here because
 # `from persistence import Period` is the established import across the repo.
-from periods import (ALL_CURRENT_PERIODS, QUARTER_SPANS,  # noqa: F401
-                     QUARTER_TAG_RE, Period, encode_period)
+from periods import (QUARTER_SPANS, QUARTER_TAG_RE,  # noqa: F401
+                     Period, encode_period)
 
 
 # --------------------------------------------------------------------------
