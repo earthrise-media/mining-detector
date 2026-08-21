@@ -29,6 +29,14 @@ construction are verified — but **the full chain has never been driven from
   what makes the incremental case cheap: seconds for detections, ~1 hour for the
   mask side.
 
+**Period vocabulary is a leaf module.** `core/periods.py` holds `Period`,
+`QUARTER_SPANS`, `encode_period` and `ALL_CURRENT_PERIODS`, with no third-party
+imports. It used to live in `persistence.py`, which meant `pipeline.py --list`
+loaded geopandas and pyproj to print stage names, and put the vocabulary that
+*produces* every inference date downstream of the module that *consumes*
+inference output. `date_span` is the single source of every calendar date the
+pipeline emits.
+
 ## Naming and provenance
 
 Three audiences, three mechanisms, and they are not interchangeable:
@@ -90,6 +98,7 @@ from, so a single band can be redone without redoing 23.
 
 | stage | run by | tool |
 | --- | --- | --- |
+| `review-periods` | **human** | prints `ALL_CURRENT_PERIODS` — stage 0, because the period list is the one thing a human must set |
 | `inference` | **human** | `inference_pipeline.py`, per subregion × period |
 | `concat` | pipeline | `scripts/concatenate.py` — dedupes seam duplicates |
 | `filter` | pipeline | `scripts/geo_filter.py` — clips andes to its boundary |
@@ -176,6 +185,10 @@ Two things worth knowing before the next run:
 - **The full chain has never run in one pass.** Scripted stages have been exercised
   individually and the staged trees built end to end, but always with the human
   stages performed out of band. The first true test is the next quarterly refresh.
-- **A quarterly update means editing `DEFAULT_PERIODS`,** not passing `--periods`.
-  The period list is the whole history, because persistence recomputes from the full
-  stack; a one-period list would compute onset with no witnesses.
+- **A quarterly update means editing `ALL_CURRENT_PERIODS` in `core/periods.py`,**
+  then naming the new period with `--periods`. The flag is required and its values
+  must be members of that list, because `persist-detections`, `persist-masks` and
+  `stage` read the list rather than the flag -- they recompute from the whole
+  history, and a one-period stack has no witnesses. `pipeline.py` refuses an
+  unlisted period rather than half-running it, and stage 0 exists to put the list
+  in front of the operator first.

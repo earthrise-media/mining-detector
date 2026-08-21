@@ -35,7 +35,7 @@ from typing import List, Sequence
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "core"))
 
-from persistence import Period
+from periods import ALL_CURRENT_PERIODS, Period
 
 MODEL = "48px_v4.10b-18d-20g-21a-22bc-ensemble"
 BASE = REPO / "data/outputs" / MODEL
@@ -43,12 +43,16 @@ SAM2 = REPO / "data/outputs/sam2"
 CORE = REPO / "core"
 SCRIPTS = REPO / "scripts"
 
-DEFAULT_PERIODS = [str(y) for y in range(2018, 2026)] + [
-    "Q125", "Q225", "Q325", "Q425", "Q126", "Q226"]
 SUBREGIONS = [1, 2, 3, 4, 5, 6]
 
-HUMAN = {"inference", "mask-annual", "mask-quarterly", "publish"}
-ORDER = ["inference", "concat", "filter", "postprocess", "persist-detections",
+HUMAN = {"review-periods", "inference", "mask-annual", "mask-quarterly", "publish"}
+
+#: These recompute from the whole history rather than from the periods named on
+#: the command line, so they read ALL_CURRENT_PERIODS. Passing them one period
+#: would compute onset with nothing to corroborate against.
+WHOLE_HISTORY = {"persist-detections", "persist-masks", "stage", "manifest"}
+
+ORDER = ["review-periods", "inference", "concat", "filter", "postprocess", "persist-detections",
          "mask-annual", "mask-quarterly", "cog", "persist-masks", "stage",
          "manifest", "publish"]
 
@@ -65,6 +69,30 @@ def cache_dir(tag: str) -> str:
 # --------------------------------------------------------------------------
 # emitted commands (human-run)
 # --------------------------------------------------------------------------
+
+def cmds_review_periods(periods: Sequence[str]) -> List[str]:
+    """Stage 0: the one variable a human sets, surfaced as a step of its own."""
+    annual = [p for p in ALL_CURRENT_PERIODS if Period.parse(p).is_annual]
+    quarters = [p for p in ALL_CURRENT_PERIODS if not Period.parse(p).is_annual]
+    return [
+        "# 0. Review the period list. Nothing else here needs hand-setting.",
+        "#",
+        "#    core/periods.py :: ALL_CURRENT_PERIODS",
+        f"#      {len(annual)} annual:    {' '.join(annual)}",
+        f"#      {len(quarters)} quarterly: {' '.join(quarters)}",
+        "#",
+        "#    Add the period you are about to run, then pass it as --periods.",
+        "#    Every --periods value must be a member of that list: "
+        "persist-detections,",
+        "#    persist-masks and stage read ALL_CURRENT_PERIODS rather than "
+        "--periods,",
+        "#    because they recompute from the whole history. A period missing "
+        "from the",
+        "#    list is invisible to them and will not reach the product.",
+        "#",
+        "#    A full rebuild is --all, which uses the whole list as the working set.",
+    ]
+
 
 def cmds_inference(periods: Sequence[str]) -> List[str]:
     out = []
@@ -204,7 +232,8 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
     ]
 
 
-EMITTERS = {"inference": cmds_inference, "mask-annual": cmds_mask_annual,
+EMITTERS = {"review-periods": cmds_review_periods,
+            "inference": cmds_inference, "mask-annual": cmds_mask_annual,
             "mask-quarterly": cmds_mask_quarterly, "publish": cmds_publish}
 
 
@@ -369,7 +398,13 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("stages", nargs="*", help=f"one or more of: {', '.join(ORDER)}")
-    ap.add_argument("--periods", nargs="+", default=DEFAULT_PERIODS)
+    ap.add_argument("--periods", nargs="+", default=None,
+                    help=("Periods this run works on, e.g. --periods Q326, or "
+                          "--periods 2026 Q127. Each must be a member of "
+                          "ALL_CURRENT_PERIODS in core/periods.py. No default: "
+                          "a stale list is the one silent failure here."))
+    ap.add_argument("--all", action="store_true", dest="use_all",
+                    help="Work on every period in ALL_CURRENT_PERIODS (full rebuild)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--list", action="store_true", help="show the stage order")
     args = ap.parse_args()
@@ -389,15 +424,37 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
+    if args.use_all:
+        working = list(ALL_CURRENT_PERIODS)
+    elif args.periods:
+        # Membership is required, not advisory: the whole-history stages read
+        # ALL_CURRENT_PERIODS, so a period outside it silently never reaches the
+        # product. Better to refuse than to half-run it.
+        stray = [p for p in args.periods if p not in ALL_CURRENT_PERIODS]
+        if stray:
+            raise SystemExit(
+                f"period(s) {stray} are not in ALL_CURRENT_PERIODS.\n"
+                f"  Add them to core/periods.py first -- see "
+                f"`pipeline.py review-periods`.\n"
+                f"  Without that, persist-detections / persist-masks / stage "
+                f"cannot see them.")
+        working = list(args.periods)
+    else:
+        raise SystemExit(
+            "--periods is required (or --all for every period).\n"
+            "  Run `pipeline.py review-periods` first; the period list is the "
+            "one thing\n  this pipeline needs a human to set.")
+
     for s in args.stages:
         print(f"\n=== {s}", flush=True)
+        periods = ALL_CURRENT_PERIODS if s in WHOLE_HISTORY else working
         if s in HUMAN:
             # These are long VM jobs, or outward-facing. Printing is the only
             # thing this driver does with them, so it needs no flag to ask for it.
-            for line in EMITTERS[s](args.periods):
+            for line in EMITTERS[s](periods):
                 print(line, flush=True)
             continue
-        rc = RUNNERS[s](args.periods, args.dry_run)
+        rc = RUNNERS[s](periods, args.dry_run)
         if rc:
             raise SystemExit(f"{s} failed (rc={rc}); not continuing")
 

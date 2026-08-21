@@ -62,7 +62,8 @@ try:
     from .persistence import PersistenceConfig, Period
     from .sam2_logits import MASK_NODATA
 except ImportError:
-    from persistence import PersistenceConfig, Period
+    from periods import Period, encode_period
+    from persistence import PersistenceConfig
     from sam2_logits import MASK_NODATA
 
 REPO = Path(__file__).resolve().parent.parent
@@ -115,6 +116,29 @@ class MaskPersistenceConfig:
 #: omitting it left utm18 lat[-16,-8] 86% below the published product.
 RUN_PATTERNS = ("Amazon_ACA*_{y}-01-01_{y}-12-31_t0.43*",
                 "andes_supplemental*_{y}-01-01_{y}-12-31")
+
+
+def band_group_paths(sam2_root: Path, years: Sequence[int], group: str,
+                     patterns: Sequence[str] = RUN_PATTERNS
+                     ) -> Dict[int, List[Path]]:
+    """Per-year mask mosaics for one UTM/lat band group, across runs.
+
+    A year maps to *every* run's mosaic for that group; the driver unions them.
+    Detections are deduplicated where the runs overlap, but masks need no
+    equivalent step -- the union is idempotent, so a pixel masked by both runs is
+    simply masked.
+    """
+    out: Dict[int, List[Path]] = {}
+    for year in years:
+        found: List[Path] = []
+        for pattern in patterns:
+            for hit in glob.glob(str(sam2_root / pattern.format(y=year)
+                                     / "cog_outputs"
+                                     / f"mining_mask_*_{group}_epsg4326.tif")):
+                found.append(Path(hit))
+        if found:
+            out[year] = sorted(found)
+    return out
 
 
 def band_group_paths(sam2_root: Path, years: Sequence[int], group: str,

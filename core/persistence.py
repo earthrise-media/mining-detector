@@ -57,64 +57,11 @@ except ImportError:
 
 LocKey = Tuple[float, float]
 
-QUARTER_SPANS = {
-    1: ("01-01", "03-31"),
-    2: ("04-01", "06-30"),
-    3: ("07-01", "09-30"),
-    4: ("10-01", "12-31"),
-}
-QUARTER_TAG_RE = re.compile(r"^Q([1-4])(\d{2})$")
-
-
-# --------------------------------------------------------------------------
-# periods
-# --------------------------------------------------------------------------
-
-@dataclass(frozen=True, order=True)
-class Period:
-    """One inference period: a calendar year, or a quarter within one.
-
-    Ordering is chronological by end date, with the annual period sorting after
-    the quarters it contains -- an annual mosaic is only assembled once its year
-    is complete.
-    """
-    sort_key: Tuple[int, int, int] = field(init=False, repr=False)
-    year: int
-    quarter: Optional[int] = None
-
-    def __post_init__(self):
-        end_month = 12 if self.quarter is None else self.quarter * 3
-        object.__setattr__(
-            self, "sort_key",
-            (self.year, end_month, 1 if self.quarter is None else 0))
-
-    @property
-    def is_annual(self) -> bool:
-        return self.quarter is None
-
-    @property
-    def tag(self) -> str:
-        return str(self.year) if self.is_annual else f"Q{self.quarter}{self.year % 100}"
-
-    @property
-    def date_span(self) -> str:
-        """The ``{start}_{end}`` fragment used in detection filenames."""
-        if self.is_annual:
-            return f"{self.year}-01-01_{self.year}-12-31"
-        start, end = QUARTER_SPANS[self.quarter]
-        return f"{self.year}-{start}_{self.year}-{end}"
-
-    @classmethod
-    def parse(cls, tag: str) -> "Period":
-        tag = str(tag).strip()
-        m = QUARTER_TAG_RE.match(tag.upper())
-        if m:
-            quarter, yy = int(m.group(1)), int(m.group(2))
-            return cls(year=2000 + yy, quarter=quarter)
-        if re.fullmatch(r"\d{4}", tag):
-            return cls(year=int(tag))
-        raise ValueError(
-            f"Unrecognised period {tag!r}; expected a year (2024) or a quarter tag (Q125)")
+# Period vocabulary lives in periods.py -- a leaf module, so asking what dates a
+# quarter spans does not import the geospatial stack. Re-exported here because
+# `from persistence import Period` is the established import across the repo.
+from periods import (ALL_CURRENT_PERIODS, QUARTER_SPANS,  # noqa: F401
+                     QUARTER_TAG_RE, Period, encode_period)
 
 
 # --------------------------------------------------------------------------

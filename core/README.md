@@ -65,9 +65,22 @@ derives every path and date from the period tags, so a quarterly refresh is the
 same sequence of commands as a bulk rewrite — with one more tag in the period list.
 
 ```
-python ../scripts/pipeline.py --list             # stage order, and who runs each
-python ../scripts/pipeline.py <stage> --dry-run    # show what a stage would do
+python ../scripts/pipeline.py --list                    # stage order, and who runs each
+python ../scripts/pipeline.py review-periods --all      # stage 0: the period list
+python ../scripts/pipeline.py <stage> --periods Q226    # work on one period
+python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild would do
 ```
+
+**`--periods` is required, and every value must be listed in
+[`core/periods.py`](periods.py) as `ALL_CURRENT_PERIODS`.** That list is the only
+variable this pipeline needs a human to set; everything else defaults correctly.
+Stage 0 exists to put it in front of you before anything runs.
+
+The requirement is not bureaucratic. `persist-detections`, `persist-masks` and
+`stage` recompute from the whole history rather than from the periods you name, so
+they read `ALL_CURRENT_PERIODS` directly — a period absent from it is invisible to
+them and cannot reach the product. `pipeline.py` refuses rather than half-running
+it.
 
 **Full refresh.** Five steps, alternating between what you run on a VM and what
 the pipeline runs for you. The alternation is not cosmetic — each group needs the
@@ -77,25 +90,30 @@ step is how you resume after an interruption.
 ```
 cd core
 
+# 0. the period list -- add what you are about to run, then carry on.
+python ../scripts/pipeline.py review-periods --all
+
 # 1. patch detections. Long VM job; launch under tmux and watch.
-python ../scripts/pipeline.py inference
+python ../scripts/pipeline.py inference --all
 
 # 2. scripted: concatenate subregions, clip andes, postprocess, corroborate.
-python ../scripts/pipeline.py concat filter postprocess persist-detections
+python ../scripts/pipeline.py concat filter postprocess persist-detections --all
 
 # 3. segmentation. Long VM jobs, and they need step 2's output.
-python ../scripts/pipeline.py mask-annual
-python ../scripts/pipeline.py mask-quarterly
+python ../scripts/pipeline.py mask-annual --all
+python ../scripts/pipeline.py mask-quarterly --all
 
 # 4. scripted: cog the masks, corroborate them, assemble both staging trees.
-python ../scripts/pipeline.py cog persist-masks stage manifest
+python ../scripts/pipeline.py cog persist-masks stage manifest --all
 
 # 5. review the rasters, then push.
-python ../scripts/pipeline.py publish
+python ../scripts/pipeline.py publish --all
 ```
 
-**Quarterly update.** Add the new tag to `DEFAULT_PERIODS` in
-`scripts/pipeline.py`, then walk the same five steps. Only the new period has work
+**Quarterly update.** Add the new tag to `ALL_CURRENT_PERIODS` in
+`core/periods.py`, then walk the same steps with `--periods Q326` in place of
+`--all` — or `--periods 2026 Q127` in a January, when a new annual witness lands
+alongside the quarter. Only the new period has work
 to do; everything else is skipped.
 
 In Q2, Q3 and Q4 step 3 needs `mask-quarterly` only — the quarter is segmented from
@@ -104,11 +122,6 @@ completed: that year's annual mask is a witness for every later onset, even thou
 its own layer is not published while quarters still cover the year. Note that
 `mask-annual` emits a command for every annual period, not just the new
 one, so take the pair you need.
-
-**Do not pass `--periods Q326` on its own.** `--periods` replaces the period list
-rather than appending to it, and persistence recomputes onset from the whole stack
-— a one-period list would compute onset with no witnesses to corroborate against.
-Narrowing `--periods` is for testing a single stage, not for an update.
 
 Stages run in this order:
 

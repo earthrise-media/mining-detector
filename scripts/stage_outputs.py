@@ -42,7 +42,7 @@ from typing import Callable, List, Optional, Sequence
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "core"))
 
-from persistence import Period
+from periods import ALL_CURRENT_PERIODS, Period
 from postprocess import PostprocessConfig
 # From sam2_logits, not inference_engine: the numbers are the same, and
 # inference_engine imports tensorflow, which staging has no use for.
@@ -54,8 +54,6 @@ SAM2 = REPO / "data/outputs/sam2"
 SOURCE_COOP = REPO / "data/staging_source-coop"
 GS = REPO / "data/staging_gs"
 
-DEFAULT_PERIODS = [str(y) for y in range(2018, 2026)] + [
-    "Q125", "Q225", "Q325", "Q425", "Q126", "Q226"]
 
 
 #: Periods that appear as *published* cumulative layers. An annual period covered
@@ -526,7 +524,7 @@ def stage_singletons(dry_run: bool) -> int:
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--periods", nargs="+", default=DEFAULT_PERIODS)
+    ap.add_argument("--periods", nargs="+", default=ALL_CURRENT_PERIODS)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
