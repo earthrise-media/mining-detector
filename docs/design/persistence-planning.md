@@ -1319,6 +1319,17 @@ Three consequences to settle:
    quarters, which "Design details" rejects for confirmation on seasonal-bias
    grounds; the argument may or may not carry over to display.
 
+**Why 2024 quarters are being run (2026-08-21).** The measurement above can only
+reach eligibility, never confirmation: the 7,827 eligible locations still need
+2026 corroboration, so 54.5% is an upper bound on survival and no threshold can
+be defended against it. 2024 is the most recent year that closes — under `k=2,
+window=2` an onset year needs a witness in itself or the next, and the 2024 and
+2025 annuals are both on disk, where 2025 would need 2026. So Q124–Q424 can be
+followed all the way to a confirmed-or-not verdict, which turns the ceiling into
+an actual survival rate. Second return: the seasonality signal above (Q225 73%
+against Q425 35%) is one year of weather until a second year says whether it
+recurs, which is what consequence 3 turns on.
+
 #### Retiring superseded quarterly layers (noted 2026-08-19)
 
 **Open, and not yet coded. Not urgent:** 2025 does not become resolvable until the
@@ -1485,6 +1496,8 @@ Implementation phase (to do):
 - [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
       annual comparison — half-run, see "The provisional edge is replaced, not
       confirmed": at 0.55, 45.5% of published provisional locations are absent
-      from the 2025 annual at t0.43 and can never confirm.
+      from the 2025 annual at t0.43 and can never confirm. The other half is the
+      2024 quarterly run in progress, the most recent year that resolves to a
+      confirmed verdict rather than to eligibility.
 - [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
 - [x] Confirmed/provisional split plumbed through to published outputs — `status` on every cumulative layer; increments are status-homogeneous.
