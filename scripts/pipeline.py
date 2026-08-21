@@ -61,8 +61,13 @@ def dates(tag: str):
 
 
 def cache_dir(tag: str) -> str:
-    """Image cache naming from the operator's runbook; year-granular."""
-    return f"/mnt/tempdisk/amw_image_cache{Period.parse(tag).year}_552-12/"
+    """Image cache naming from the operator's runbook, one directory per period.
+
+    The 552-12 suffix is DataConfig's tilesize and pad, which fix the tile
+    geometry a cached tile was cut to; a cache is only reusable by a run that
+    agrees on both.
+    """
+    return f"/mnt/tempdisk/amw_image_cache{Period.parse(tag).tag}_552-12/"
 
 
 # --------------------------------------------------------------------------
