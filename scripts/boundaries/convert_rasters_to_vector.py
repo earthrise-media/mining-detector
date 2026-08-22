@@ -1,9 +1,10 @@
 """
-Convert mining difference rasters to vector format.
+Convert the mining first-year raster to vector format.
 
-Run this BEFORE preprocess_mining_areas.py. Outputs one GeoJSON per
-year/quarter into a `vectorized/` folder alongside the source rasters,
-using the same base filename.
+Run this BEFORE preprocess_mining_areas.py. Reads a single raster whose
+pixel values encode the first-detection year/quarter (e.g. 201800, 202602)
+and outputs one GeoJSON per period into a `vectorized/` folder alongside the
+source raster.
 
 Existing outputs are skipped unless --overwrite is passed.
 """
@@ -30,7 +31,7 @@ import geopandas as gpd
 import numpy as np
 import rasterio
 from constants import (
-    MINING_DIFFERENCES_RASTER_FILES,
+    MINING_FIRST_YEAR_RASTER_FILE,
     MINING_RASTER_YEARS_QUARTERS,
     generate_vectorized_raster_filename,
 )
@@ -38,8 +39,20 @@ from rasterio.features import shapes
 from shapely.geometry import shape
 
 
-def raster_to_gdf(raster_path, value_filter=1):
-    print(f"Converting {raster_path} to gdf...")
+def year_quarter_to_pixel_value(year_quarter):
+    """Map a 6-digit YYYYQQ key to the raster's pixel encoding.
+
+    Full years (quarter == 00) encode as YYYY (e.g. 202400 -> 2024).
+    Quarters encode as YYYYQ (e.g. 202503 -> 20253, 202602 -> 20262).
+    """
+    year, quarter = divmod(year_quarter, 100)
+    if quarter == 0:
+        return year
+    return year * 10 + quarter
+
+
+def raster_to_gdf(raster_path, value_filter):
+    print(f"Converting {raster_path} (value={value_filter}) to gdf...")
     try:
         with rasterio.open(raster_path) as src:
             print("Opened. Bands available:", src.count)
@@ -87,8 +100,16 @@ def process_raster(year, overwrite=False):
         print(f"Skipping {year}, {output_file} already exists (use --overwrite)")
         return output_file
 
-    print(f"Processing raster for: {year}")
-    gdf = raster_to_gdf(MINING_DIFFERENCES_RASTER_FILES[year], value_filter=1)
+    print(f"Processing period: {year}")
+    # Pixel values in the raster use a compact encoding (YYYY or YYYYQ),
+    # not the 6-digit YYYYQQ keys, so map before filtering.
+    pixel_value = year_quarter_to_pixel_value(year)
+    gdf = raster_to_gdf(MINING_FIRST_YEAR_RASTER_FILE, value_filter=pixel_value)
+
+    if gdf.empty:
+        print(f"No pixels found for {year} (pixel value {pixel_value}), skipping output.")
+        return output_file
+
     gdf["year"] = year  # add year column
 
     ensure_output_path_exists(output_file)
@@ -99,7 +120,7 @@ def process_raster(year, overwrite=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert mining difference rasters to vector files."
+        description="Convert the mining first-year raster to vector files."
     )
     parser.add_argument(
         "--overwrite",
