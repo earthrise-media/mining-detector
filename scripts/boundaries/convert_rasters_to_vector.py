@@ -1,5 +1,5 @@
 """
-Convert the mining first-year raster to vector format.
+Convert the mining single raster to vector format.
 
 Run this BEFORE preprocess_mining_areas.py. Reads a single raster whose
 pixel values encode the first-detection year/quarter (e.g. 201800, 202602)
@@ -152,7 +152,7 @@ def process_raster(year, overwrite=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert the mining first-year raster to cumulative vector files."
+        description="Convert the mining single raster to cumulative vector files."
     )
     parser.add_argument(
         "--overwrite",
