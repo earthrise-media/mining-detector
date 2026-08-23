@@ -6,6 +6,9 @@ pixel values encode the first-detection year/quarter (e.g. 201800, 202602)
 and outputs one GeoJSON per period into a `vectorized/` folder alongside the
 source raster.
 
+Each output is a CUMULATIVE snapshot: the file for a given period contains
+every pixel first detected at or before that period (so 2019 includes 2018).
+
 Existing outputs are skipped unless --overwrite is passed.
 """
 
@@ -51,8 +54,24 @@ def year_quarter_to_pixel_value(year_quarter):
     return year * 10 + quarter
 
 
-def raster_to_gdf(raster_path, value_filter):
-    print(f"Converting {raster_path} (value={value_filter}) to gdf...")
+def pixel_values_through(year_quarter):
+    """Return the pixel values for every period at or before `year_quarter`.
+
+    The raster's compact encoding is not monotonic across the year/quarter
+    boundary -- a full year 2027 encodes as 2027, which is numerically *less*
+    than the quarter 202602 encoded as 20262 -- so pixel values cannot be
+    thresholded directly. The canonical 6-digit YYYYQQ keys do sort correctly,
+    so we filter those and then map the survivors to their pixel encoding.
+    """
+    periods = [p for p in MINING_RASTER_YEARS_QUARTERS if p <= year_quarter]
+    return sorted({year_quarter_to_pixel_value(p) for p in periods})
+
+
+def raster_to_gdf(raster_path, include_values):
+    print(
+        f"Converting {raster_path} "
+        f"({len(include_values)} pixel values, up to {include_values[-1]}) to gdf..."
+    )
     try:
         with rasterio.open(raster_path) as src:
             print("Opened. Bands available:", src.count)
@@ -62,7 +81,9 @@ def raster_to_gdf(raster_path, value_filter):
 
             nodata = src.nodata
             geoms = []
-            values = []
+
+            # np.isin is much faster against a sorted ndarray of candidates
+            include_values = np.asarray(include_values, dtype=src.dtypes[0])
 
             for _, window in src.block_windows(1):
                 block = src.read(1, window=window)
@@ -70,17 +91,21 @@ def raster_to_gdf(raster_path, value_filter):
                 # Skip blocks that are entirely nodata or have no matching pixels
                 if nodata is not None and np.all(block == nodata):
                     continue
-                mask = block == value_filter
+                mask = np.isin(block, include_values)
                 if not mask.any():
                     continue
 
-                block_transform = src.window_transform(window)
-                for geom, val in shapes(block, mask=mask, transform=block_transform):
-                    if val == value_filter:
-                        geoms.append(shape(geom))
-                        values.append(val)
+                # Vectorize a binary mask rather than the raw block: otherwise
+                # shapes() would emit a separate polygon per year value and a
+                # contiguous mining area would come back split along year seams.
+                binary = mask.astype(np.uint8)
 
-            gdf = gpd.GeoDataFrame({"value": values}, geometry=geoms, crs=src.crs)
+                block_transform = src.window_transform(window)
+                for geom, val in shapes(binary, mask=mask, transform=block_transform):
+                    if val == 1:
+                        geoms.append(shape(geom))
+
+            gdf = gpd.GeoDataFrame(geometry=geoms, crs=src.crs)
 
         return gdf
     except Exception as e:
@@ -102,14 +127,21 @@ def process_raster(year, overwrite=False):
 
     print(f"Processing period: {year}")
     # Pixel values in the raster use a compact encoding (YYYY or YYYYQ),
-    # not the 6-digit YYYYQQ keys, so map before filtering.
-    pixel_value = year_quarter_to_pixel_value(year)
-    gdf = raster_to_gdf(MINING_FIRST_YEAR_RASTER_FILE, value_filter=pixel_value)
+    # not the 6-digit YYYYQQ keys, so map before filtering. Cumulative
+    # snapshot: every period at or before `year` is included.
+    pixel_values = pixel_values_through(year)
 
-    if gdf.empty:
-        print(f"No pixels found for {year} (pixel value {pixel_value}), skipping output.")
+    if not pixel_values:
+        print(f"No periods at or before {year}, skipping output.")
         return output_file
 
+    gdf = raster_to_gdf(MINING_FIRST_YEAR_RASTER_FILE, include_values=pixel_values)
+
+    if gdf.empty:
+        print(f"No pixels found through {year} (pixel values {pixel_values}), skipping output.")
+        return output_file
+
+    gdf["value"] = year  # period this cumulative snapshot represents
     gdf["year"] = year  # add year column
 
     ensure_output_path_exists(output_file)
@@ -120,7 +152,7 @@ def process_raster(year, overwrite=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert the mining first-year raster to vector files."
+        description="Convert the mining first-year raster to cumulative vector files."
     )
     parser.add_argument(
         "--overwrite",

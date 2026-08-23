@@ -1,11 +1,9 @@
-# constants.py
-
 from pathlib import Path
 
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260820"
+DATA_UPDATED_AT = "20260822"
 
 MINING_DIFFERENCES_FILES = {
     202602: f"{WEBSITE_OUTPUTS_FOLDER}/cumulative_dissolved/diffs/amazon_basin_growth_Q226-dissolved.geojson",
@@ -30,7 +28,7 @@ first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
 # (e.g. 2018, 20262). 0 is nodata. Note that format is different from the standard
 # in the rest of the scripts.
 MINING_FIRST_YEAR_RASTER_FILE = (
-    "data/outputs/rasters/amazon_basin_mining_scar_masks_first_year.tif"
+    "data/outputs/rasters/amazon_basin_mining_scar_masks.tif"
 )
 # The period values that appear as pixel values in the raster above; one
 # vectorized output file is produced per value.
