@@ -65,6 +65,12 @@ ANDES_THRESHOLD = 0.2
 RAW_TAG = "0.40"
 ANDES_TAG = "0.2"
 
+#: The supplemental has a second spelling: inference_pipeline.py writes two
+#: decimals, and `filter` renames to ANDES_TAG on the way into the archive. Both
+#: are named here because the raw one is only ever a lookup, and constructing it
+#: from a threshold is how it last went wrong.
+ANDES_RAW_TAG = "0.20"
+
 #: Dual-threshold postprocess: (t_main, t_iso). The loose set is the recommended
 #: single-period product and what SAM2 is prompted from; the stringent set stands
 #: in for corroboration at the provisional edge.

@@ -36,9 +36,9 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "core"))
 
 from periods import Period
-from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_TAG, ANDES_THRESHOLD,
-                             BASE, CORE, ISOLATION_KM, LOOSE, MODEL,
-                             NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
+from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_RAW_TAG, ANDES_TAG,
+                             ANDES_THRESHOLD, BASE, CORE, ISOLATION_KM, LOOSE,
+                             MODEL, NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
                              SCRIPTS, STRINGENT, SUBREGIONS, postprocess_tag)
 
 LOOSE_TAG = postprocess_tag(*LOOSE)
@@ -323,9 +323,9 @@ def stage_filter(periods, dry) -> int:
         dest = out / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{s}_{e}.geojson"
         if dest.is_file():
             continue
-        src = BASE / f"andes_supplemental_{MODEL}_{RAW_THRESHOLD:.2f}_{s}_{e}.geojson"
+        src = BASE / f"andes_supplemental_{MODEL}_{ANDES_RAW_TAG}_{s}_{e}.geojson"
         if not src.is_file():
-            print(f"    {tag}: no andes inference output")
+            print(f"    {tag}: no andes inference output at {src}")
             continue
         rc |= run([sys.executable, str(SCRIPTS / "geo_filter.py"),
                    str(src), str(boundary), "--outpath", str(dest)], dry)
@@ -345,7 +345,7 @@ def stage_postprocess(periods, dry) -> int:
                 continue
             src = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{s}_{e}.geojson"
             if not src.is_file():
-                print(f"    {tag}: no raw detections")
+                print(f"    {tag}: no raw detections at {src}")
                 continue
             rc |= run([sys.executable, str(CORE / "postprocess.py"), str(src),
                        "--t-main", f"{t_main:g}", "--t-iso", f"{t_iso:g}",
