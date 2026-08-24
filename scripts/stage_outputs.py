@@ -441,9 +441,6 @@ def stage_mask_dirs(periods: Sequence[str], dry_run: bool) -> int:
     if not dry_run:
         dest_root.mkdir(parents=True, exist_ok=True)
     runs = [d for tag in periods for d in run_dirs(tag) if d.is_dir()]
-    # persistence_masks holds the onset rasters, not a segmentation run, so it is
-    # staged but carries no mask_config.txt to summarise.
-    srcs = runs + [SAM2 / "persistence_masks"]
     absent = [d.name for tag in periods for d in run_dirs(tag) if not d.is_dir()]
     if absent:
         print(f"  mask dirs: no run directory for {len(absent)} period(s): "
@@ -451,18 +448,27 @@ def stage_mask_dirs(periods: Sequence[str], dry_run: bool) -> int:
     if not dry_run:
         (dest_root / "config.txt").write_text(mask_provenance(runs))
 
+    # A run directory is published whole: every tile it holds is an output. The
+    # onset rasters are not -- persistence_masks/ is also where the basin product
+    # is assembled and where mask review writes, so it is named file by file. A
+    # directory that both receives derived work and is copied wholesale publishes
+    # whatever lands in it.
+    files = [f for d in sorted(runs) for f in sorted(d.rglob("*")) if f.is_file()]
+    onsets = sorted((SAM2 / "persistence_masks")
+                    .glob("mask_onset_*_bounded_growth.tif*"))
+    if not onsets:
+        print("  mask dirs: no onset rasters in persistence_masks/; "
+              "run persist-masks first")
+    files += onsets
+
     copied = skipped = 0
-    for src in sorted(srcs):
-        for f in sorted(src.rglob("*")):
-            if not f.is_file():
-                continue
-            rel = f.relative_to(SAM2)
-            action = copy(f, dest_root / rel, dry_run)
-            copied += action == "copy"
-            skipped += action == "skip"
-    total_gb = sum(f.stat().st_size for s in srcs for f in s.rglob("*")
-                   if f.is_file()) / 1e9
-    print(f"  mask dirs -> staging_gs/mining_scar_masks/  {len(srcs)} dirs, "
+    for f in files:
+        action = copy(f, dest_root / f.relative_to(SAM2), dry_run)
+        copied += action == "copy"
+        skipped += action == "skip"
+    total_gb = sum(f.stat().st_size for f in files) / 1e9
+    print(f"  mask dirs -> staging_gs/mining_scar_masks/  {len(runs)} runs "
+          f"+ {len(onsets)} onset rasters, "
           f"{total_gb:.1f} GB: {copied} copied, {skipped} present")
     return 0
 
