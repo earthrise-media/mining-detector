@@ -3,6 +3,8 @@
 .ipynb_checkpoints
 __pycache__/
 logs/
+core/*.html
+core/*_files/
 docs/design/*.html
 docs/design/*_files/
 data/training_data
@@ -36,3 +38,8 @@ checkpoints/
 checkpts-tmp/
 data/outputs/48px_v3.2-3.7ensemble/partial_years/
 scripts/boundaries/diffs/
+# Assembled by scripts/stage_outputs.py from data/outputs/; ~20 GB, and derived,
+# so it is rebuilt rather than kept. The READMEs inside are rendered from
+# scripts/templates/ -- edit those, not the staged copies.
+data/staging_gs/
+data/staging_source-coop/

@@ -1,4 +1,6 @@
-Data generation and model inference run from code in this folder. 
+Data generation and model inference run from code in this folder.
+`scripts/pipeline.py` drives the whole chain end to end; the sections below
+document the stages it calls and how to run them one at a time.
 
 ### Setup
 
@@ -51,7 +53,109 @@ Run scripts from the `core/` folder; CLI paths are interpreted relative to the c
 * `inference.ipynb`: Run a model on a test area.
 * `inference_pipeline.py`: For large-scale inference.
 
-### Model inference
+### Inference: Driving the pipeline
+
+The full production pipeline now encompasses model inference for patch
+detections and segmentation along with numerous post-processing
+steps. These are integrated under a master pipeline orchestrator. The
+underlying calls for each step are provided in more detail below.
+
+`scripts/pipeline.py` is the single entry point. It knows the stage order and
+derives every path and date from the period tags, so a quarterly refresh is the
+same sequence of commands as a bulk rewrite — with one more tag in the period list.
+
+```
+python ../scripts/pipeline.py --list                    # stage order, and who runs each
+python ../scripts/pipeline.py review-config            # stage 0: the period list
+python ../scripts/pipeline.py <stage> --periods Q226    # work on one period
+python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild would do
+```
+
+### What you may change
+
+Everything a human sets lives in
+[`pipeline_config.py`](pipeline_config.py): `MODEL`,
+`ALL_CURRENT_PERIODS`, `SUBREGIONS`, and the thresholds. Stage 0 prints it.
+
+Those are **contract parameters** — they appear in filenames, and every stage
+finds its input by constructing a path that embeds them. Changing one in the
+config changes every derived path at once, which is the point. Changing one on an
+emitted command line does not: the next stage looks for a file that was never
+written, and reports success having done nothing.
+
+**Behaviour parameters** change what a stage computes but not where anything
+lands — `pad`, `tilesize`, `clear_threshold` in
+[`core/gee.py`](gee.py)`::DataConfig`, `prior_sigma` and `smoothing_sigma` in
+`MaskConfig`. Edit the dataclass default. Note it somewhere, because the outputs
+will be named identically to any produced before the change and nothing in the
+published provenance records it.
+
+To explore a parameter rather than change the product, bypass the pipeline: call
+the underlying script with `--outdir` pointing somewhere separate.
+
+**`--periods` is required, and every value must be a member of
+`ALL_CURRENT_PERIODS`.**
+
+The requirement is not bureaucratic. `persist-detections`, `persist-masks` and
+`stage` recompute from the whole history rather than from the periods you name, so
+they read `ALL_CURRENT_PERIODS` directly — a period absent from it is invisible to
+them and cannot reach the product. `pipeline.py` refuses rather than half-running
+it.
+
+**Full refresh.** Five steps, alternating between what you run on a VM and what
+the pipeline runs for you. The alternation is not cosmetic — each group needs the
+one before it. Scripted stages skip what already exists, so re-running a
+step is how you resume after an interruption.
+
+```
+cd core
+
+# 0. the period list -- add what you are about to run, then carry on.
+python ../scripts/pipeline.py review-config
+
+# 1. patch detections. Long VM job; launch under tmux and watch.
+python ../scripts/pipeline.py inference --all
+
+# 2. scripted: concatenate subregions, clip andes, postprocess, corroborate.
+python ../scripts/pipeline.py concat filter postprocess persist-detections --all
+
+# 3. segmentation. Long VM jobs, and they need step 2's output.
+python ../scripts/pipeline.py mask-annual --all
+python ../scripts/pipeline.py mask-quarterly --all
+
+# 4. scripted: cog the masks, corroborate them, assemble both staging trees.
+python ../scripts/pipeline.py cog persist-masks stage manifest --all
+
+# 5. review the rasters, then push.
+python ../scripts/pipeline.py publish --all
+```
+
+**Quarterly update.** Add the new tag to `ALL_CURRENT_PERIODS` in
+`pipeline_config.py`, then walk the same steps with `--periods Q326` in place of
+`--all` — or `--periods 2026 Q127` in a January, when a new annual witness lands
+alongside the quarter. Only the new period has work
+to do; everything else is skipped.
+
+In Q2, Q3 and Q4 step 3 needs `mask-quarterly` only — the quarter is segmented from
+`patch_diffs/`. **In Q1 you need `mask-annual` as well**, for the year just
+completed: that year's annual mask is a witness for every later onset, even though
+its own layer is not published while quarters still cover the year. Note that
+`mask-annual` emits a command for every annual period, not just the new
+one, so take the pair you need.
+
+Stages run in this order:
+
+```
+inference → concat → filter → postprocess → persist-detections
+  → mask-annual → mask-quarterly → cog → persist-masks
+  → stage → manifest → publish
+```
+
+`publish` emits three numbered steps — push to `gs://amw-published`, mirror to
+`gs://amw-dev/published/`, then Source Cooperative — each followed by a count
+check.
+
+### Detection model inference
 
 Large jobs are typically run on a VM with a local Sentinel-2 image cache.
 
@@ -62,6 +166,7 @@ Example Amazon ACA year (CNN ensemble):
 
 ```
 tmux new
+source venv/bin/activate
 cd core
 python inference_pipeline.py \
     --model ../models/48px_v4.10b-18d-20g-21a-22bc-ensemble.h5 \
@@ -84,13 +189,20 @@ python inference_pipeline.py \
     --tries 3
 ```
 
-If Amazon was split across multiple jobs/sections, concatenate on your local machine:
+#### Concatenating subregions — and why it deduplicates
+
+The basin is run as the six subregions in `data/boundaries/Amazon_ACA/Amazon_ACA_{1..6}.geojson`, split at lon −66/−56 and lat −5. This is the normal path, not a fallback: whole-basin runs proved unreliable, so expect to concatenate on every full-basin pass. Do it on your local machine:
 
 ```
 # from repo root
 python scripts/concatenate.py path/to/part_a.geojson path/to/part_b.geojson \
     --outpath data/outputs/.../Amazon_ACA_....geojson
 ```
+
+**Always use this script — not `ogrmerge`, `cat`, or a plain `pd.concat`.** Tiles straddling a subregion boundary are generated by *both* adjacent runs, and chips are cut across the whole tile, so those tiles emit the same detections twice. Plain concatenation double-counts a band one tile wide (0.05°) along every seam. Because the six-way split is permanent, so is the duplication: it is a property of the workflow, not a one-off accident.
+
+**Dedupe before postprocessing, never after.** This is not cosmetic tidying: a duplicate sits at distance zero from its twin, which depresses the k-th-nearest-neighbour distance `postprocess.py` uses to judge isolation, so a pair can slip past the stricter `t_iso` cutoff that should have rejected it. Measured on 2023: 875 duplicate records (0.48%), plus 11 locations at `t0.43` and 3 at `t0.55` that survived the isolation test only because their twin was sitting on top of them.
+
 
 ### Post-processing
 
@@ -100,38 +212,66 @@ CLI defaults match the **relaxed** single-period postprocess (`t_main=0.43`, `t_
 
 ```
 python postprocess.py \
-    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson
 ```
 
-For the **stringent** settings used in website cumulatives, pass explicit thresholds:
+For the **stringent** settings used for provisional detections, pass explicit thresholds:
 
 ```
 python postprocess.py \
-    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31.geojson \
     --t-main 0.55 --k 5 --D 3 --t-iso 0.8
 ```
 
-Add `--dissolve` to also write merged polygons.
-
-Clip Andes supplemental detections to the supplemental boundary (writes a `*-filt.geojson` sibling):
+Clip Andes supplemental detections to the supplemental boundary. `--outpath` is
+required; write it to `raw_detections/andes_supplemental/` under the `_0.2_` name,
+where `persistence.py` and staging both expect it.
 
 ```
 # from repo root
 python scripts/geo_filter.py \
     data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/andes_supplemental_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.20_2025-01-01_2025-12-31.geojson \
-    data/boundaries/andes_supplemental.geojson
+    data/boundaries/andes_supplemental.geojson \
+    --outpath data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/andes_supplemental/andes_supplemental_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.2_2025-01-01_2025-12-31.geojson
 ```
 
-### Cumulatives and diffs
+### Persistence: cumulatives and first-year products
 
-Build year-end / quarterly cumulatives and period diffs in `cumulatives_and_diffs.ipynb` (Amazon postprocessed at the stringent dual threshold, unioned with Andes supplemental). Rules and published path layout are summarized in `data/outputs/MANIFEST.yaml` under `cumulative_rules` and `products`.
+Temporal corroboration replaced threshold-tightening as the way cumulatives
+control false positives. `persistence.py` requires a detection to appear in
+**k = 2 annual periods within a 2-period window** before it is published as
+confirmed; the stringent `t0.55` set is retained only to stand in for a witness
+at the provisional edge, where the corroborating year does not exist yet.
 
-Typical local folder layout under `data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/`:
+Onset is a pure function of the whole period stack, not an incremental patch, so
+a refresh recomputes and cannot drift. That is the property the rest of the
+pipeline leans on.
 
-* `raw_detections/`
-* `postprocessed_t0.43_d5_3km_t-iso0.75/`
-* `postprocessed_t0.55_d5_3km_t-iso0.8/`
-* `cumulative_t0.55_d5_3km_t-iso0.8/` (includes a `diffs/` subfolder)
+```
+python persistence.py --base ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble \
+    --years 2018 2019 2020 2021 2022 2023 2024 2025 \
+    --quarters Q125 Q225 Q325 Q425 Q126 Q226 \
+    --dissolve
+```
+
+Writes, under `--outdir` (defaults beside `--base`):
+
+* `cumulative/` — per-period cumulative patches, plus `patch_diffs/`, each
+  period's newly confirmed patches. The quarterly SAM2 prompt set.
+* `cumulative_dissolved/` — display polygons, with geometric yearly increments
+  under `diffs/`. An 11 ha minimum applies to increments only, never to the
+  cumulative itself.
+
+Defaults are recipe A (`--k 2 --window 2 --witnesses annual`). `--witnesses all`
+admits quarters as witnesses, which is deliberately *not* the default: quarters
+do not exist before 2025, so admitting them makes early and late years
+incomparable. Rules and published layout are catalogued in
+[`data/outputs/MANIFEST.yaml`](../data/outputs/MANIFEST.yaml) under
+`persistence_rules` and `path_map`.
+
+Consumer-facing folders carry no threshold tag. The parameters that produced a
+directory live in its `config.txt` sidecar, so a path stays stable when a
+threshold is retuned.
 
 ### Masking
 
@@ -149,82 +289,90 @@ gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_mo
 
 By default `sam2_mask.py` expects the `sam2` checkout under `models/sam2` (re-run `pip install -e .` after moving the folder there). The path can also be set at run time.
 
-Run SAM2 masks on **full-year detections** and on **quarterly diffs** (not on quarter-only cumulatives alone). Example: 2025 imagery window on the through-2025 cumulative / year-end product:
+Two prompt sets, matching the two persistence cadences.
+
+**Annual** — the loose single-period postprocess for that year. Annual masks are
+prompted from the full year's detections, not from a cumulative, so each year's
+mask is independent evidence and the k-of-n rule has something to corroborate:
 
 ```
 python sam2_mask.py \
-    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative_t0.55_d5_3km_t-iso0.8/diffs/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-2025.geojson \
-    --start_date 2025-01-01 \
-    --end_date 2025-12-31 \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.43_d5_3km_t-iso0.75/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40_2025-01-01_2025-12-31_t0.43_d5_3km_t-iso0.75.geojson \
+    --start_date 2025-01-01 --end_date 2025-12-31 \
     --cog
 ```
 
-Quarterly mosaics have large cloud gaps, so a quarter-only mask under-covers known scars. After masking the quarterly diffs, **accumulate** each quarter’s diff mask onto the prior full-year (or prior `*_full`) mask with `sam2_combine_masks.py` (OR merge) to produce that quarter’s `*_full` mask. On VMs that use GDAL’s Python pixel function for the VRT step, point `PYTHONSO` at the system libpython first:
+**Quarterly** — that quarter's newly confirmed patches from `patch_diffs/`, because quarterly imagery has gaps and cannot support a reliable full segmentation:
 
 ```
-export PYTHONSO=/usr/lib/x86_64-linux-gnu/libpython3.9.so.1.0
-python sam2_combine_masks.py \
-    mining_mask_2024-01-01_2024-12-31_epsg4326.tif \
-    mining_mask_2025-01-01_2025-03-31diff_epsg4326.tif \
-    mining_mask_2025Q1_full_epsg4326.tif
+python sam2_mask.py \
+    ../data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative/patch_diffs/Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_growth_Q226.geojson \
+    --start_date 2026-04-01 --end_date 2026-06-30 \
+    --cog
 ```
+
+#### Saved logits reproduce the mask
+
+Each masked tile writes `*-msk.tif` and `*-logits.tif`. The logits store
+`clip(smooth(upsampled_log_odds), ±16)` — the *smoothed* field, on the mask grid
+— so `logits > 0` **is** the mask, bit for bit.
+
+```python
+from sam2_logits import mask_from_logits
+
+mask = mask_from_logits(logits_array)                  # == the production mask
+mask = mask_from_logits(logits_array, threshold=1.5)   # a stricter provisional mask
+```
+
+
+#### Mask persistence
+
+`sam2_persistence.py` applies the same k-of-n rule at the pixel level
+as for patch detections, and it writes one **onset raster** per
+UTM/latitude band group: uint16, where each pixel holds the period in
+which mining was first confirmed there.
+
+```
+# one band group
+python sam2_persistence.py --group utm19_lat_-8_0 \
+    --quarters Q125 Q225 Q325 Q425 Q126 Q226 \
+    --outdir ../data/outputs/sam2/persistence_masks
+
+# then mosaic the groups into the master COG
+python sam2_persistence.py --mosaic \
+    ../data/outputs/sam2/persistence_masks/amazon_basin_mining_scar_masks.tif \
+    --outdir ../data/outputs/sam2/persistence_masks
+```
+
+Onset is recomputed from the full stack on every run. A new period supersedes an
+earlier provisional call structurally, with no incremental state to go stale.
 
 ### Publishing outputs
 
-Artifacts are **not** checked into git. Keep `data/outputs/MANIFEST.yaml` current as the in-repo catalog of what lives where.
+Artifacts are **not** checked into git.
+[`data/outputs/MANIFEST.yaml`](../data/outputs/MANIFEST.yaml) is the in-repo
+catalogue of what lives where; keep it current.
 
-**Internal mirror** (`gs://amw-dev/outputs/`), from the model output directory:
+Three buckets, with distinct jobs:
 
-```
-# Detection folders (layout matches MANIFEST path_map / gcs keys)
-gsutil -m rsync -r cumulative_t0.55_d5_3km_t-iso0.8 \
-    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/cumulative_t0.55_d5_3km_t-iso0.8/
-gsutil -m rsync -r postprocessed_t0.43_d5_3km_t-iso0.75 \
-    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.43_d5_3km_t-iso0.75/
-gsutil -m rsync -r postprocessed_t0.55_d5_3km_t-iso0.8 \
-    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/postprocessed_t0.55_d5_3km_t-iso0.8/
-gsutil -m rsync -r raw_detections \
-    gs://amw-dev/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble/raw_detections/
-```
+| bucket | holds | class |
+| --- | --- | --- |
+| `gs://amw-published` | the data store of record — published outputs only, object versioning on | Standard |
+| `gs://amw-dev/published/` | server-side copy of the above | Standard |
+| `gs://amw-image-caches` | Sentinel-2 caches, needed only to re-run a model or SAM2 | Archive |
 
-SAM2 COGs (example sync from local `data/outputs/sam2/` naming):
+Source Cooperative mirrors the public subset *from* `gs://amw-published`, never
+the reverse. If the two disagree, the bucket is correct.
 
-```
-for f in Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_t0.55_d5_3km_t-iso0.8_cumulative2018-* ; do
-  gsutil -m rsync -r "$f/cog_outputs/" "gs://amw-dev/outputs/sam2/$f/cog_outputs/"
-done
-```
+Staging is scripted. `scripts/stage_outputs.py` assembles both trees under
+`data/`, with clean consumer-facing filenames, a `config.txt` in each directory,
+and the bucket README rendered from
+`scripts/templates/amw_published_README.md`:
 
-Also upload yearly and combined quarterly full masks (e.g. `mining_mask_Q325_full.tif`) under the model’s `mining_scar_masks/` prefix on GCS.
+* `data/staging_gs/` — everything, for `gs://amw-published`
+* `data/staging_source-coop/` — the public subset only
 
-**Public** ([Source Cooperative](https://source.coop/earthgenome/amazon-mining-watch)): paste temporary AWS-compatible credentials into the shell, then upload these product trees (local folder → bucket key):
-
-```
-aws s3 ls s3://earthgenome/amazon-mining-watch/
-
-# Cumulatives (+ diffs/) → cumulative_detections/
-aws s3 cp --recursive cumulative_t0.55_d5_3km_t-iso0.8/ \
-    s3://earthgenome/amazon-mining-watch/cumulative_detections/
-
-# Single-period detections → single_periods/
-aws s3 cp --recursive raw_detections/ \
-    s3://earthgenome/amazon-mining-watch/single_periods/raw_detections/
-aws s3 cp --recursive postprocessed_t0.43_d5_3km_t-iso0.75/ \
-    s3://earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.43_d5_3km_t-iso0.75/
-aws s3 cp --recursive postprocessed_t0.55_d5_3km_t-iso0.8/ \
-    s3://earthgenome/amazon-mining-watch/single_periods/postprocessed_t0.55_d5_3km_t-iso0.8/
-
-# SAM2 scar masks
-aws s3 cp --recursive mining_scar_masks/ \
-    s3://earthgenome/amazon-mining-watch/mining_scar_masks/
-
-# optional: refresh the product README on the bucket
-aws s3 cp /path/to/README-source.coop.md s3://earthgenome/amazon-mining-watch/README.md
-```
-
-After publishing, update `data/outputs/MANIFEST.yaml` (`updated` date, periods, and any new path notes).
-
-### Embedding-based models
+### Footnote: Embedding-based models
 
 As of May 2026, our best detection model remains an ensemble of CNNs trained from scratch. We experimented extensively with models constructed as (ensembles of) probes trained on top of geo-foundation model embeddings, and the code still supports this alternate paradigm. Use an embedding notebook then `train_probe.ipynb` in place of `train_model.ipynb`, and otherwise follow the same workflow.
 

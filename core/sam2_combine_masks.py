@@ -43,8 +43,8 @@ def main(base_mask_path: str, update_path: str, output_path: str) -> None:
     print(f"Output resolution (from base_mask): {xres}, {yres}")
 
     with tempfile.TemporaryDirectory(prefix="combine_masks_") as tmpdir:
-        stack_vrt = os.path.join(tmpdir, "stack.vrt")
-        derived_vrt = os.path.join(tmpdir, "stack_calc.vrt")
+        stack_vrt = Path(tmpdir) / "stack.vrt"
+        derived_vrt = Path(tmpdir) / "stack_calc.vrt"
 
         # --- Build aligned stack: both rasters warped to same grid ---
         run([
@@ -86,7 +86,7 @@ def mask_or(in_ar, out_ar, xoff, yoff, xsize, ysize, raster_xsize, raster_ysize,
     )
 """
         # Reference the two bands of the stack VRT (filename relative to derived VRT)
-        stack_basename = os.path.basename(stack_vrt)
+        stack_basename = Path(stack_vrt).name
         for band_index in (1, 2):
             src = ET.SubElement(derived, "SimpleSource")
             ET.SubElement(src, "SourceFilename", {"relativeToVRT": "1"}).text = stack_basename

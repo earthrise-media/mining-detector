@@ -45,6 +45,9 @@ from tqdm.auto import tqdm
 from shapely.geometry import box
 
 from tile_utils import CenteredTile, cut_chips, create_tiles, ensure_tile_shape
+from sam2_logits import (DEFAULT_LOGIT_CLAMP, DEFAULT_SMOOTHING_SIGMA,
+                         smooth_logits)
+from postprocess import PostprocessConfig
 
 from dense_embedding_cache import (
     DenseCachePaths,
@@ -137,6 +140,10 @@ class InferenceConfig:
     run_sam2: bool = False
     # Base directory for prediction GeoJSONs; subfolder per model version at runtime.
     inference_output_base: PathLike = DEFAULT_INFERENCE_OUTPUT_BASE
+    # GeoJSON coordinate precision for detection outputs. Defaults from
+    # PostprocessConfig so producer and consumer cannot drift; see there for
+    # why 6, and why it requires a uniform archive.
+    coordinate_precision: int = PostprocessConfig.coordinate_precision
     stride_ratio: int = 2  # stride is computed as chip_size // stride_ratio.
     tries: int = 2
     max_concurrent_tiles: int = 500
@@ -196,7 +203,25 @@ class InferenceConfig:
 @dataclass
 class MaskConfig:
     prior_sigma: float = 12.0   # spatial prior sigma (pixels)
-    smoothing_sigma: float = 2.5  # gaussian smoothing after upsampling (pixels)
+    # Defaults live in sam2_logits so that consumers replaying the smoothing
+    # on saved logits cannot drift from what produced them.
+    smoothing_sigma: float = DEFAULT_SMOOTHING_SIGMA  # after upsampling (px)
+    # Saturation limit for the persisted logits, in log-odds. The spatial prior
+    # is an unbounded quadratic penalty, so log_odds runs to about -862 in
+    # practice; that tail is deterministic geometry carrying no decision-
+    # relevant information, but stored as smoothly-varying float32 it dominates
+    # the file. Clamping collapses it to a constant that ZSTD removes: measured
+    # 5.3x smaller on real tiles (2.85 MB -> 541 KB across 16), in float32, with
+    # no change of dtype or nodata handling.
+    #
+    # 16 is chosen to be lossless, not merely adequate. Clamping happens before
+    # the smoothing is replayed, so a limit that is too tight perturbs the
+    # smoothed field near the decision boundary. Verified on real tiles: at
+    # +/-16 the re-derived mask is bit-identical to the unclamped one on every
+    # tile (0 differing pixels); at +/-8 it is not (23 px, IoU 0.9987).
+    # +/-16 log-odds is a probability of 1 - 1.1e-7, far outside any threshold
+    # a t_prov,mask sweep would explore.
+    logit_clamp: float = DEFAULT_LOGIT_CLAMP
 
     sam2_repo_path: PathLike = SAM2_PATH
     sam2_checkpoint: Optional[PathLike] = None
@@ -224,6 +249,28 @@ class MaskConfig:
 
         self.mask_dir = Path(self.mask_dir)
         self.mask_dir.mkdir(parents=True, exist_ok=True)
+
+    #: Fields that determine how to read a ``-logits.tif``. Recorded per run
+    #: because they are irreversible: smoothing, the clamp and the spatial prior
+    #: are all baked into the stored field and none can be undone from the file.
+    PROVENANCE_FIELDS: ClassVar[Tuple[str, ...]] = (
+        "prior_sigma", "smoothing_sigma", "logit_clamp",
+        "sam2_checkpoint", "finetuned_weights", "sam2_model_cfg")
+
+    def write_config(self, name: str = "mask_config.txt") -> Path:
+        """Record the mask configuration beside the tiles it produced.
+
+        Run-level rather than per-raster metadata: a reader needs to know how the
+        stored logits were made, and that is a property of the run. Without it,
+        a reader needs to know how the stored logits were made, and two
+        differently-made files are indistinguishable by dtype, grid and value
+        range alike.
+        """
+        path = Path(self.mask_dir) / name
+        lines = ["logits_stored = clip(smooth(upsampled_log_odds), +/-clamp)"]
+        lines += [f"{f} = {getattr(self, f)}" for f in self.PROVENANCE_FIELDS]
+        path.write_text("\n".join(lines) + "\n")
+        return path
 
     @staticmethod
     def _resolve_sam2_hydra_config(
@@ -1000,7 +1047,14 @@ class InferenceEngine:
                     print(f"Found {len(batch_gdf)} new positives.", flush=True)
                     
                     Path(outpath).parent.mkdir(parents=True, exist_ok=True)
-                    predictions.to_file(outpath, index=False)
+                    # Pinned: left unset this floats with the GDAL/pyogrio
+                    # version on whichever VM ran the job. The 2024 detections
+                    # came out at 6 decimals while every other year got full
+                    # float64, which silently broke centroid joins across years
+                    # and manufactured a phantom +82,245-patch anomaly in the
+                    # cumulative record.
+                    predictions.to_file(outpath, index=False, driver="GeoJSON",
+                                        COORDINATE_PRECISION=self.config.coordinate_precision)
 
             self.logger.info(f"{len(fails)} failed tiles.")
             retry_tiles = fails
@@ -1049,6 +1103,11 @@ class SAM2_Masker:
         self, data_extractor: GEE_Data_Extractor, config: MaskConfig):
         self.data_extractor = data_extractor
         self.config = config
+        # Written here, not from MaskConfig.__post_init__: callers redirect
+        # mask_dir to a per-run subfolder *after* constructing the config (see
+        # sam2_mask.py), and MaskConfig is also instantiated merely to read
+        # defaults, which must not touch the disk.
+        self.config.write_config()
 
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -1145,11 +1204,16 @@ class SAM2_Masker:
         return out.astype(np.float32)
 
     def upsample_logits(
-        self, logits: np.ndarray, target_shape: Tuple[int, int]) -> np.ndarray:
-        """Resample SAM2 logits to target raster resolution, with optional
-            Gaussian smoothing for spatial regularization.
+        self, logits: np.ndarray, target_shape: Tuple[int, int],
+        smooth: bool = True) -> np.ndarray:
+        """Resample SAM2 logits to target raster resolution.
+
+        ``smooth=True`` additionally applies the Gaussian regularization that
+        the production mask thresholds. ``smooth=False`` returns the upsampled
+        field before that step; :meth:`predict` smooths and clamps it to build
+        the persisted ``-logits.tif``.
         """
-        logits_tensor = torch.from_numpy(logits[None, None, ...]).float()  
+        logits_tensor = torch.from_numpy(logits[None, None, ...]).float()
         upsampled = F.interpolate(
             logits_tensor,
             size=target_shape,
@@ -1158,7 +1222,7 @@ class SAM2_Masker:
         )[0,0].numpy()
 
         sigma = self.config.smoothing_sigma
-        if sigma and sigma > 0:
+        if smooth and sigma and sigma > 0:
             upsampled = ndi.gaussian_filter(upsampled, sigma=sigma)
 
         return upsampled
@@ -1200,8 +1264,39 @@ class SAM2_Masker:
             outdir=self.config.mask_dir,
             product_type="mask")
 
+        # Persist the logits on the *mask* grid, prior included, smoothing
+        # applied. Three deliberate choices:
+        #
+        # - Upsampled, so mask and logits share a grid.
+        # - Prior included, because soft_spatial_prior is a function of the
+        #   frozen t0.43 detection set. Excluding it would mean carrying every
+        #   tile's detection set forever just to reconstruct log_odds.
+        # - Smoothing APPLIED, so (stored logits > 0) reproduces the mask and
+        #   any stricter cutoff is a true re-threshold. It also makes
+        #   thresholding commute with the max-reduce mosaic -- max(a,b) > t is
+        #   identically (a>t) or (b>t) -- so a logits mosaic can be thresholded
+        #   directly. See docs/design/persistence-planning.md.
+        #
+        # Clamp AFTER smoothing. The mask is smooth(unclipped) > 0, and clipping
+        # a smoothed field at +/-16 cannot change its sign, so this reproduces
+        # the mask exactly. Clamping first does not: the prior is an unbounded
+        # quadratic penalty running to about -862, so most of a tile sits at the
+        # clamp (76,275 of 78,400 px on a real tile), and collapsing that tail
+        # raises the local average enough to push an occasional boundary pixel
+        # across zero -- measured on ~0.02% of tiles, 1-2 px each. Converting a
+        # legacy tile can only produce the clamp-first form, since the unclipped
+        # field is gone; that residual is the price of the migration, not a
+        # reason to degrade new runs to match it.
+        upsampled_unsmoothed = self.upsample_logits(
+            log_odds, pixels.shape[:2], smooth=False)
+        stored_logits = smooth_logits(
+            upsampled_unsmoothed, self.config.smoothing_sigma)
+        clamp = self.config.logit_clamp
+        if clamp:
+            stored_logits = np.clip(stored_logits, -clamp, clamp)
+
         self.data_extractor.save_tile(
-            pixels=log_odds[..., None],  
+            pixels=stored_logits[..., None],
             tile=tile,
             outdir=self.config.mask_dir,
             product_type="logits")
@@ -1274,9 +1369,16 @@ class SAM2_Masker:
                 tiles_w_polys.append((tile, tile_polys))
 
         # --- SAM2 masking multi-threaded --- 
-        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame):
+        def process_tile(tile: TileType, tile_polys: gpd.GeoDataFrame) -> None:
             pixels = self.data_extractor.get_tile_data(tile)
-            return self.predict(pixels, tile, tile_polys)
+            # Discard predict()'s return value rather than handing it back.
+            # It carries SAM2's full-resolution masks -- (n_boxes, 3, H, W)
+            # float32, hundreds of MB on a detection-dense tile -- and the
+            # futures dict below holds every future for the whole batch, so a
+            # returned result stays reachable until the batch finishes rather
+            # than being freed as each tile completes. The mask and logits are
+            # already written to disk inside predict(); nothing here needs it.
+            self.predict(pixels, tile, tile_polys)
 
         for i in tqdm(range(0, len(tiles_w_polys), max_concurrent_tiles),
                       desc="Processing tiles"):

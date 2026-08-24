@@ -46,7 +46,7 @@ def _ensure_earth_engine_initialized() -> None:
             "project": EE_PROJECT,
         }
         if key_path:
-            if not os.path.isfile(key_path):
+            if not Path(key_path).is_file():
                 raise FileNotFoundError(
                     f"GOOGLE_APPLICATION_CREDENTIALS={key_path!r} is not a readable file"
                 )

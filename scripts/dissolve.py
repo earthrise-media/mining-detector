@@ -1,7 +1,12 @@
 
 import argparse
+import sys
+from pathlib import Path
 
 import geopandas as gpd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
+from postprocess import PostprocessConfig  # noqa: E402
 
 def dissolve(path, threshold, column, buffer_width):
     """Merge adjacent patch-wise mine detections into polygons."""
@@ -17,7 +22,9 @@ def dissolve(path, threshold, column, buffer_width):
     base = path.split('.geojson')[0]
     suffix = f'-dissolved-{threshold}' if threshold is not None else '-dissolved'
     outpath = base + suffix + '.geojson'
-    df.to_file(outpath)
+    # Pinned so precision does not float with the GDAL/pyogrio version; see
+    # core/postprocess.py and docs/design/persistence-planning.md.
+    df.to_file(outpath, driver="GeoJSON", COORDINATE_PRECISION=PostprocessConfig.coordinate_precision)
 
 if __name__ == '__main__':
     

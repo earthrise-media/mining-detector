@@ -90,7 +90,7 @@ def simplify_gdf(gdf):
 
 def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
-    zone_min = 32718
+    zone_min = 32717  # UTM 17S, the zone containing lon_min
     lon_min = -84
     delta_lon = 6
     n_zones = 9
