@@ -1349,6 +1349,17 @@ the 8.4% annual rate. Confirmed is necessarily a subset of eligible, since a 202
 onset requires presence in the 2024 annual; that identity holds exactly here,
 which is the check that the construction is sound.
 
+**What these shares are shares of.** Every figure in this section counts *patch
+locations new to the product* — present in a 2024 quarter and absent from the
+confirmed record as it stood at onset 2023 — matched by rounded centroid, which is
+the unit the rule decides on. Both directions use that same leading edge: 14,867
+newly published against 9,519 newly confirmed, which is what makes 40% and 62.5%
+comparable. Neither is a share of the ~200,000-patch published layer, and neither
+is a share of mines. A withdrawn patch 240 m from a confirmed patch is a
+disagreement about a footprint, not about whether a mine is there — see "At mine
+scale the disagreement is far smaller" below, which is the form to quote outside
+this document.
+
 **The threshold is a weak lever.** Sweeping `t_prov`, re-thresholding from the raw
 catalog so the isolation rule is recomputed at each value:
 
@@ -1387,6 +1398,38 @@ reaches 77.3%. So the layer is simultaneously over-inclusive of noise and
 under-inclusive of real sites, and raising `t_prov` worsens the second to buy
 little of the first. Survival and coverage pull in opposite directions and no
 single threshold serves both.
+
+#### At mine scale the disagreement is far smaller (measured 2026-08-24)
+
+Centroid-key identity is right for the rule, which has to decide corroboration
+per patch, and wrong for describing how much the two layers agree: it cannot tell
+a mine drawn one patch over from a different finding. Patches are 480 m, so the
+question is how far a changed patch sits from anything in the layer it is compared
+against — removals against what remains, additions against what they replace.
+
+Retiring the 2024 quarters takes the published layer from 208,092 patches
+(confirmed onsets ≤ 2023, plus 14,867 provisional) to 202,744 (confirmed onsets
+≤ 2024): **8,913 removed, 3,565 added, net −5,348, or −2.6%.** By distance:
+
+| | total | >240 m | >480 m | >960 m |
+| --- | --- | --- | --- | --- |
+| removed | 8,913 | 6,704 | 3,106 | 1,870 |
+| added | 3,565 | 2,599 | 563 | 242 |
+
+Beyond one patch width the year boundary removes ~3,100 patches and adds ~560, on
+a layer of ~200,000. Median distance for a removed patch is 241 m — half a patch —
+and two thirds are within a single patch width of something confirmed, so most of
+the 60% withdrawal rate above is footprint movement on mines that stay on the map
+either way.
+
+The two directions thin out differently. Removals fall off gradually with
+distance; additions collapse between 240 m and 480 m, 2,599 to 563. A newly
+confirmed patch the quarters never showed is almost always adjacent to something
+already mapped — a mine growing at its edge — while removals are more often
+standalone. That, and not the patch-level rate, is the number to quote: a layer
+that shrinks 2.6% at each year boundary as provisional evidence gives way to
+corroborated evidence is ordinary behaviour, and describing it as withdrawing 60%
+of its recent entries is not.
 
 **Seasonality recurs in rank, not in level.** Eligibility by quarter:
 
@@ -1575,7 +1618,9 @@ Implementation phase (to do):
       Survival on the resolved 2024 quarters is 40.0%, and no reachable threshold
       fixes it (51.8% at 0.80, for 58% of the volume) because the failure is
       structural. The ≥2-quarter rule is stronger but spends timeliness, which is
-      what the provisional edge is for. See "Decision: `t_prov,quarterly` stays at
-      0.55". What remains is presentation, tracked as consequence 2 there.
+      what the provisional edge is for. That 40% is patch-level; at mine scale the
+      year boundary moves ~3,100 patches out and ~560 in on a layer of ~200,000.
+      See "Decision: `t_prov,quarterly` stays at 0.55" and "At mine scale the
+      disagreement is far smaller". What remains is presentation, consequence 2.
 - [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
 - [x] Confirmed/provisional split plumbed through to published outputs — `status` on every cumulative layer; increments are status-homogeneous.
