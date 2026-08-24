@@ -1279,56 +1279,134 @@ size can this detector see".
 
 #### The provisional edge is replaced, not confirmed (measured 2026-08-17)
 
-**Open.** A quarter's provisional detections are not an early draft of the
+A quarter's provisional detections are not an early draft of the
 confirmed annual layer that eventually supersedes them. They come from different
 imagery — quarterly composites thresholded at `t_prov` = 0.55, against a
 full-year composite at `t0.43` — so when 2025 confirms on the 2026 annual, the
 published provisional entries are *replaced* rather than promoted.
 
-Measured on the 14,357 provisional new locations published through Q425 2025:
+Figures here and below include the Andes supplemental, as the product does:
+`load_period` unions it into every period, provisional layers included.
+
+Measured on the 14,761 provisional new locations published through Q425 2025:
 
 | | count | share |
 | --- | --- | --- |
-| present in the 2025 annual at `t0.43` (*could* confirm) | 7,827 | 54.5% |
-| absent from it — **can never confirm** | 6,530 | **45.5%** |
+| present in the 2025 annual at `t0.43` (*could* confirm) | 7,974 | 54.0% |
+| absent from it — **can never confirm** | 6,787 | **46.0%** |
 
-Eligibility is not confirmation: those 7,827 still need 2026 corroboration, so
-survival will be below 54.5%. For scale, the *annual* provisional drop rate is
-8.4% at one year. The quarterly edge churns at least five times harder.
+Eligibility is not confirmation: those 7,974 still need 2026 corroboration, so
+survival is below 54.0% — measured at 40.0% on 2024, below. For scale, the
+*annual* provisional drop rate is 8.4% at one year.
 
-Eligibility tracks season, as quarterly cloud loss predicts: Q225 41% → 73%,
-Q425 only 35% at median confidence 0.608 against Q225's 0.802.
+Eligibility tracks season, as quarterly cloud loss predicts: Q125 40.5% → Q225
+72.8%, Q425 only 33.1%, at median confidence 0.608 against Q225's 0.802.
 
-The reverse direction is just as large: **74,542 locations in the 2025 annual at
-`t0.43` appear in no 2025 quarter at all** (46.6% of the annual set), so the
+The reverse direction is just as large: **74,582 locations in the 2025 annual at
+`t0.43` appear in no 2025 quarter at all** (46.5% of the annual set), so the
 confirmed layer will also introduce sites that were never shown provisionally.
 
 Three consequences to settle:
 
-1. **This is the `t_prov,quarterly` calibration signal**, and the paired
-   experiment the calibration task calls for is now half-run. A 45.5%
-   never-eligible rate is direct evidence that 0.55 admits substantial quarterly
-   noise. The value was left at 0.55 on 2026-08-17, before this measurement
-   existed; raising it trades provisional coverage for a smaller withdrawal rate.
+1. **This is the `t_prov,quarterly` calibration signal.** Settled below: no
+   value of it is good, and 0.55 stays.
 2. **The two layers answer different questions** — provisional is "what have we
    seen lately", confirmed is "where did mining begin". If the site presents
    provisional entries as pending versions of themselves, replacement will read
    as instability rather than as two products with different supports.
+   **Still open, and now the whole of the remaining decision.**
 3. Whether to require a location in ≥2 quarters before publishing it as
-   provisional. This would cut the withdrawal rate, but it is persistence over
-   quarters, which "Design details" rejects for confirmation on seasonal-bias
-   grounds; the argument may or may not carry over to display.
+   provisional. Closed below: it is the strongest lever measured, and it is
+   rejected on timeliness.
 
-**Why 2024 quarters are being run (2026-08-21).** The measurement above can only
-reach eligibility, never confirmation: the 7,827 eligible locations still need
-2026 corroboration, so 54.5% is an upper bound on survival and no threshold can
-be defended against it. 2024 is the most recent year that closes — under `k=2,
-window=2` an onset year needs a witness in itself or the next, and the 2024 and
-2025 annuals are both on disk, where 2025 would need 2026. So Q124–Q424 can be
-followed all the way to a confirmed-or-not verdict, which turns the ceiling into
-an actual survival rate. Second return: the seasonality signal above (Q225 73%
-against Q425 35%) is one year of weather until a second year says whether it
-recurs, which is what consequence 3 turns on.
+#### Decision: `t_prov,quarterly` stays at 0.55 (measured 2026-08-24)
+
+The 2025 pairing could only reach eligibility, because confirming a 2025 onset
+needs the 2026 annual. 2024 is the most recent year that closes — under `k=2,
+window=2` an onset year needs a witness in itself or the next, and both the 2024
+and 2025 annuals are in hand — so the 2024 quarters were run to turn that ceiling
+into a survival rate.
+
+Construction, mirroring what `persistence.py` does at the edge of year Y: every
+annual through Y is a frame, Y itself as a *witness* rather than a published
+layer, so `resolvable` reaches Y−1 and the prior is the confirmed onsets at or
+before Y−1. A provisional row is a location absent from that prior. The verdict
+comes from the full record. Reproducing the 2025 row above is what licenses
+reading the two years side by side.
+
+**Survival at the published 0.55**, across Q124–Q424:
+
+| | count | share |
+| --- | --- | --- |
+| provisional new locations published | 14,867 | |
+| eligible — in the 2024 annual at `t0.43` | 10,285 | 69.2% |
+| **confirmed** | **5,954** | **40.0%** |
+| withdrawn | 8,913 | 60.0% |
+| of the eligible, never confirmed anyway | 4,331 | 42.1% |
+
+Three in five published provisional locations are withdrawn — about seven times
+the 8.4% annual rate. Confirmed is necessarily a subset of eligible, since a 2024
+onset requires presence in the 2024 annual; that identity holds exactly here,
+which is the check that the construction is sound.
+
+**The threshold is a weak lever.** Sweeping `t_prov`, re-thresholding from the raw
+catalog so the isolation rule is recomputed at each value:
+
+| `t_prov` | published | confirmed | survival |
+| --- | --- | --- | --- |
+| 0.45 | 22,238 | 7,146 | 32.1% |
+| 0.55 | 14,867 | 5,954 | 40.0% |
+| 0.65 | 10,359 | 4,867 | 47.0% |
+| 0.80 | 6,204 | 3,211 | 51.8% |
+
+0.55 → 0.80 surrenders 58% of the volume for 12 points of survival and still
+withdraws nearly half. Nothing in the reachable range makes the layer
+trustworthy, because the failure is structural — the two layers are built from
+different imagery — rather than a miscalibrated cutoff.
+
+**Corroboration dominates confidence, and loses anyway.** Requiring a location in
+≥2 quarters, against raising the threshold to comparable volume:
+
+| rule | published | survival | coverage |
+| --- | --- | --- | --- |
+| `t0.55`, ≥1 quarter — current | 14,867 | 40.0% | 62.5% |
+| `t0.55`, ≥2 quarters | 5,130 | 57.3% | 30.9% |
+| `t0.43`, ≥2 quarters | 8,169 | 52.0% | 44.6% |
+| `t0.80`, ≥1 quarter | 6,204 | 51.8% | 45.3% |
+
+Two quarters at the existing threshold beats a raised threshold at the same
+volume, and loosening to `t0.43` while requiring two quarters beats it on both
+axes — the same result the persistence work rests on, that corroboration is worth
+more than confidence. **Rejected regardless: it delays publication**, and a site
+seen in Q1 and Q3 would wait until Q3. Timeliness is the reason the provisional
+edge exists, so a rule that spends it is a non-starter whatever it buys.
+
+**Coverage runs the other way.** Of the 9,519 locations confirmed with onset 2024,
+only 5,954 (62.5%) ever appeared in a 2024 quarter at `t0.55`; at `t0.43` that
+reaches 77.3%. So the layer is simultaneously over-inclusive of noise and
+under-inclusive of real sites, and raising `t_prov` worsens the second to buy
+little of the first. Survival and coverage pull in opposite directions and no
+single threshold serves both.
+
+**Seasonality recurs in rank, not in level.** Eligibility by quarter:
+
+| | 2024 | 2025 |
+| --- | --- | --- |
+| Q1 | 63.1% | 40.5% |
+| Q2 | 74.3% | 72.8% |
+| Q3 | 76.7% | 55.3% |
+| Q4 | 57.2% | 33.1% |
+
+Q2 > Q3 > Q1 > Q4 in both years, so the ordering is season rather than weather.
+The levels move far too much to fit against — Q3 is 76.7% against 55.3% — which
+is the argument against a per-quarter `t_prov`: an adjustment fitted to one year
+would be wrong the next. It is also why a ≥2-quarter rule would systematically
+favour dry-season-visible ground.
+
+**Conclusion.** 0.55 stays, and the remaining work is presentation, not
+threshold: consequence 2 above is the whole of the decision. Provisional and
+confirmed have different supports, and a site that shows provisional entries as
+pending versions of confirmed ones will read 60% withdrawal as instability.
 
 #### Retiring superseded quarterly layers (noted 2026-08-19)
 
@@ -1493,11 +1571,11 @@ Implementation phase (to do):
       and nothing deletes a layer that stops being staged. Needs a decision on what
       supersede means to a consumer. First bites Q1 2027; see "Retiring superseded
       quarterly layers".
-- [ ] **Calibrate `t_prov,quarterly`** from the paired 2025 quarterly vs 2025
-      annual comparison — half-run, see "The provisional edge is replaced, not
-      confirmed": at 0.55, 45.5% of published provisional locations are absent
-      from the 2025 annual at t0.43 and can never confirm. The other half is the
-      2024 quarterly run in progress, the most recent year that resolves to a
-      confirmed verdict rather than to eligibility.
+- [x] **Calibrate `t_prov,quarterly`** — done 2026-08-24: **0.55, unchanged**.
+      Survival on the resolved 2024 quarters is 40.0%, and no reachable threshold
+      fixes it (51.8% at 0.80, for 58% of the volume) because the failure is
+      structural. The ≥2-quarter rule is stronger but spends timeliness, which is
+      what the provisional edge is for. See "Decision: `t_prov,quarterly` stays at
+      0.55". What remains is presentation, tracked as consequence 2 there.
 - [x] **Recompute the test-set metrics** on 5-dp-keyed layers — done; the superseded 6-dp table was removed rather than kept alongside.
 - [x] Confirmed/provisional split plumbed through to published outputs — `status` on every cumulative layer; increments are status-homogeneous.
