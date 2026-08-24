@@ -148,6 +148,8 @@ We now require corroboration across time in lieu of the higher confidence level 
 
 The most recent periods have no later year to corroborate against. Recent quarterly detections there are marked **provisional** and are held to a stricter confidence threshold in place of that corroboration, then replaced by annual data once the corroborating year arrives.
 
+Provisional detections are not a draft of the confirmed record. A notable proportion of provisionals will be struck from the record, and likewise, some of the eventual confirmed annual increment will not have been seen in the quarterly updates. Largely due to clouds, quarterly and annual composites see different views of the ground. The expected turnover on annual revision is a few percent of the total record, mostly at the edges of mines that appear either way.
+
 For 2024, the last period with confirmed detections at time of
 writing, the cumulative detections return the following scores with
 respect to the evaluation locations used above:
