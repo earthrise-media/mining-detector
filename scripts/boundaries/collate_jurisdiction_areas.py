@@ -75,6 +75,11 @@ JURISDICTIONS = [
 ]
 
 COLUMNS = [
+    # Leads the row so a copy that has drifted away from this repo still says
+    # which publish it came from. Reprocessing has restated past years before
+    # (2023 moved 45% between the 2026-07-24 and 2026-08-22 publishes), and a
+    # detached CSV otherwise gives a reader no way to tell which vintage it is.
+    "date_published",
     "id",
     "type",
     "country",
@@ -99,12 +104,30 @@ TYPE_ORDER = [spec["type"] for spec in JURISDICTIONS]
 AMAZON_ID = "AMAZ"  # the whole-basin row, sorted ahead of the countries
 
 
+def as_folder(data_date: str) -> str:
+    """Accept either 20260822 or 2026-08-22; CDN folders use the former.
+
+    The CSV publishes the dashed form, so a reader can paste the date they see
+    in the file straight back into --data-date.
+    """
+    folder = data_date.replace("-", "")
+    if not (len(folder) == 8 and folder.isdigit()):
+        sys.exit(f"--data-date should be YYYYMMDD or YYYY-MM-DD, got {data_date!r}")
+    return folder
+
+
+def as_published(data_date: str) -> str:
+    """20260822 -> 2026-08-22, for the human reading the CSV."""
+    return f"{data_date[:4]}-{data_date[4:6]}-{data_date[6:8]}"
+
+
 def resolve_data_date(explicit: str | None) -> str:
     """Return the newest published CDN folder name (YYYYMMDD)."""
     if explicit:
-        if not exists(explicit):
-            sys.exit(f"No data at {BASE}/{explicit}/{SENTINEL}")
-        return explicit
+        folder = as_folder(explicit)
+        if not exists(folder):
+            sys.exit(f"No data at {BASE}/{folder}/{SENTINEL}")
+        return folder
 
     floor = date(
         int(DATA_UPDATED_AT[:4]), int(DATA_UPDATED_AT[4:6]), int(DATA_UPDATED_AT[6:8])
@@ -184,7 +207,9 @@ def collate(data_date: str) -> pd.DataFrame:
         print(f"  {spec['type']}: {len(yearly)} yearly rows, {len(meta)} jurisdictions")
         frames.append(merged)
 
-    df = pd.concat(frames, ignore_index=True)[COLUMNS]
+    df = pd.concat(frames, ignore_index=True).assign(
+        date_published=as_published(data_date)
+    )[COLUMNS]
     df = df.assign(
         _type=pd.Categorical(df["type"], categories=TYPE_ORDER, ordered=True),
         _amazon=df["id"].ne(AMAZON_ID),  # False sorts first
@@ -200,7 +225,8 @@ def main() -> int:
     )
     ap.add_argument(
         "--data-date",
-        help="CDN publish folder, YYYYMMDD (default: newest one found on the CDN)",
+        help="CDN publish folder, YYYYMMDD or YYYY-MM-DD "
+        "(default: newest one found on the CDN)",
     )
     ap.add_argument("--out", type=Path, help="output CSV path")
     ap.add_argument(

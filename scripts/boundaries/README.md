@@ -60,6 +60,11 @@ The output path is fixed at `data/boundaries/mined_areas_by_jurisdiction.csv`
 — the AMW website links directly to it, so the name must not change between
 data updates. Commit the refreshed file to get a versioned history of it.
 
+Every row carries the `date_published` of the publish it was built from, so a
+copy that has been downloaded and passed around still says which vintage it is.
+`--data-date` takes that same dashed form as well as the `YYYYMMDD` folder name,
+so a date read off the CSV can be pasted straight back in to rebuild it.
+
 ## Source data and outputs
 
 We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. Instead, you can use our S3 bucket to sync it with your local dev folder:
