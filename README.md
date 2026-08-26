@@ -175,7 +175,7 @@ For the website we also fold in lower-threshold detections (`t_main = 0.2`) for 
 
 To better estimate mined areas, we delineate scars with a fine-tuned [SAM2](https://ai.meta.com/research/sam2/) segmentation model—a clear improvement over estimating area from whole patches or from NDVI masking alone. The same two-year corroboration rule is applied at the pixel level, so a mask pixel enters the cumulative record when it is segmented in two annual periods within a two-year window.
 
-Segmentation is the least mature part of the pipeline. Measured against 184 hand-annotated validation chips, segmented area for a single year mask runs about 1.5× the annotated extent. The bias is largely systematic, which makes comparisons between periods more trustworthy than any single total. The model still needs more fine-tuning on hard cases.
+Segmentation is the least mature part of the pipeline. Measured against 184 hand-annotated evaluation chips, segmented area runs about 1.5× the annotated extent for a single-year mask, and about 1.7× for the cumulative mask we publish. The two are not measured the same way: the annotations record scar visible in a single year, while the cumulative holds scar from every year since 2018. The bias is largely systematic, which makes comparisons between periods more trustworthy than any single total. The model still needs more fine-tuning on hard cases.
 
 We gratefully acknowledge **Michael Braun**, **Daemon Li**, and **Divas Subedi**, master’s students in the Department of Computer Science at Georgia Tech, for developing the fine-tuned SAM2 segmentation model as part of their course work.
 
