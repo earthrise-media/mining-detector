@@ -1,9 +1,6 @@
 # Publicly served files
 
-These paths are public URLs — the Amazon Mining Watch website links straight at
-them, so don't rename, move, or date-stamp anything here. The repo history does
-the versioning. Website data otherwise goes to S3 and the detections and mining
-scar masks to source.coop, so this folder stays small.
+These paths are public URLs, linked straight from the Amazon Mining Watch website.
 
 ## `mined_areas_by_jurisdiction.csv`
 
