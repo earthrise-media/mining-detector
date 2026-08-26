@@ -40,9 +40,10 @@ from constants import DATA_UPDATED_AT
 BASE = "https://media-amw.earthgenome.org"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Deliberately undated: the AMW website links straight at this path, so the
-# name has to survive a data update. Versioning is the repo's job.
-OUT_NAME = "mined_areas_by_jurisdiction.csv"
+# data/public is served straight out of the repo — the AMW website links at
+# this path — so neither the folder nor the filename may change, and the name
+# carries no date. Versioning is the repo's job. See data/public/README.md.
+OUT_PATH = REPO_ROOT / "data" / "public" / "mined_areas_by_jurisdiction.csv"
 
 # Probed once per candidate date to decide whether that folder was published.
 SENTINEL = "data/boundaries/national_admin/out/national_admin_yearly.json"
@@ -243,7 +244,7 @@ def main() -> int:
 
     df[AREA_COLUMNS] = df[AREA_COLUMNS].round(args.decimals)
 
-    out = args.out or (REPO_ROOT / "data" / "boundaries" / OUT_NAME)
+    out = args.out or OUT_PATH
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
 

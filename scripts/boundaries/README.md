@@ -56,7 +56,7 @@ It reads the published data back off the CDN, so run it *after*
 (the bucket doesn't allow listing) between today and `DATA_UPDATED_AT`. Pass
 `--data-date YYYYMMDD` to pin an older folder.
 
-The output path is fixed at `data/boundaries/mined_areas_by_jurisdiction.csv`
+The output path is fixed at `data/public/mined_areas_by_jurisdiction.csv`
 — the AMW website links directly to it, so the name must not change between
 data updates. Commit the refreshed file to get a versioned history of it.
 
