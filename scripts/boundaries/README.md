@@ -42,6 +42,29 @@ If you are updating mining data:
 2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
 3. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs, PAs, and illegality areas have not changed
 
+## Collated area summaries
+
+To get one flat CSV of mined area per jurisdiction per year — for sharing with
+people who won't be querying the API — run:
+
+```bash
+python scripts/boundaries/collate_jurisdiction_areas.py
+```
+
+It reads the published data back off the CDN, so run it *after*
+`upload_data_to_s3.py`. It finds the newest publish folder by probing the CDN
+(the bucket doesn't allow listing) between today and `DATA_UPDATED_AT`. Pass
+`--data-date YYYYMMDD` to pin an older folder.
+
+The output path is fixed at `data/boundaries/mined_areas_by_jurisdiction.csv`
+— the AMW website links directly to it, so the name must not change between
+data updates. Commit the refreshed file to get a versioned history of it.
+
+Every row carries the `date_published` of the publish it was built from, so a
+copy that has been downloaded and passed around still says which vintage it is.
+`--data-date` takes that same dashed form as well as the `YYYYMMDD` folder name,
+so a date read off the CSV can be pasted straight back in to rebuild it.
+
 ## Source data and outputs
 
 We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. Instead, you can use our S3 bucket to sync it with your local dev folder:
