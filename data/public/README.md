@@ -8,9 +8,8 @@ Mined area within each Amazon jurisdiction, by period, from 2018 onward.
 
 **`intersected_area_ha_cumulative` is the column most people want**: total
 hectares of mining detected inside that jurisdiction from 2018 through the given
-period. `intersected_area_ha` is only the increment added during that one
-period — summing it across periods double-counts nothing, but summing
-*cumulative* across periods is meaningless.
+period. `intersected_area_ha` gives the increment added during that one
+period.
 
 Areas come from intersecting the mining scar raster masks with the jurisdiction
 boundaries in [`data/boundaries/`](../boundaries). The masks themselves are
