@@ -14,6 +14,10 @@ data/boundaries/protected_areas_and_indigenous_territories/source_data
 data/boundaries/subnational_admin/source_data
 data/boundaries/national_admin/source_data
 data/boundaries/illegality/source_data
+# Standardized boundary layers and everything derived from them. Partners
+# resupply boundaries on their own cycle, so committed copies go stale and the
+# pipeline silently produces stale numbers. Sync these instead of committing.
+data/boundaries/*/out/
 data/sampling_locations/*scratch
 data/outputs/*scratch
 figures
