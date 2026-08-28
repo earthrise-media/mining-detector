@@ -34,11 +34,11 @@ Relation to the existing pipeline
 ---------------------------------
 The website pipeline takes a different route to the same quantity: it
 vectorizes the mask (``convert_rasters_to_vector.py``) and then measures
-polygon area in a UTM projection
-(``preprocess_mining_areas.calculate_area_using_utm``). That is a reasonable
-approach -- UTM is conformal, so area distortion within a zone is only about
-+/-0.2% -- and it is the right tool when areas must be attributed to
-intersected polygons.
+polygon area in an equal-area projection
+(``preprocess_mining_areas.calculate_area``). That is the right tool when
+areas must be attributed to intersected polygons, and being equal-area it
+agrees with this module to about 0.03% -- the residue is the vectorization
+edge effect, not the projection.
 
 This module is the raster-side counterpart: it measures area without
 vectorizing, so it is useful as an independent check on the vector path, and

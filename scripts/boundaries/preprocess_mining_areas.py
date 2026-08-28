@@ -57,6 +57,12 @@ SUBNATIONAL_ADMIN_GEOJSON = (
     "data/boundaries/subnational_admin/out/admin_areas_display.geojson"
 )
 
+# Global cylindrical equal-area on WGS84. Area is exact at every latitude, so one
+# CRS covers the whole basin and a geometry measures the same however it was split
+# -- unlike per-zone UTM, where the answer depends on which zone a piece lands in.
+# Shape and distance are badly distorted here; only ever measure area with it.
+EQUAL_AREA_CRS = "EPSG:6933"
+
 
 def load_vectorized_raster(year):
     """
@@ -87,24 +93,11 @@ def simplify_gdf(gdf):
     return gdf_simplified
 
 
-def calculate_area_using_utm(gdf, area_col_name="area", unit="hectares"):
+def calculate_area(gdf, area_col_name="area", unit="hectares"):
     # units can be "hectares", "square_km" or "acres"
-    zone_min = 32717  # UTM 17S, the zone containing lon_min
-    lon_min = -84
-    delta_lon = 6
-    n_zones = 9
-
     gdf_copy = gdf.copy()
     print("Calculating areas...")
-    for i in range(n_zones):
-        idx = gdf_copy.cx[
-            lon_min + i * delta_lon : lon_min + (i + 1) * delta_lon, :
-        ].index
-        gdf_copy.loc[idx, area_col_name] = (
-            gdf_copy.loc[idx]
-            .to_crs(f"epsg:{zone_min + i}")
-            .apply(lambda x: x.geometry.area / 1e4, axis=1)
-        )
+    gdf_copy[area_col_name] = gdf_copy.to_crs(EQUAL_AREA_CRS).area / 1e4
 
     if unit == "hectares":
         pass
@@ -128,7 +121,7 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect, mining_area_col_
         gdf_to_intersect = gdf_to_intersect.to_crs(mining_gdf.crs)
 
     # calculate original areas (before split)
-    mining_gdf = calculate_area_using_utm(mining_gdf, "original_area_ha", "hectares")
+    mining_gdf = calculate_area(mining_gdf, "original_area_ha", "hectares")
     print("Total mining area sum (ha):")
     print(mining_gdf["original_area_ha"].sum())
 
@@ -136,9 +129,7 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect, mining_area_col_
     intersected = gpd.overlay(mining_gdf, gdf_to_intersect, how="intersection")
 
     # calculate areas after intersection
-    intersected = calculate_area_using_utm(
-        intersected, "intersected_area_ha", "hectares"
-    )
+    intersected = calculate_area(intersected, "intersected_area_ha", "hectares")
     print("Intersected mining area sum (ha):")
     print(intersected["intersected_area_ha"].sum())
 
@@ -489,7 +480,7 @@ if __name__ == "__main__":
     # timeseries step, instead of via vector overlay differences.
     mining_gdf = gpd.pd.concat(all_mining_raster_gdfs, ignore_index=True)
     # need to calculate area as it is not present in original raster files
-    mining_gdf = calculate_area_using_utm(mining_gdf, "Mined area (ha)", "hectares")
+    mining_gdf = calculate_area(mining_gdf, "Mined area (ha)", "hectares")
 
     # for illegality, use a cutoff date, which is when illegality data was produced
     mining_gdf_for_illegality = mining_gdf[mining_gdf.year <= ILLEGALITY_DATA_UPDATED_AT]
