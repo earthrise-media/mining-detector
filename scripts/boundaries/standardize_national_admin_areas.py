@@ -16,14 +16,16 @@
 #     "shapely",
 # ]
 # ///
+from pathlib import Path
+
 import geopandas as gpd
 import pandas as pd
+from constants import AMAZON_LIMITS_GEOJSON
 from shapely.ops import unary_union
-from pathlib import Path
 
 SOURCE_DATA_FOLDER = "data/boundaries/national_admin/source_data"
 OUTPUT_DATA_FOLDER = "data/boundaries/national_admin/out"
-AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
+
 SIMPLIFY_TOLERANCE = 0.001
 
 

@@ -22,6 +22,7 @@ from pathlib import Path
 import chardet
 import geopandas as gpd
 import numpy as np
+from constants import AMAZON_LIMITS_GEOJSON
 from shapely import set_precision
 
 SOURCE_DATA_FOLDER = (
@@ -29,7 +30,6 @@ SOURCE_DATA_FOLDER = (
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
 SIMPLIFY_TOLERANCE = 0.00025
-AMAZON_LIMITS_GEOJSON = "data/boundaries/Amazon_ACA.geojson"
 
 with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
     FILES_METADATA = json.load(f)
@@ -179,9 +179,8 @@ def standardize_and_combine_shapefiles(files_metadata):
         # standardize crs
         gdf = gdf.to_crs("EPSG:4326")
 
-        # only keep the ones that intersect the Amazon boundaries
-        intersecting_mask = gdf.intersects(amazon_limits_gdf.union_all())
-        gdf = gdf[intersecting_mask]
+        # clip to amazon boundaries
+        gdf = gdf.clip(amazon_limits_gdf)
 
         # include area units and country name from file metadata
         gdf["area_units"] = file["area_units"]
