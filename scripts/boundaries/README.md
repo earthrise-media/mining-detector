@@ -67,7 +67,7 @@ so a date read off the CSV can be pasted straight back in to rebuild it.
 
 ## Source data and outputs
 
-We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. That now includes everything under `data/boundaries/*/out/` — the standardized boundary layers as well as the impacts and timeseries derived from them. They are gitignored, so keep your local copies current by syncing; a stale checkout will silently produce stale numbers. The stable reference boundaries outside those folders (`Amazon_ACA.geojson` and similar) stay in the repo.
+We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. That now includes everything under `data/boundaries/*/out/` — the standardized boundary layers as well as the impacts and timeseries derived from them — and everything under `data/outputs/website/`. They are gitignored, so keep your local copies current by syncing; a stale checkout will silently produce stale numbers. The stable reference boundaries outside those folders (`Amazon_ACA.geojson` and similar) stay in the repo.
 
 Instead, you can use our S3 bucket to sync it with your local dev folder:
 
