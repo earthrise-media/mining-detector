@@ -21,7 +21,6 @@ Then saved as shapefiles and ran this script.
 # ]
 # ///
 import geopandas as gpd
-from constants import AMAZON_LIMITS_GEOJSON
 from shapely import set_precision
 
 illegality_v1 = gpd.read_file("data/boundaries/illegality/source_data/illegality_v1_areas_fixed_clipped.shp")
@@ -45,10 +44,5 @@ combined_simplified["geometry"] = combined_simplified["geometry"].simplify(
 combined_simplified["geometry"] = combined_simplified["geometry"].apply(
     lambda geom: set_precision(geom, grid_size=1e-6)
 )
-
-# clip to amazon boundaries
-amazon_limits_gdf = gpd.read_file(AMAZON_LIMITS_GEOJSON)
-amazon_limits_gdf.to_crs("EPSG:4326")
-combined_simplified = combined_simplified.clip(amazon_limits_gdf)
 
 combined_simplified.to_file("data/boundaries/illegality/out/illegality_v2_areas_simplified.geojson", driver="GeoJSON", encoding="utf-8")
