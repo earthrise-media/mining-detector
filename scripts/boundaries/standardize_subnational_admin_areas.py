@@ -15,16 +15,17 @@
 #     "numpy",
 # ]
 # ///
+import json
+from pathlib import Path
+
 import chardet
 import geopandas as gpd
 import numpy as np
-import json
-from pathlib import Path
+from constants import AMAZON_LIMITS_GEOJSON
 
 SOURCE_DATA_FOLDER = "data/boundaries/subnational_admin/source_data"
 OUTPUT_DATA_FOLDER = "data/boundaries/subnational_admin/out"
 SIMPLIFY_TOLERANCE = 0.001
-AMAZON_LIMITS_GEOJSON = "https://raw.githubusercontent.com/earthrise-media/mining-detector/ed/2025models/data/boundaries/Amazon_ACA.geojson"
 
 # these are the admin areas used for the mining calculator
 with open("scripts/boundaries/subnational_admin_for_calculator_files_metadata.json") as f:
@@ -60,7 +61,7 @@ def combine_and_save_frames(all_frames, output_folder, filename, simplify):
             tolerance=SIMPLIFY_TOLERANCE, preserve_topology=True
         )
 
-    # create an unique ID    
+    # create an unique ID
     combined_gdf["id"] = combined_gdf["country_code"].str.strip() + "_" + combined_gdf["id_field"].str.strip()
 
     # save combined file

@@ -37,6 +37,7 @@ import pandas as pd
 import rasterio
 from constants import (
     COMBINED_MINING_FILE,
+    ENTIRE_AMAZON_ID,
     ILLEGALITY_AREAS_GEOJSON,
     ILLEGALITY_DATA_UPDATED_AT,
     MINING_DIFFERENCES_FILES,
@@ -62,8 +63,6 @@ SUBNATIONAL_ADMIN_GEOJSON = (
 # -- unlike per-zone UTM, where the answer depends on which zone a piece lands in.
 # Shape and distance are badly distorted here; only ever measure area with it.
 EQUAL_AREA_CRS = "EPSG:6933"
-
-ENTIRE_AMAZON_ID = "AMAZ"
 
 # How far a fragment may be from the nearest subnational area *in its own country*
 # before we decline to re-attribute it. The layers disagree over a sliver roughly
