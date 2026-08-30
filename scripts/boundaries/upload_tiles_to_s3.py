@@ -20,6 +20,7 @@
 
 import os
 import sys
+import uuid
 from pathlib import Path
 
 import boto3
@@ -40,6 +41,7 @@ def main():
         "AWS_SECRET_ACCESS_KEY",
         "AWS_REGION",
         "AWS_BUCKET_TILES",
+        "CLOUDFRONT_DISTRIBUTION_ID_TILES",
     ]
     if missing := [v for v in required_vars if not os.getenv(v)]:
         sys.exit(f"Missing environment variables: {', '.join(missing)}")
@@ -63,20 +65,20 @@ def main():
         s3.upload_file(str(file_path), bucket, s3_key)
         print(f"✓ Uploaded {file_path} → {s3_key}")
 
-    if cf_id := os.getenv("CLOUDFRONT_DISTRIBUTION_ID_TILES"):
-        cf = boto3.client("cloudfront", region_name=os.getenv("AWS_REGION"))
-        cf.create_invalidation(
-            DistributionId=cf_id,
-            InvalidationBatch={
-                "Paths": {"Quantity": 1, "Items": [f"/{BASE_FOLDER}/*"]},
-                "CallerReference": str(int(os.times().elapsed * 1000)),
-            },
-        )
-        print("\n✓ Invalidated CloudFront cache")
-    else:
-        raise ValueError("CLOUDFRONT_DISTRIBUTION_ID_TILES environment variable is not set")
+    cf = boto3.client("cloudfront", region_name=os.getenv("AWS_REGION"))
+    # Capture the response so it isn't echoed to the console.
+    response = cf.create_invalidation(
+        DistributionId=os.getenv("CLOUDFRONT_DISTRIBUTION_ID_TILES"),
+        InvalidationBatch={
+            "Paths": {"Quantity": 1, "Items": [f"/{BASE_FOLDER}/*"]},
+            "CallerReference": uuid.uuid4().hex,
+        },
+    )
+    invalidation_id = response["Invalidation"]["Id"]
+    print(f"\n✓ Invalidated CloudFront cache ({invalidation_id})")
 
     print(f"\n{len(FILE_PATHS) - len(failed)}/{len(FILE_PATHS)} files uploaded")
+    sys.stdout.flush()
     sys.exit(1 if failed else 0)
 
 

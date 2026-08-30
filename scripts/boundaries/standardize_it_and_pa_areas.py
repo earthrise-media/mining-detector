@@ -22,6 +22,7 @@ from pathlib import Path
 import chardet
 import geopandas as gpd
 import numpy as np
+from constants import AMAZON_LIMITS_GEOJSON
 from shapely import set_precision
 
 SOURCE_DATA_FOLDER = (
@@ -29,7 +30,6 @@ SOURCE_DATA_FOLDER = (
 )
 OUTPUT_DATA_FOLDER = "data/boundaries/protected_areas_and_indigenous_territories/out"
 SIMPLIFY_TOLERANCE = 0.00025
-AMAZON_LIMITS_GEOJSON = "data/boundaries/Amazon_ACA.geojson"
 
 with open("scripts/boundaries/it_and_pa_files_metadata.json") as f:
     FILES_METADATA = json.load(f)
