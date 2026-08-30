@@ -25,7 +25,6 @@ from shapely.ops import unary_union
 
 SOURCE_DATA_FOLDER = "data/boundaries/national_admin/source_data"
 OUTPUT_DATA_FOLDER = "data/boundaries/national_admin/out"
-
 SIMPLIFY_TOLERANCE = 0.001
 
 

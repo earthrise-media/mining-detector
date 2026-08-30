@@ -35,7 +35,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import pandas as pd
-from constants import DATA_UPDATED_AT
+from constants import DATA_UPDATED_AT, ENTIRE_AMAZON_ID
 
 BASE = "https://media-amw.earthgenome.org"
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -102,7 +102,6 @@ AREA_COLUMNS = ["intersected_area_ha", "intersected_area_ha_cumulative"]
 # finer jurisdictions in the order declared above. A reader scrolling from the
 # top meets the headline numbers before the 3,000-row long tail.
 TYPE_ORDER = [spec["type"] for spec in JURISDICTIONS]
-AMAZON_ID = "AMAZ"  # the whole-basin row, sorted ahead of the countries
 
 
 def as_folder(data_date: str) -> str:
@@ -213,7 +212,7 @@ def collate(data_date: str) -> pd.DataFrame:
     )[COLUMNS]
     df = df.assign(
         _type=pd.Categorical(df["type"], categories=TYPE_ORDER, ordered=True),
-        _amazon=df["id"].ne(AMAZON_ID),  # False sorts first
+        _amazon=df["id"].ne(ENTIRE_AMAZON_ID),  # False sorts first
     )
     return df.sort_values(
         ["_type", "_amazon", "country", "name", "admin_year"], na_position="last"

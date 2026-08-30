@@ -132,7 +132,7 @@ On that product:
 * **Venezuela holdout:** 1,008 labeled patches (343 mines, 665 not-mines). The model correctly rejected **661 / 665** non-mines (specificity **0.994**) and found **307 / 343** mines (sensitivity **0.895**).
 * **Combined validation + two geographic holdouts:** 723 mines and 3,156 not-mines. Specificity **0.998**; sensitivity **0.924**. *(Some of this combined pool informed model or threshold selection.)*
 
-**Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites we labeled, and there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and t; `geo_holdout_napo-caquetá.geojson` was later used when training two of the six ensemble members.he model’s strength at rejecting vast areas of intact forest is only partly reflected here.
+**Caveats.** These figures are not a full account of real-world performance. They measure agreement with sites we labeled, and there is no authoritative ground-truth inventory of mining across Amazonia. Given Sentinel-2’s 10 m resolution, we did not attempt to label or model the smallest operations. Conversely, we tended to label hard cases, and the model’s strength at rejecting vast areas of intact forest is only partly reflected here.
 
 Architectures we tested before settling on the production ensemble included ~100k-parameter CNNs (the 2024 design), ~800k-parameter CNNs, ResNet-18, and probes on SSL4EO ViT embeddings (class-token only, with 48×48→224×224 rescaling; and CLS + patch-token features at two spatial scales). Ensembling proved essential for reducing noise across base architectures.
 

@@ -3,9 +3,7 @@ from pathlib import Path
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-AMAZON_LIMITS_GEOJSON = "data/boundaries/Amazon_ACA.geojson"
-
-DATA_UPDATED_AT = "20260828"
+DATA_UPDATED_AT = "20260829"
 
 MINING_DIFFERENCES_FILES = {
     202602: f"{WEBSITE_OUTPUTS_FOLDER}/cumulative_dissolved/diffs/amazon_basin_growth_Q226-dissolved.geojson",
@@ -50,3 +48,7 @@ COMBINED_MINING_FILE = f"{WEBSITE_OUTPUTS_FOLDER}/mining_combined_full.geojson"
 
 ILLEGALITY_AREAS_GEOJSON = "data/boundaries/illegality/out/illegality_v2_areas_simplified.geojson"
 ILLEGALITY_DATA_UPDATED_AT = 202503
+
+ENTIRE_AMAZON_ID = "AMAZ"
+
+AMAZON_LIMITS_GEOJSON = "data/boundaries/Amazon_ACA.geojson"
