@@ -1155,9 +1155,11 @@ answer *how much*, **dissolved polygons and pmtiles** are what the website draws
 
 Publishing patches obliges us to state plainly that **patch geometry is not scar
 extent**, and that summing patch areas double-counts, since patches overlap by
-half a width. Area comes from the masks, with a correction factor: **0.68**,
-re-measured 2026-08-19 on the persistence masks (0.65 was the pre-persistence
-figure; the two agree to within the confidence interval).
+half a width. Area comes from the masks, which over-state scar extent by roughly
+1.5x, so a published total wants a correction. No value is quoted here: the
+estimator choice is a real effect, and the sample's site-size mix does not match
+production, so the figure is maintained where its derivation lives -- see
+`area_analysis/NOTES.md`.
 
 ### Publish yearly increments, not cumulative dissolves
 
@@ -1597,18 +1599,19 @@ Implementation phase (to do):
       renamed to short consumer names by `stage_outputs.py` and will not rebuild a working
       tree. Either pull those from a working-tree-shaped copy, or teach the pull to
       reverse the rename.
-- [ ] **Fold in `collated_areas`.** Draft on the `collated_areas` branch (2 commits
-      ahead of main, `18b8161`): `scripts/boundaries/collate_jurisdiction_yearly.ipynb`,
-      which rolls mask area up to jurisdictions for the website. Written against the
-      pre-persistence masks, so the onset raster changes what it reads — any cumulative
-      is now `0 < onset <= code` rather than a per-period mask, and the area correction
-      is 0.68. Untracked outputs already exist at
-      `data/boundaries/jurisdiction_yearly_20260724.{csv,parquet}`.
-- [ ] **Track `area_analysis/`?** This document now quotes 0.68 for the mask area
-      correction, but the derivation behind it — method, controls, size dependence,
-      the reconciliation with GaTech's reported figures — lives only in an untracked
-      `NOTES.md`. A number given to clients should be traceable to something in the
-      repo; at minimum `NOTES.md` and `analyze_areas.py` want a home.
+- [x] **Fold in `collated_areas`** — done, and it grew: the draft notebook became
+      `scripts/boundaries/collate_jurisdiction_areas.py`, mining is attributed to the
+      jurisdiction that contains it, and the rollup publishes
+      `data/public/mined_areas_by_jurisdiction.csv`. Reconciling country totals against
+      the basin turned up four independent faults, none of them visible in the published
+      data; two fixed, two measured and documented. See
+      `docs/design/jurisdiction-areas.md`.
+- [ ] **Track `area_analysis/`?** The mask area correction — its value, estimator
+      choice, controls, size dependence, uncertainties, and the reconciliation with
+      GaTech's reported figures — lives only in an untracked `NOTES.md`. This document
+      no longer quotes a value, because it could not be kept in step with a derivation
+      it cannot see. A number given to clients should be traceable to something in the
+      repo; at minimum `NOTES.md` and the analysis scripts want a home.
 - [ ] **Retire superseded quarterly layers** — promotion works, retirement does not:
       a resolved year publishes its annual layer *and* keeps publishing its quarters,
       and nothing deletes a layer that stops being staged. Needs a decision on what
