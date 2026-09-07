@@ -170,6 +170,14 @@ def standardize_and_combine_shapefiles(files_metadata):
         # rename
         gdf = gdf.rename(columns=field_cols_rename_dict)
 
+        # HACK: if it is a buffer area, add "- Buffer" to the name
+        # This is because of PAs in Peru that have a separate buffer zone
+        # which shares the same name as the protected area.
+        # This is important because areas get dissolved on the name (and other)
+        # attributes later, in the combine_and_save_frames() step.
+        if file.get("is_buffer_area") == 1:
+            gdf["name_field"] = gdf["name_field"] + " - Buffer"
+
         # all of the required columns
         cols_to_export = [k for k in file.keys() if k.endswith("_field")]
         # add missing columns
