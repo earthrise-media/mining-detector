@@ -239,7 +239,8 @@
     "status_field": "",
     "source_field": "za_balea",
     "area_field": "za_super",
-    "area_units": "hectares"
+    "area_units": "hectares",
+    "is_buffer_area": 1
   },
   {
     "file": "Peru/PAs_Peru/1_National_Protected_Areas/ZonasReservadas.shp",
