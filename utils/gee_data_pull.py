@@ -16,7 +16,7 @@ import sys
 import geopandas as gpd
 from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gee"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
 import gee
 from tile_utils import tiles_for_geometry
 
