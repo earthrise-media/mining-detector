@@ -1,0 +1,328 @@
+date_published,id,type,country,country_code,name,status,admin_year,illegality_very_high_affected_area_ha,illegality_very_high_affected_area_pct,illegality_high_affected_area_ha,illegality_high_affected_area_pct,illegality_medium_affected_area_ha,illegality_medium_affected_area_pct,illegality_low_affected_area_ha,illegality_low_affected_area_pct,bbox_minx,bbox_miny,bbox_maxx,bbox_maxy
+2026-09-07,AMAZ,national_admin,Entire Amazon,,Entire Amazon,,202602,44317.12,0.04,531656.25,0.481,62159.84,0.056,45728.18,0.041,-79.6125,-20.4788133408,-43.6947206152,10.0591514308
+2026-09-07,BOL,national_admin,Bolivia,BO,Bolivia,,202602,16485.13,0.873,1080.03,0.057,439.14,0.023,878.45,0.047,-69.5747,-20.4788133408,-57.747,-9.6709
+2026-09-07,BRA,national_admin,Brazil,BR,Brazil,,202602,20388.89,0.042,387579.86,0.801,41353.4,0.085,34426.55,0.071,-73.9897,-18.0417666687,-43.6968385711,5.2649
+2026-09-07,COL,national_admin,Colombia,CO,Colombia,,202602,122.65,0.231,179.12,0.338,228.36,0.431,0.0,0.0,-77.6662096428,-4.2284,-66.8377,6.1666555302
+2026-09-07,ECU,national_admin,Ecuador,EC,Ecuador,,202602,509.85,0.044,8157.33,0.703,1813.56,0.156,1126.35,0.097,-79.4277878852,-5.0158,-75.1871,0.7345833336
+2026-09-07,GUF,national_admin,FrenchGuiana,GF,FrenchGuiana,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.5418,2.1287,-51.6080607269,5.751
+2026-09-07,GUY,national_admin,Guyana,GY,Guyana,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.3869,1.1768,-56.4803,8.5308
+2026-09-07,PER,national_admin,Peru,PE,Peru,,202602,6810.58,0.04,134646.63,0.796,18325.37,0.108,9296.83,0.055,-79.6125,-15.5214006212,-68.6522,-0.039
+2026-09-07,SUR,national_admin,Suriname,SR,Suriname,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.0866,1.8311,-53.9775,6.0001502046
+2026-09-07,VEN,national_admin,Venezuela,VE,Venezuela,,202602,0.0,0.0,13.27,0.0,0.0,0.0,0.0,0.0,-67.8589,0.6488,-59.8072,10.0591300249
+2026-09-07,BO_BO08,subnational_admin,Bolivia,BO,Beni,,202602,185.0,0.447,225.58,0.546,0.0,0.0,2.93,0.007,-67.562060631,-16.491651133,-61.515744427,-10.381217905
+2026-09-07,BO_BO03,subnational_admin,Bolivia,BO,Cochabamba,,202602,8.18,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.005741904,-18.681740649,-64.234105825,-15.779917436
+2026-09-07,BO_BO02,subnational_admin,Bolivia,BO,La Paz,,202602,14796.99,0.89,569.74,0.034,439.14,0.026,811.81,0.049,-69.64493137,-18.043750858,-66.732113432,-11.839695909
+2026-09-07,BO_BO09,subnational_admin,Bolivia,BO,Pando,,202602,168.84,0.389,254.05,0.586,0.0,0.0,10.63,0.025,-69.574747639,-12.498439765,-65.286810284,-9.669633002
+2026-09-07,BO_BO07,subnational_admin,Bolivia,BO,Santa Cruz,,202602,1326.12,0.941,30.67,0.022,0.0,0.0,53.07,0.038,-64.842662361,-20.4651573,-57.454433528,-13.477752588
+2026-09-07,BR_12,subnational_admin,Brasil,BR,Acre,,202602,0.0,0.0,64.24,1.0,0.0,0.0,0.0,0.0,-73.982896625,-11.14448889,-66.6244606042,-7.11297681
+2026-09-07,BR_16,subnational_admin,Brasil,BR,Amapá,,202602,496.44,0.059,5997.76,0.718,1581.89,0.189,280.57,0.034,-54.876921656,-1.236181162,-49.8771646891,4.43712222
+2026-09-07,BR_13,subnational_admin,Brasil,BR,Amazonas,,202602,5725.58,0.18,24212.16,0.761,1285.74,0.04,589.12,0.019,-73.798342486,-9.818055556,-56.073274537,2.233316765
+2026-09-07,BR_21,subnational_admin,Brasil,BR,Maranhão,,202602,0.0,0.0,9671.42,0.861,1214.63,0.108,348.5,0.031,-48.75754543,-10.26177525,-43.9519185601,-1.049724579
+2026-09-07,BR_51,subnational_admin,Brasil,BR,Mato Grosso,,202602,2606.44,0.025,72700.17,0.701,10247.88,0.099,18112.8,0.175,-61.633277222,-18.041561,-50.209140259,-7.34808755
+2026-09-07,BR_15,subnational_admin,Brasil,BR,Pará,,202602,10142.55,0.034,250892.7,0.852,23532.94,0.08,10021.64,0.034,-58.8953926918,-9.844624548,-46.0716086701,2.59138889
+2026-09-07,BR_11,subnational_admin,Brasil,BR,Rondônia,,202602,1414.64,0.055,15792.56,0.613,3463.13,0.135,5072.17,0.197,-66.810202778,-13.6918782337,-59.771975631,-7.969357222
+2026-09-07,BR_14,subnational_admin,Brasil,BR,Roraima,,202602,0.0,0.0,7991.82,0.997,27.19,0.003,0.0,0.0,-64.82138611,-1.591776286,-58.887982516,5.269580833
+2026-09-07,BR_17,subnational_admin,Brasil,BR,Tocantins,,202602,0.0,0.0,256.6,0.993,0.0,0.0,1.75,0.007,-50.741086865,-13.4673538756,-45.6961117288,-5.169776926
+2026-09-07,CO_91,subnational_admin,Colombia,CO,Amazonas,,202602,66.43,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-74.3876294688,-4.2259384392,-69.3969172664,0.0972568557
+2026-09-07,CO_94,subnational_admin,Colombia,CO,Guainía,,202602,56.23,0.572,42.11,0.428,0.0,0.0,0.0,0.0,-70.9424923797,1.1661574356,-66.8568895842,4.0419493288
+2026-09-07,CO_50,subnational_admin,Colombia,CO,Meta,,202602,0.0,0.0,137.02,1.0,0.0,0.0,0.0,0.0,-74.935513002,1.6177319441,-71.0775256963,4.8991013338
+2026-09-07,CO_86,subnational_admin,Colombia,CO,Putumayo,,202602,0.0,0.0,0.0,0.0,228.36,1.0,0.0,0.0,-77.1868057317,-0.5527005539,-73.8413179334,1.4673038144
+2026-09-07,EC_14,subnational_admin,Ecuador,EC,MORONA SANTIAGO,,202602,33.79,0.033,518.29,0.511,431.09,0.425,31.68,0.031,-78.953893852,-3.5877498629,-76.6920897757,-1.4485003072
+2026-09-07,EC_15,subnational_admin,Ecuador,EC,NAPO,,202602,0.0,0.0,1407.66,0.626,414.2,0.184,425.9,0.189,-78.4299230944,-1.2488162497,-77.0228276246,0.0340076524
+2026-09-07,EC_22,subnational_admin,Ecuador,EC,ORELLANA,,202602,0.0,0.0,2174.56,0.983,6.83,0.003,30.65,0.014,-77.6286906835,-1.5634066376,-75.187146747,-0.0452995028
+2026-09-07,EC_21,subnational_admin,Ecuador,EC,SUCUMBÍOS,,202602,0.0,0.0,993.01,0.874,44.79,0.039,98.65,0.087,-77.9787530935,-0.6560113384,-75.2234000965,0.6624800474
+2026-09-07,EC_19,subnational_admin,Ecuador,EC,ZAMORA CHINCHIPE,,202602,476.07,0.095,3063.21,0.613,916.65,0.183,539.47,0.108,-79.4276694767,-5.0156170581,-78.3651995639,-3.3434056608
+2026-09-07,GY_GY01,subnational_admin,Guyana,GY,Barima-Waini,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.725906,6.980433,-58.785369,8.557562
+2026-09-07,GY_GY07,subnational_admin,Guyana,GY,Cuyuni-Mazaruni,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.393867,5.145704,-58.575931,7.232441
+2026-09-07,GY_GY04,subnational_admin,Guyana,GY,Demerara-Mahaica,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.307918,6.096466,-57.88285,6.835969
+2026-09-07,GY_GY06,subnational_admin,Guyana,GY,East Berbice-Corentyne,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.50885,1.456447,-56.480766,6.32515
+2026-09-07,GY_GY03,subnational_admin,Guyana,GY,Essequibo Islands-West Demerara,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.833,6.114797,-58.178527,7.11334
+2026-09-07,GY_GY02,subnational_admin,Guyana,GY,Pomeroon-Supenaam,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.179218,6.751706,-58.466087,7.704515
+2026-09-07,GY_GY08,subnational_admin,Guyana,GY,Potaro-Siparuni,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.163257,3.992063,-58.274421,5.734025
+2026-09-07,GY_GY10,subnational_admin,Guyana,GY,Upper Demerara-Berbice,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.875598,4.607182,-57.589839,6.502366
+2026-09-07,GY_GY09,subnational_admin,Guyana,GY,Upper Takutu-Upper Essequibo,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.991035,1.171398,-57.930919,4.521605
+2026-09-07,GF_GF1,subnational_admin,Guyana_Francesa,GF,Cayenne,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-53.5377637579,2.1680717753,-51.6190405207,5.5688657872
+2026-09-07,GF_GF2,subnational_admin,Guyana_Francesa,GF,Saint-Laurent-du-Maroni,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.6023356517,2.1113058625,-53.0526831276,5.747773265
+2026-09-07,PE_01,subnational_admin,Peru,PE,AMAZONAS,,202602,,,,,,,,,-78.712120738,-6.98675935,-77.132302736,-2.986125096
+2026-09-07,PE_06,subnational_admin,Peru,PE,CAJAMARCA,,202602,0.0,0.0,6.29,1.0,0.0,0.0,0.0,0.0,-79.458451114,-7.763460975,-77.741371612,-4.623873098
+2026-09-07,PE_08,subnational_admin,Peru,PE,CUSCO,,202602,0.0,0.0,1061.33,0.417,798.5,0.314,684.73,0.269,-73.980936984,-15.457504233,-70.34507198,-11.212293479
+2026-09-07,PE_10,subnational_admin,Peru,PE,HUANUCO,,202602,27.49,0.008,3014.02,0.885,21.59,0.006,342.9,0.101,-77.317486362,-10.488806603,-74.525351234,-8.3051697119
+2026-09-07,PE_16,subnational_admin,Peru,PE,LORETO,,202602,5.85,0.007,411.51,0.46,222.14,0.248,255.74,0.286,-77.825957987,-8.7151913837,-69.949039355,-0.038605968
+2026-09-07,PE_17,subnational_admin,Peru,PE,MADRE DE DIOS,,202602,6769.04,0.042,128404.26,0.805,17046.06,0.107,7367.29,0.046,-72.428738732,-13.341716856,-68.652279103,-9.8733933325
+2026-09-07,PE_20,subnational_admin,Peru,PE,PIURA,,202602,0.0,0.0,71.92,1.0,0.0,0.0,0.0,0.0,-81.328195365,-6.3720801,-79.209873863,-4.083128847
+2026-09-07,PE_21,subnational_admin,Peru,PE,PUNO,,202602,8.21,0.003,1478.87,0.629,237.08,0.101,626.39,0.266,-71.118091731,-17.295466734,-68.814216853,-13.003925856
+2026-09-07,PE_22,subnational_admin,Peru,PE,SAN MARTIN,,202602,0.0,0.0,11.68,1.0,0.0,0.0,0.0,0.0,-77.775147987,-8.796294977,-75.48718761,-5.406899098
+2026-09-07,PE_25,subnational_admin,Peru,PE,UCAYALI,,202602,0.0,0.0,186.75,0.904,0.0,0.0,19.77,0.096,-75.9478860177,-11.44834198,-70.49441698,-7.262049475
+2026-09-07,SR_SR01,subnational_admin,Suriname,SR,Brokopondo,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-55.5212554923,4.0144782065,-54.7263603202,5.3651318554
+2026-09-07,SR_SR04,subnational_admin,Suriname,SR,Marowijne,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.7379798884,5.2330451017,-53.9840965264,5.9818048478
+2026-09-07,SR_SR06,subnational_admin,Suriname,SR,Para,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-56.0467491148,4.9900641443,-54.6245727532,5.702995777
+2026-09-07,SR_SR09,subnational_admin,Suriname,SR,Sipaliwini,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.0865631095,1.831146002,-53.9774932858,5.5580058096
+2026-09-07,SR_SR10,subnational_admin,Suriname,SR,Wanica,,202602,,,,,,,,,-55.3572425839,5.6579351425,-55.0788421623,5.9415278439
+2026-09-07,VE_VE02,subnational_admin,Venezuela,VE,Amazonas,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.864110736,0.634573855,-63.34945972,6.197393618
+2026-09-07,VE_VE07,subnational_admin,Venezuela,VE,Bolívar,,202602,0.0,0.0,13.27,0.0,0.0,0.0,0.0,0.0,-67.43995968,3.550454219,-60.272032036,8.443379747
+2026-09-07,VE_VE10,subnational_admin,Venezuela,VE,Delta Amacuro,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-62.611606765,7.753446217,-59.741104277,10.017995086
+2026-09-07,BO60001_0,indigenous_territories,Bolivia,BO,Guarayo,TI con reconocimiento oficial,202602,0.0,0.0,0.0,0.0,0.0,0.0,40.48,1.0,-63.978375,-16.254277,-62.478244,-14.603315
+2026-09-07,BO60006_0,indigenous_territories,Bolivia,BO,Guarayo,TI con reconocimiento solicitado,202602,540.46,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-63.930086,-16.264286,-62.545672,-14.919772
+2026-09-07,BO60034_0,indigenous_territories,Bolivia,BO,Isiboro Secure (TIPNIS),TI con reconocimiento solicitado,202602,17.47,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.567291,-16.321775,-65.06805,-15.521677
+2026-09-07,BO60068_0,indigenous_territories,Bolivia,BO,Isoso,TI con reconocimiento solicitado,202602,10.09,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-63.221626,-20.33526,-61.716944,-17.970233
+2026-09-07,BO60005_0,indigenous_territories,Bolivia,BO,Leco de Apolo,TI con reconocimiento solicitado,202602,160.17,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-68.677551,-15.196684,-67.502075,-14.45459
+2026-09-07,BO60011_0,indigenous_territories,Bolivia,BO,Leco de Larecaja,TI con reconocimiento solicitado,202602,1030.29,0.999,0.0,0.0,0.0,0.0,0.59,0.001,-67.975228,-15.547583,-67.665421,-15.012344
+2026-09-07,BO60012_0,indigenous_territories,Bolivia,BO,Leco de Larecaja,TI con reconocimiento oficial,202602,1866.68,0.799,5.08,0.002,400.59,0.171,65.19,0.028,-68.210112,-15.549009,-67.723188,-15.109831
+2026-09-07,BO60003_0,indigenous_territories,Bolivia,BO,Monte Verde,TI con reconocimiento oficial,202602,0.0,0.0,0.0,0.0,0.0,0.0,12.6,1.0,-62.62438,-16.154342,-61.545484,-15.000723
+2026-09-07,BO60027_0,indigenous_territories,Bolivia,BO,Pilon Lajas,TI con reconocimiento oficial,202602,1.28,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.691719,-15.44993,-67.032328,-14.453125
+2026-09-07,BO60008_0,indigenous_territories,Bolivia,BO,Takana II,TI con reconocimiento solicitado,202602,17.09,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-68.740928,-12.853161,-67.911785,-11.928802
+2026-09-07,BO60010_0,indigenous_territories,Bolivia,BO,Takana III,TI con reconocimiento oficial,202602,21.62,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.552092,-14.124496,-67.024044,-13.031778
+2026-09-07,BR1101_0,indigenous_territories,Brazil,BR,Alto Rio Negro,Regularizada,202602,0.0,0.0,10.6,1.0,0.0,0.0,0.0,0.0,-70.057454,-1.080353,-67.018225,2.24448
+2026-09-07,BR68301_0,indigenous_territories,Brazil,BR,Apiaká do Pontal e Isolados,Delimitada,202602,13.36,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.562707,-9.167721,-57.665267,-7.345319
+2026-09-07,BR3002_0,indigenous_territories,Brazil,BR,Apyterewa,Regularizada,202602,0.0,0.0,606.2,1.0,0.0,0.0,0.0,0.0,-52.689576,-6.032251,-51.381167,-5.229535
+2026-09-07,BR4201_0,indigenous_territories,Brazil,BR,Aripuanã,Regularizada,202602,0.0,0.0,774.63,1.0,0.0,0.0,0.0,0.0,-60.463756,-11.130174,-59.466489,-10.000394
+2026-09-07,BR6101_0,indigenous_territories,Brazil,BR,Baú,Regularizada,202602,0.0,0.0,332.33,1.0,0.0,0.0,0.0,0.0,-55.05774,-8.183391,-53.865167,-6.422385
+2026-09-07,BR7601_0,indigenous_territories,Brazil,BR,Cachoeira Seca,Regularizada,202602,0.0,0.0,0.58,1.0,0.0,0.0,0.0,0.0,-54.826986,-4.774219,-53.259386,-3.908334
+2026-09-07,BR11201_0,indigenous_territories,Brazil,BR,Enawenê-Nawê,Regularizada,202602,0.0,0.0,17.34,1.0,0.0,0.0,0.0,0.0,-59.938092,-12.683872,-58.449119,-11.68675
+2026-09-07,BR23001_0,indigenous_territories,Brazil,BR,Kayapó,Regularizada,202602,0.0,0.0,20966.16,1.0,0.0,0.0,0.0,0.0,-53.130418,-8.692894,-50.833476,-6.878509
+2026-09-07,BR38902_0,indigenous_territories,Brazil,BR,Kuruáya,Regularizada,202602,0.0,0.0,0.0,0.0,0.0,0.0,161.33,1.0,-54.796755,-6.040487,-54.374455,-5.43292
+2026-09-07,BR28701_0,indigenous_territories,Brazil,BR,Menkragnoti,Regularizada,202602,0.0,0.0,29.13,1.0,0.0,0.0,0.0,0.0,-54.685471,-9.843593,-52.003732,-7.167076
+2026-09-07,BR29801_0,indigenous_territories,Brazil,BR,Munduruku,Regularizada,202602,0.0,0.0,9303.67,1.0,0.56,0.0,0.0,0.0,-58.474071,-8.670122,-56.666675,-6.130516
+2026-09-07,BR33601_0,indigenous_territories,Brazil,BR,Parque do Aripuanã,Regularizada,202602,0.0,0.0,348.9,1.0,0.0,0.0,0.0,0.0,-60.537376,-12.600932,-59.216156,-10.720203
+2026-09-07,BR34101_0,indigenous_territories,Brazil,BR,Paukalirajausu,Delimitada,202602,0.0,0.0,70.37,1.0,0.0,0.0,0.0,0.0,-59.697827,-14.853736,-59.591142,-14.676717
+2026-09-07,BR37901_0,indigenous_territories,Brazil,BR,Raposa Serra do Sol,Regularizada,202602,0.0,0.0,14.97,1.0,0.0,0.0,0.0,0.0,-61.133555,3.373666,-59.51607,5.272125
+2026-09-07,BR40201_0,indigenous_territories,Brazil,BR,Rio Paru DEste,Regularizada,202602,0.0,0.0,63.93,1.0,0.0,0.0,0.0,0.0,-55.221295,-0.039962,-53.818669,1.367973
+2026-09-07,BR40701_0,indigenous_territories,Brazil,BR,Roosevelt,Regularizada,202602,0.0,0.0,211.99,1.0,0.0,0.0,0.0,0.0,-60.82072,-11.538965,-60.397538,-10.680812
+2026-09-07,BR40901_0,indigenous_territories,Brazil,BR,Sai-Cinza,Regularizada,202602,0.0,0.0,492.73,1.0,0.0,0.0,0.0,0.0,-58.28333,-6.67402,-57.702665,-6.218114
+2026-09-07,BR42101_0,indigenous_territories,Brazil,BR,Sararé,Regularizada,202602,0.0,0.0,3613.94,1.0,0.0,0.0,0.0,0.0,-59.646074,-14.983408,-59.317028,-14.627932
+2026-09-07,BR56701_0,indigenous_territories,Brazil,BR,Sawré Muybu (Pimental),Delimitada,202602,0.0,0.0,470.25,1.0,0.22,0.0,0.0,0.0,-56.833679,-5.242277,-56.337504,-4.684659
+2026-09-07,BR42601_0,indigenous_territories,Brazil,BR,Serra Morena,Regularizada,202602,0.0,0.0,59.67,1.0,0.0,0.0,0.0,0.0,-59.549442,-11.275703,-59.215955,-10.739437
+2026-09-07,BR43001_0,indigenous_territories,Brazil,BR,Sete de Setembro,Regularizada,202602,0.0,0.0,118.05,1.0,0.0,0.0,0.0,0.0,-61.431208,-11.249679,-60.922194,-10.737429
+2026-09-07,BR44801_0,indigenous_territories,Brazil,BR,Tenharim Marmelos,Regularizada,202602,0.0,0.0,216.69,1.0,0.0,0.0,0.0,0.0,-62.164004,-8.882356,-61.589862,-7.811543
+2026-09-07,BR44701_0,indigenous_territories,Brazil,BR,Tenharim do Igarapé Preto,Regularizada,202602,0.0,0.0,1295.41,1.0,0.0,0.0,0.0,0.0,-61.403201,-8.666022,-61.028728,-8.290393
+2026-09-07,BR46201_0,indigenous_territories,Brazil,BR,Trincheira Bacaja,Regularizada,202602,0.0,0.0,1042.84,1.0,0.0,0.0,0.0,0.0,-52.011243,-5.463064,-50.998856,-3.771198
+2026-09-07,BR46401_0,indigenous_territories,Brazil,BR,Trombetas/Mapuera,Regularizada,202602,0.0,0.0,0.54,1.0,0.0,0.0,0.0,0.0,-59.988823,-1.364606,-57.147917,0.938838
+2026-09-07,BR46701_0,indigenous_territories,Brazil,BR,Tubarão Latunde,Regularizada,202602,0.0,0.0,11.94,1.0,0.0,0.0,0.0,0.0,-60.811841,-12.835833,-60.447921,-12.445125
+2026-09-07,BR49801_0,indigenous_territories,Brazil,BR,Wawi,Regularizada,202602,0.0,0.0,128.28,1.0,0.0,0.0,0.0,0.0,-53.235043,-12.020465,-52.871669,-11.426801
+2026-09-07,BR50901_0,indigenous_territories,Brazil,BR,Yanomami,Regularizada,202602,0.0,0.0,7533.78,1.0,0.0,0.0,0.0,0.0,-66.476944,-0.323219,-61.332908,4.287222
+2026-09-07,BR51101_0,indigenous_territories,Brazil,BR,Zoró,Regularizada,202602,0.0,0.0,57.73,1.0,0.0,0.0,0.0,0.0,-61.15056,-10.960536,-60.511987,-10.208622
+2026-09-07,BR12101_0,indigenous_territories,Brazil,BR,Évare I,Regularizada,202602,0.0,0.0,4.67,1.0,0.0,0.0,0.0,0.0,-69.907914,-4.32345,-69.139789,-3.226843
+2026-09-07,CO10394_0,indigenous_territories,Colombia,CO,"Resguardo Indígena Curripaco de Tonina, Sejal, San Jose y Otras",RESOLUCION,202602,0.0,0.0,9.84,1.0,0.0,0.0,0.0,0.0,-68.869873,1.861807,-67.564226,2.98238
+2026-09-07,CO10391_0,indigenous_territories,Colombia,CO,Resguardo Indígena Rio Cuiari e Isana,RESOLUCION,202602,44.68,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-70.180465,1.6928,-68.162888,2.44985
+2026-09-07,CO10379_0,indigenous_territories,Colombia,CO,Resguardo Indígena de la Cuenca Media Y Alta del Rio Inirida,RESOLUCION,202602,11.54,0.263,32.26,0.737,0.0,0.0,0.0,0.0,-70.942492,2.2087,-67.861408,3.691935
+2026-09-07,EC30558_0,indigenous_territories,Ecuador,EC,Amarum Mesa,Sin reconocimiento,202602,0.0,0.0,134.39,1.0,0.0,0.0,0.0,0.0,-77.251847,-0.460186,-77.126819,-0.321531
+2026-09-07,EC30086_0,indigenous_territories,Ecuador,EC,Arutam,Titulada,202602,0.0,0.0,0.0,0.0,226.68,1.0,0.05,0.0,-78.492864,-3.513115,-78.333962,-3.283086
+2026-09-07,EC30506_0,indigenous_territories,Ecuador,EC,Asociacion Rio Blanco,Titulada,202602,0.0,0.0,0.0,0.0,0.0,0.0,4.98,1.0,-77.586084,-1.01432,-77.55908,-0.999511
+2026-09-07,EC30280_0,indigenous_territories,Ecuador,EC,C. Shuar Campanak,Titulada,202602,0.0,0.0,0.0,0.0,22.5,0.497,22.77,0.503,-78.530445,-3.540457,-78.457936,-3.477627
+2026-09-07,EC30281_0,indigenous_territories,Ecuador,EC,Canzama - San Antonio,Titulada,202602,0.0,0.0,45.58,1.0,0.0,0.0,0.0,0.0,-78.916437,-3.854789,-78.887469,-3.785161
+2026-09-07,EC30147_0,indigenous_territories,Ecuador,EC,Centro Shuar Yukuapais,Titulada,202602,0.0,0.0,42.88,1.0,0.0,0.0,0.0,0.0,-77.625317,-2.333246,-77.574986,-2.261815
+2026-09-07,EC30747_0,indigenous_territories,Ecuador,EC,Chai,Sin reconocimiento,202602,0.0,0.0,0.0,0.0,43.33,1.0,0.0,0.0,-78.507776,-3.688612,-78.384315,-3.560575
+2026-09-07,EC30056_0,indigenous_territories,Ecuador,EC,Chapinza,Titulada,202602,0.0,0.0,1.49,1.0,0.0,0.0,0.0,0.0,-78.904713,-3.803053,-78.837587,-3.751917
+2026-09-07,EC30060_0,indigenous_territories,Ecuador,EC,Chichitza,Titulada,202602,0.0,0.0,0.0,0.0,0.0,0.0,17.84,1.0,-78.686364,-3.876848,-78.659383,-3.851155
+2026-09-07,EC30058_0,indigenous_territories,Ecuador,EC,Chichiz,Titulada,202602,,,,,,,,,-78.683802,-3.887527,-78.630675,-3.8412
+2026-09-07,EC30087_0,indigenous_territories,Ecuador,EC,Chuchumbleza,Titulada,202602,,,,,,,,,-78.541943,-3.534795,-78.529727,-3.519042
+2026-09-07,EC30088_0,indigenous_territories,Ecuador,EC,Churuwia,Titulada,202602,0.0,0.0,290.74,0.772,85.31,0.226,0.61,0.002,-78.480505,-3.333011,-78.310879,-3.133199
+2026-09-07,EC30350_0,indigenous_territories,Ecuador,EC,Coca Sardinas,Sin reconocimiento,202602,0.0,0.0,201.7,1.0,0.0,0.0,0.0,0.0,-77.216866,-0.218133,-77.082316,-0.036577
+2026-09-07,EC30645_0,indigenous_territories,Ecuador,EC,Cofan Bermejo,Titulada,202602,0.0,0.0,2.94,1.0,0.0,0.0,0.0,0.0,-77.513956,0.21563,-77.091124,0.407273
+2026-09-07,EC30552_0,indigenous_territories,Ecuador,EC,Comuna Guayusa,Titulada,202602,0.0,0.0,82.42,1.0,0.0,0.0,0.0,0.0,-77.204576,-0.274358,-77.055389,-0.181644
+2026-09-07,EC30325_0,indigenous_territories,Ecuador,EC,Comuna Kuri Yaku,Titulada,202602,0.0,0.0,114.85,1.0,0.0,0.0,0.0,0.0,-77.109238,0.176214,-77.076554,0.237748
+2026-09-07,EC30326_0,indigenous_territories,Ecuador,EC,Comuna Puma Kucha,Titulada,202602,0.0,0.0,41.3,1.0,0.0,0.0,0.0,0.0,-77.078865,0.176896,-77.047731,0.237977
+2026-09-07,EC30553_0,indigenous_territories,Ecuador,EC,Comuna San José,Titulada,202602,0.0,0.0,212.97,1.0,0.0,0.0,0.0,0.0,-77.280724,-0.936991,-77.13917,-0.259575
+2026-09-07,EC30127_0,indigenous_territories,Ecuador,EC,Cooperativa Shuar Kankaim,Titulada,202602,0.0,0.0,41.97,1.0,0.0,0.0,0.0,0.0,-77.674148,-2.391899,-77.610834,-2.276889
+2026-09-07,EC30128_0,indigenous_territories,Ecuador,EC,Cooperativa Shuar Kankaiman,Titulada,202602,0.0,0.0,23.26,1.0,0.0,0.0,0.0,0.0,-77.657347,-2.306621,-77.609928,-2.229017
+2026-09-07,EC30707_0,indigenous_territories,Ecuador,EC,El Kiim,Titulada,202602,0.0,0.0,1.53,1.0,0.0,0.0,0.0,0.0,-78.942405,-3.792729,-78.901058,-3.760578
+2026-09-07,EC30047_0,indigenous_territories,Ecuador,EC,Kurints,Titulada,202602,0.0,0.0,53.29,1.0,0.0,0.0,0.0,0.0,-78.901608,-3.792243,-78.804097,-3.759628
+2026-09-07,EC30051_0,indigenous_territories,Ecuador,EC,La Centza,Titulada,202602,,,,,,,,,-78.68253,-3.798211,-78.647398,-3.764674
+2026-09-07,EC30745_0,indigenous_territories,Ecuador,EC,Machinias,Sin reconocimiento,202602,0.0,0.0,0.0,0.0,11.63,1.0,0.0,0.0,-78.540377,-3.638849,-78.489606,-3.615083
+2026-09-07,EC30287_0,indigenous_territories,Ecuador,EC,Manchinias,Titulada,202602,0.0,0.0,224.1,0.94,13.89,0.058,0.34,0.001,-78.575405,-3.660589,-78.535672,-3.609586
+2026-09-07,EC30746_0,indigenous_territories,Ecuador,EC,Micha Nunka,Sin reconocimiento,202602,0.0,0.0,0.0,0.0,16.77,1.0,0.0,0.0,-78.537951,-3.663899,-78.469595,-3.632814
+2026-09-07,EC30268_0,indigenous_territories,Ecuador,EC,Nambija - Cumay,Titulada,202602,0.0,0.0,153.74,0.842,25.97,0.142,2.84,0.016,-78.904189,-4.085971,-78.785847,-3.959719
+2026-09-07,EC30277_0,indigenous_territories,Ecuador,EC,Numpatacaime,Titulada,202602,0.0,0.0,0.97,1.0,0.0,0.0,0.0,0.0,-78.669363,-4.401516,-78.640059,-4.337091
+2026-09-07,EC30043_0,indigenous_territories,Ecuador,EC,Pachicutza,Titulada,202602,0.0,0.0,76.66,0.997,0.0,0.0,0.23,0.003,-78.647786,-3.702814,-78.552764,-3.611406
+2026-09-07,EC30705_0,indigenous_territories,Ecuador,EC,Pachikius,,202602,0.0,0.0,0.0,0.0,112.0,0.995,0.51,0.005,-78.641906,-4.131911,-78.617657,-4.105558
+2026-09-07,EC30068_0,indigenous_territories,Ecuador,EC,Patuca,Titulada,202602,0.0,0.0,9.67,1.0,0.0,0.0,0.0,0.0,-78.273332,-2.769364,-78.217182,-2.718888
+2026-09-07,EC30052_0,indigenous_territories,Ecuador,EC,Pindal,Titulada,202602,0.0,0.0,0.0,0.0,0.0,0.0,35.29,1.0,-78.61263,-3.804017,-78.517661,-3.720293
+2026-09-07,EC30265_0,indigenous_territories,Ecuador,EC,Piunza,Titulada,202602,176.72,0.656,84.61,0.314,8.13,0.03,0.0,0.0,-78.882462,-3.920947,-78.790999,-3.853322
+2026-09-07,EC30263_0,indigenous_territories,Ecuador,EC,Piunza - El Carmelo - Guadalupe,Titulada,202602,0.0,0.0,71.88,1.0,0.0,0.0,0.0,0.0,-78.899778,-3.882137,-78.860176,-3.799141
+2026-09-07,EC30512_0,indigenous_territories,Ecuador,EC,Puca Hurco,Titulada,202602,0.0,0.0,0.0,0.0,0.0,0.0,43.87,1.0,-77.671464,-1.041821,-77.639408,-1.009823
+2026-09-07,EC30515_0,indigenous_territories,Ecuador,EC,Puni Anzu,Titulada,202602,0.0,0.0,7.74,1.0,0.0,0.0,0.0,0.0,-77.751779,-1.154068,-77.705158,-1.118934
+2026-09-07,EC30582_0,indigenous_territories,Ecuador,EC,Puni San Antonio,Titulada,202602,0.0,0.0,41.2,1.0,0.0,0.0,0.0,0.0,-77.730735,-1.177964,-77.69552,-1.145298
+2026-09-07,EC30289_0,indigenous_territories,Ecuador,EC,Reserva Shuar,Titulada,202602,0.0,0.0,0.0,0.0,45.23,0.966,1.61,0.034,-78.604355,-3.515747,-78.480993,-3.432495
+2026-09-07,EC30260_0,indigenous_territories,Ecuador,EC,Reserva Shuar Kenkiun,Titulada,202602,0.0,0.0,318.69,0.745,0.0,0.0,109.35,0.255,-78.649162,-4.062877,-78.597251,-4.007556
+2026-09-07,EC30257_0,indigenous_territories,Ecuador,EC,Reserva Shuar Tsarunts,Titulada,202602,0.0,0.0,10.04,0.163,9.17,0.148,42.57,0.689,-78.651076,-4.116228,-78.590505,-4.041007
+2026-09-07,EC30388_0,indigenous_territories,Ecuador,EC,Saraguro,Sin reconocimiento,202602,0.0,0.0,0.0,0.0,3.15,1.0,0.0,0.0,-79.391072,-4.208287,-78.57458,-3.342224
+2026-09-07,EC30711_0,indigenous_territories,Ecuador,EC,Shaime,Titulada,202602,0.0,0.0,475.82,0.669,234.75,0.33,0.71,0.001,-78.759541,-4.38334,-78.654263,-4.272759
+2026-09-07,EC30276_0,indigenous_territories,Ecuador,EC,Shaimi,Titulada,202602,0.0,0.0,32.13,0.883,0.35,0.01,3.9,0.107,-78.728137,-4.408693,-78.65391,-4.335513
+2026-09-07,EC30019_0,indigenous_territories,Ecuador,EC,Sin Información,Titulada,202602,0.0,0.0,0.0,0.0,3.25,1.0,0.0,0.0,-78.894791,-4.511661,-78.73798,-4.135615
+2026-09-07,EC30022_0,indigenous_territories,Ecuador,EC,Sin Información,Sin reconocimiento,202602,0.0,0.0,11.76,1.0,0.0,0.0,0.0,0.0,-78.417251,-2.748368,-78.30259,-2.674453
+2026-09-07,EC30053_0,indigenous_territories,Ecuador,EC,Sin Información,Titulada,202602,18.96,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-78.572623,-3.815421,-78.561273,-3.801266
+2026-09-07,EC30003_0,indigenous_territories,Ecuador,EC,Territorio Etza,Titulada,202602,0.0,0.0,207.65,0.87,22.85,0.096,8.22,0.034,-77.265735,0.178795,-77.184112,0.253009
+2026-09-07,EC30002_0,indigenous_territories,Ecuador,EC,Territorio San Antonio,Titulada,202602,0.0,0.0,5.81,1.0,0.0,0.0,0.0,0.0,-77.309635,0.134994,-77.240306,0.224507
+2026-09-07,EC30006_0,indigenous_territories,Ecuador,EC,Territorio Taruka,Titulada,202602,0.0,0.0,241.33,0.938,5.6,0.022,10.22,0.04,-77.263595,0.122142,-77.186658,0.232227
+2026-09-07,EC30004_0,indigenous_territories,Ecuador,EC,Territorio Yamaran Nankais,Titulada,202602,0.0,0.0,4.47,0.435,5.81,0.565,0.0,0.0,-77.197108,0.213486,-77.128252,0.294114
+2026-09-07,EC30699_0,indigenous_territories,Ecuador,EC,Tsarunts,Solicitud de titulación,202602,0.0,0.0,0.0,0.0,0.0,0.0,20.13,1.0,-78.598835,-4.112461,-78.540043,-4.054415
+2026-09-07,EC30704_0,indigenous_territories,Ecuador,EC,Tunants,,202602,,,,,,,,,-78.621083,-4.230131,-78.574614,-4.12652
+2026-09-07,EC30292_0,indigenous_territories,Ecuador,EC,Tundaime,Titulada,202602,,,,,,,,,-78.511927,-3.586746,-78.461234,-3.551868
+2026-09-07,EC30720_0,indigenous_territories,Ecuador,EC,Wampiashuk,Titulada,202602,0.0,0.0,90.88,0.939,0.0,0.0,5.9,0.061,-78.826532,-4.443418,-78.731349,-4.363918
+2026-09-07,EC30266_0,indigenous_territories,Ecuador,EC,Wawaime,Titulada,202602,0.0,0.0,81.7,0.994,0.49,0.006,0.0,0.0,-78.91806,-3.935489,-78.856732,-3.880195
+2026-09-07,EC30713_0,indigenous_territories,Ecuador,EC,Yawi,Titulada,202602,,,,,,,,,-78.68196,-4.517551,-78.600097,-4.407274
+2026-09-07,EC30706_0,indigenous_territories,Ecuador,EC,Yayu,Titulada,202602,0.0,0.0,17.15,1.0,0.0,0.0,0.0,0.0,-78.68124,-4.432747,-78.635195,-4.38161
+2026-09-07,EC30267_0,indigenous_territories,Ecuador,EC,Zarza Paquisha,Titulada,202602,,,,,,,,,-78.616199,-3.903611,-78.541048,-3.850652
+2026-09-07,EC30294_0,indigenous_territories,Ecuador,EC,Zurmi,Titulada,202602,0.0,0.0,75.33,0.36,109.48,0.523,24.37,0.117,-78.681879,-4.251658,-78.636761,-4.082226
+2026-09-07,GF10015_0,indigenous_territories,French Guiana,GF,French Guiana,Reconocida,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.219128,2.853625,-53.185227,3.543762
+2026-09-07,GF10141_0,indigenous_territories,French Guiana,GF,French Guiana,Reconocida,202602,,,,,,,,,-52.750941,4.546677,-52.568589,4.693034
+2026-09-07,GF10143_0,indigenous_territories,French Guiana,GF,French Guiana,Reconocida,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-52.790595,4.473057,-52.558118,4.579877
+2026-09-07,GF10149_0,indigenous_territories,French Guiana,GF,French Guiana,Reconocida,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-53.118691,2.575095,-52.04629,3.546004
+2026-09-07,GY13036_0,indigenous_territories,Guyana,GY,Arau,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.158079,6.35597,-61.03688,6.461891
+2026-09-07,GY13055_0,indigenous_territories,Guyana,GY,Baramita,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.637956,7.160925,-60.19441,7.45676
+2026-09-07,GY13115_0,indigenous_territories,Guyana,GY,Campbelltown,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.220616,5.297955,-59.118495,5.413065
+2026-09-07,GY13073_0,indigenous_territories,Guyana,GY,Chenapau,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.658017,4.977286,-59.504557,5.064623
+2026-09-07,GY13106_0,indigenous_territories,Guyana,GY,Chinese Landing,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.725909,7.478455,-59.503595,7.544775
+2026-09-07,GY13045_0,indigenous_territories,Guyana,GY,Isseneru Tract A,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.453064,6.324624,-60.260568,6.687445
+2026-09-07,GY13044_0,indigenous_territories,Guyana,GY,Isseneru Tract B,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.462361,6.352442,-60.37563,6.394841
+2026-09-07,GY13128_0,indigenous_territories,Guyana,GY,Jawalla,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.551962,5.510704,-60.309299,5.758536
+2026-09-07,GY13126_0,indigenous_territories,Guyana,GY,Kaikan,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.382695,5.91794,-61.134399,6.187435
+2026-09-07,GY13127_0,indigenous_territories,Guyana,GY,Kamarang Keng,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.709723,5.720268,-60.429912,6.148592
+2026-09-07,GY13079_0,indigenous_territories,Guyana,GY,Karasabai (Homesteads),,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.739732,3.932263,-59.326745,4.504505
+2026-09-07,GY13110_0,indigenous_territories,Guyana,GY,Karau,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.711791,6.466442,-58.608889,6.552927
+2026-09-07,GY13100_0,indigenous_territories,Guyana,GY,Karisparu,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.556375,4.888371,-59.41531,5.072396
+2026-09-07,GY13116_0,indigenous_territories,Guyana,GY,Kokerite,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.67336,7.321279,-59.582356,7.403355
+2026-09-07,GY13118_0,indigenous_territories,Guyana,GY,Koriabo,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.71254,7.5118,-59.578939,7.643244
+2026-09-07,GY13113_0,indigenous_territories,Guyana,GY,MOROWTA,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.775528,5.514237,-60.512205,5.807607
+2026-09-07,GY13051_0,indigenous_territories,Guyana,GY,Micobie,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.016538,5.339517,-58.914582,5.430377
+2026-09-07,GY13094_0,indigenous_territories,Guyana,GY,Monkey Mountain,,202602,,,,,,,,,-59.796406,4.373844,-59.588047,4.522054
+2026-09-07,GY13042_0,indigenous_territories,Guyana,GY,Rivers View/Falmouth,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.593385,6.270578,-58.415943,6.468814
+2026-09-07,GY13117_0,indigenous_territories,Guyana,GY,Waikrebi,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.58242,7.398916,-59.327046,7.563517
+2026-09-07,GY13130_0,indigenous_territories,Guyana,GY,Waramadong,,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-60.88577,5.741867,-60.673184,5.94419
+2026-09-07,PE1015_0,indigenous_territories,Peru,PE,ARAZAIRE,,202602,0.0,0.0,585.36,0.851,6.47,0.009,95.81,0.139,-70.390892,-13.033525,-70.343743,-12.983557
+2026-09-07,PE1450_0,indigenous_territories,Peru,PE,BARRANCO CHICO,,202602,0.0,0.0,4586.14,0.989,19.18,0.004,33.72,0.007,-70.627701,-12.933848,-70.475643,-12.842545
+2026-09-07,PE3280_0,indigenous_territories,Peru,PE,BOCA DEL INAMBARI,,202602,0.0,0.0,1027.93,0.859,163.9,0.137,4.64,0.004,-69.764549,-12.808063,-69.673541,-12.716953
+2026-09-07,PE1593_0,indigenous_territories,Peru,PE,CHAPIS Y ANEXO NUEVA ALEGRIA Y AJACHÍN,,202602,0.0,0.0,0.0,0.0,0.0,0.0,7.8,1.0,-77.542756,-4.447917,-77.452654,-4.319254
+2026-09-07,PE3279_0,indigenous_territories,Peru,PE,EL PILAR,,202602,0.0,0.0,37.25,0.238,119.04,0.762,0.0,0.0,-69.285855,-12.60022,-69.244538,-12.495596
+2026-09-07,PE1050_0,indigenous_territories,Peru,PE,KOTSIMBA,,202602,0.0,0.0,4073.99,1.0,0.0,0.0,0.0,0.0,-70.347,-13.174007,-70.071896,-12.976799
+2026-09-07,PE609_0,indigenous_territories,Peru,PE,NUEVO UNIDOS TAHUANTINSUYO,,202602,0.0,0.0,598.87,0.894,0.0,0.0,71.25,0.106,-74.923606,-9.709362,-74.802156,-9.493189
+2026-09-07,PE3281_0,indigenous_territories,Peru,PE,PUERTO LUZ,,202602,0.0,0.0,1022.83,0.994,0.68,0.001,5.66,0.005,-70.886124,-12.976472,-70.543833,-12.692741
+2026-09-07,PE794_0,indigenous_territories,Peru,PE,SAN JACINTO,,202602,0.0,0.0,2581.8,0.943,152.28,0.056,3.02,0.001,-73.894042,-12.683159,-69.37233,-4.493846
+2026-09-07,PE1082_0,indigenous_territories,Peru,PE,SAN JOSE DE KARENE,,202602,0.0,0.0,7460.17,0.929,538.33,0.067,33.41,0.004,-70.683583,-12.795016,-70.421829,-12.614525
+2026-09-07,PE1771_0,indigenous_territories,Peru,PE,SHIMPI,TITULADA,202602,0.0,0.0,0.0,0.0,0.0,0.0,1.76,1.0,-77.428157,-4.489447,-77.344206,-4.390271
+2026-09-07,PE969_0,indigenous_territories,Peru,PE,SHIRINGAYOC,,202602,0.0,0.0,1079.07,0.951,55.72,0.049,0.0,0.0,-69.966606,-12.689049,-69.881218,-12.571811
+2026-09-07,PE619_0,indigenous_territories,Peru,PE,TRES HERMANOS DEL SIRA,,202602,0.0,0.0,6.92,1.0,0.0,0.0,0.0,0.0,-74.810211,-9.675868,-74.695189,-9.557667
+2026-09-07,PE795_0,indigenous_territories,Peru,PE,TRES ISLAS,,202602,0.0,0.0,2732.03,0.764,835.11,0.234,7.21,0.002,-69.60052,-12.650611,-69.300003,-12.444716
+2026-09-07,PE512_0,indigenous_territories,Peru,PE,TSIROTZIRE,,202602,0.0,0.0,845.75,0.991,7.52,0.009,0.0,0.0,-74.931305,-9.385131,-74.839841,-9.319144
+2026-09-07,VE50058_0,indigenous_territories,Venezuela,VE,"Ikabaru (Taurepan, Pemon)",Demarcada,202602,0.0,0.0,11.8,0.001,0.0,0.0,0.0,0.0,-62.415214,4.075435,-61.319384,4.825998
+2026-09-07,VE50070_0,indigenous_territories,Venezuela,VE,Territorio Multiétnico Arawak - Yanomami,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.477478,0.646933,-64.9975,2.603516
+2026-09-07,VE50069_0,indigenous_territories,Venezuela,VE,Territorio Uwottüja del Sipapo,Solicitud de titulación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.861792,4.110528,-66.383829,5.773548
+2026-09-07,VE50071_0,indigenous_territories,Venezuela,VE,Territorio Ye'kwana-Sanema de Alto Orinoco,Autodemarcado,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.175968,2.550067,-64.508954,4.366803
+2026-09-07,VE50066_0,indigenous_territories,Venezuela,VE,Territorio Ye'kwana-Sanema de Medio Alto Caura,En proceso de autodemarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.270737,3.840267,-63.391392,6.742887
+2026-09-07,VE50072_0,indigenous_territories,Venezuela,VE,Territorio Ye'kwana-Sanema de Medio Alto Ventuari,En proceso de autodemarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.158053,4.008473,-64.53054,5.551523
+2026-09-07,VE50027_0,indigenous_territories,Venezuela,VE,Territorio tradicional Akawayo,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.384925,6.268327,-60.824774,6.864264
+2026-09-07,VE50022_0,indigenous_territories,Venezuela,VE,Territorio tradicional Arawak - Atabapo,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.808335,2.638287,-65.891667,4.378738
+2026-09-07,VE50020_0,indigenous_territories,Venezuela,VE,Territorio tradicional Arawak - Maroa,Sin demarcación,202602,,,,,,,,,-67.859845,1.909331,-66.215903,3.248472
+2026-09-07,VE50052_0,indigenous_territories,Venezuela,VE,Territorio tradicional E'ñapa,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.885834,6.189924,-65.362016,7.512121
+2026-09-07,VE50062_0,indigenous_territories,Venezuela,VE,Territorio tradicional Jotï,Autodemarcado,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.861756,5.093769,-65.079912,6.659864
+2026-09-07,VE950080_0,indigenous_territories,Venezuela,VE,Territorio tradicional Kari'ña,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-64.812488,7.171843,-60.525641,9.681355
+2026-09-07,VE50061_0,indigenous_territories,Venezuela,VE,Territorio tradicional Pemon,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-64.018974,4.109859,-60.581806,7.001154
+2026-09-07,VE50013_0,indigenous_territories,Venezuela,VE,Territorio tradicional Uwottüja,Sin demarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.583418,3.083491,-65.875833,6.317974
+2026-09-07,VE50065_0,indigenous_territories,Venezuela,VE,Territorio tradicional Yanomami de Alto Orinoco,En proceso de autodemarcación,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.557355,1.132251,-63.354771,3.837877
+2026-09-07,BOAP-0405_0,protected_areas,Bolivia,BO,Apolobamba,,202602,1599.4,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-69.361466,-15.359647,-68.055534,-14.686835
+2026-09-07,BO221_0,protected_areas,Bolivia,BO,Arroyo Bahia,,202602,82.76,0.921,7.06,0.079,0.0,0.0,0.0,0.0,-68.784071,-11.148187,-68.710918,-11.035759
+2026-09-07,BO220_0,protected_areas,Bolivia,BO,Bruno Racua,,202602,0.0,0.0,131.05,1.0,0.0,0.0,0.06,0.0,-65.59255,-10.106036,-65.308659,-9.667979
+2026-09-07,BO109_0,protected_areas,Bolivia,BO,Güenda - Urubó,,202602,,,,,,,,,-63.528659,-17.9477,-63.317462,-17.551619
+2026-09-07,BOAP-0301_0,protected_areas,Bolivia,BO,Isiboro Securé,,202602,25.65,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.845069,-16.786974,-65.055126,-15.47136
+2026-09-07,BOAP-1601_0,protected_areas,Bolivia,BO,Madidi,,202602,908.12,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-69.2589,-15.233523,-67.498652,-12.704703
+2026-09-07,BOAP-0604_0,protected_areas,Bolivia,BO,Manuripi,,202602,4.88,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-68.989184,-12.495565,-67.191134,-11.278329
+2026-09-07,BOAP-1405_0,protected_areas,Bolivia,BO,Pilón Lajas,,202602,161.35,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.689869,-15.448004,-67.025016,-14.438176
+2026-09-07,BO9_0,protected_areas,Bolivia,BO,Rhukanrhuka,,202602,21.62,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.566214,-14.636113,-66.725641,-12.860429
+2026-09-07,BO78_0,protected_areas,Bolivia,BO,Urbano de Cobija,,202602,0.4,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-68.76548,-11.05367,-68.763256,-11.051619
+2026-09-07,BO218_0,protected_areas,Bolivia,BO,Ñembi Guasu,,202602,,,,,,,,,-60.912082,-19.331623,-58.773042,-18.264196
+2026-09-07,BR214_0,protected_areas,Brazil,BR,AREA DE PROTEÇÃO AMBIENTAL TARUMA/PONTA NEGRA,,202602,0.0,0.0,26.44,1.0,0.0,0.0,0.0,0.0,-60.144703,-3.095701,-60.016517,-2.682948
+2026-09-07,BR1347_0,protected_areas,Brazil,BR,ESTAÇÃO ECOLÓGICA DA TERRA DO MEIO,,202602,,,,,,,,,-54.434243,-7.3536,-52.733165,-4.1217
+2026-09-07,BR366_0,protected_areas,Brazil,BR,ESTAÇÃO ECOLÓGICA DO GRÃO PARÁ,,202602,29.16,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-58.895121,-0.43507,-54.600689,2.028062
+2026-09-07,BR1405_0,protected_areas,Brazil,BR,ESTAÇÃO ECOLÓGICA DO JARI,,202602,,,,,,,,,-53.4104,-0.85834,-52.521786,-0.13035
+2026-09-07,BR1379_0,protected_areas,Brazil,BR,ESTAÇÃO ECOLÓGICA JUAMI-JAPURÁ,,202602,4436.08,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-69.197947,-2.840616,-67.499981,-1.64392
+2026-09-07,BR774_0,protected_areas,Brazil,BR,ESTAçãO ECOLóGICA ALTO MAUéS,,202602,608.79,1.0,0.08,0.0,0.2,0.0,0.0,0.0,-58.846603,-6.23234,-57.773538,-4.999786
+2026-09-07,BR652_0,protected_areas,Brazil,BR,FLORESTA ESTADUAL DE IRIRI,,202602,0.0,0.0,32.36,1.0,0.0,0.0,0.0,0.0,-54.76168,-6.84295,-54.14779,-5.820786
+2026-09-07,BR1573_0,protected_areas,Brazil,BR,FLORESTA ESTADUAL DE RENDIMENTO SUSTENTADO PERIQUITO,,202602,0.0,0.0,0.0,0.0,12.19,1.0,0.0,0.0,-62.57616,-9.367607,-62.508029,-9.338482
+2026-09-07,BR1204_0,protected_areas,Brazil,BR,FLORESTA ESTADUAL DO AMAPÁ,,202602,0.0,0.0,2841.12,0.856,466.84,0.141,10.59,0.003,-52.506147,0.14534,-50.888143,3.793162
+2026-09-07,BR457_0,protected_areas,Brazil,BR,FLORESTA ESTADUAL DO PARU,,202602,37.08,0.025,1414.53,0.972,3.32,0.002,0.0,0.0,-55.6693,-1.23,-52.679552,1.250358
+2026-09-07,BR1252_0,protected_areas,Brazil,BR,FLORESTA ESTADUAL DO TROMBETAS,,202602,0.0,0.0,0.0,0.0,13.95,1.0,0.0,0.0,-57.934695,-1.295111,-55.225742,0.81755
+2026-09-07,BR1012_0,protected_areas,Brazil,BR,FLORESTA NACIONAL ALTAMIRA,,202602,87.03,0.057,1417.28,0.925,28.56,0.019,0.0,0.0,-55.603549,-6.465953,-54.664321,-5.4026
+2026-09-07,BR1820_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE ITACAIUNAS,,202602,0.0,0.0,205.72,1.0,0.0,0.0,0.0,0.0,-51.400139,-6.055918,-50.508906,-5.763828
+2026-09-07,BR164_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE ITAITUBA I,,202602,31.29,0.022,1365.65,0.977,0.21,0.0,0.0,0.0,-56.981096,-5.562591,-56.104919,-5.173349
+2026-09-07,BR1253_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE ITAITUBA II,,202602,0.0,0.0,1122.71,0.989,12.3,0.011,0.0,0.0,-56.83829,-5.500172,-56.036751,-4.68405
+2026-09-07,BR879_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE JATUARANA,,202602,0.0,0.0,6.71,1.0,0.0,0.0,0.0,0.0,-59.975587,-8.099153,-58.922761,-6.954985
+2026-09-07,BR285_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE PAU-ROSA,,202602,0.0,0.0,10.37,1.0,0.0,0.0,0.0,0.0,-58.853212,-5.591093,-57.091174,-3.741091
+2026-09-07,BR1212_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE SARACÁ-TAQUERA,,202602,0.0,0.0,224.7,0.842,0.0,0.0,42.06,0.158,-57.178646,-1.904838,-56.038912,-1.389687
+2026-09-07,BR1159_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DE URUPADI,,202602,65.31,0.019,3142.29,0.915,227.23,0.066,0.0,0.0,-58.919971,-6.606474,-57.836624,-5.548479
+2026-09-07,BR1018_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DO AMANÁ,,202602,4.31,0.0,14053.59,0.994,82.08,0.006,0.0,0.0,-58.031212,-6.00358,-56.974854,-4.71493
+2026-09-07,BR561_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DO CREPORI,,202602,0.0,0.0,4247.4,0.977,99.48,0.023,0.0,0.0,-57.523135,-7.224969,-56.598858,-5.881983
+2026-09-07,BR1936_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DO JAMANXIM,,202602,0.0,0.0,2524.63,0.808,600.15,0.192,0.0,0.0,-56.254879,-8.614433,-55.235741,-6.350261
+2026-09-07,BR213_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DO JAMARI,,202602,0.0,0.0,480.4,0.439,0.19,0.0,613.16,0.561,-63.21358,-9.48186,-62.73508,-8.961409
+2026-09-07,BR1974_0,protected_areas,Brazil,BR,FLORESTA NACIONAL DO TRAIRÃO,,202602,0.0,0.0,114.87,1.0,0.0,0.0,0.0,0.0,-55.951344,-5.276227,-55.137027,-4.465983
+2026-09-07,BR1346_0,protected_areas,Brazil,BR,PARQUE ESTADUAL IGARAPÉS DO JURUENA,,202602,27.22,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.469702,-9.002676,-58.446042,-8.800392
+2026-09-07,BR1817_0,protected_areas,Brazil,BR,PARQUE NACIONAL DA AMAZÔNIA,,202602,48.28,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-57.474452,-4.948258,-55.992728,-3.650048
+2026-09-07,BR1220_0,protected_areas,Brazil,BR,PARQUE NACIONAL DA SERRA DO PARDO,,202602,17.52,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-53.44982,-6.137322,-52.563772,-5.480353
+2026-09-07,BR890_0,protected_areas,Brazil,BR,PARQUE NACIONAL DO ACARI,,202602,129.29,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.886272,-6.756244,-58.801006,-5.652799
+2026-09-07,BR2009_0,protected_areas,Brazil,BR,PARQUE NACIONAL DO JAMANXIM,,202602,2204.99,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-56.441101,-6.18539,-55.256401,-5.02632
+2026-09-07,BR1326_0,protected_areas,Brazil,BR,PARQUE NACIONAL DO JURUENA,,202602,784.38,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.366909,-9.200163,-57.664729,-6.881476
+2026-09-07,BR1677_0,protected_areas,Brazil,BR,PARQUE NACIONAL DO RIO NOVO,,202602,4110.56,0.999,2.23,0.001,0.09,0.0,0.06,0.0,-57.114971,-8.276291,-55.719818,-7.20651
+2026-09-07,BR811_0,protected_areas,Brazil,BR,PARQUE NACIONAL DOS CAMPOS AMAZÔNICOS,,202602,373.66,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-62.099931,-9.037364,-60.427728,-7.698728
+2026-09-07,BR1190_0,protected_areas,Brazil,BR,PARQUE NACIONAL MAPINGUARI,,202602,331.7,0.676,0.21,0.0,0.53,0.001,158.46,0.323,-65.680733,-9.607856,-63.568075,-7.398495
+2026-09-07,BR18_0,protected_areas,Brazil,BR,PARQUE NACIONAL MONTANHAS DO TUMUCUMAQUE,,202602,406.84,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.790966,0.684281,-51.57172,3.509328
+2026-09-07,BR997_0,protected_areas,Brazil,BR,RESERVA BIOLÓGICA DE MAICURU,,202602,281.84,0.402,0.0,0.0,0.0,0.0,419.35,0.598,-54.901149,-0.32194,-53.530287,1.84933
+2026-09-07,BR1651_0,protected_areas,Brazil,BR,RESERVA BIOLÓGICA NASCENTES SERRA DO CACHIMBO,,202602,66.02,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.99113,-9.37375,-54.369369,-8.653617
+2026-09-07,BR1380_0,protected_areas,Brazil,BR,RESERVA DE DESENVOLVIMENTO SUSTENTÁVEL CUJUBIM,,202602,0.0,0.0,353.16,1.0,0.0,0.0,0.0,0.0,-69.876363,-6.465158,-68.113835,-4.332427
+2026-09-07,BR944_0,protected_areas,Brazil,BR,RESERVA DE DESENVOLVIMENTO SUSTENTáVEL DO RIO IRATAPURU,,202602,0.0,0.0,102.82,0.486,108.85,0.514,0.0,0.0,-53.178811,-0.484216,-52.166204,0.868052
+2026-09-07,BR474_0,protected_areas,Brazil,BR,RESERVA EXTRATIVISTA DO CAZUMBÁ-IRACEMA,,202602,0.0,0.0,5.29,1.0,0.0,0.0,0.0,0.0,-70.193788,-10.336054,-68.841518,-9.021348
+2026-09-07,BR189_0,protected_areas,Brazil,BR,RESERVA EXTRATIVISTA DO RIO JUTAÍ,,202602,0.0,0.0,76.25,1.0,0.0,0.0,0.0,0.0,-67.588403,-3.868645,-67.051758,-3.053654
+2026-09-07,BR1908_0,protected_areas,Brazil,BR,RESERVA EXTRATIVISTA MUNICIPAL BEIJA FLOR BRILHO DE FOGO,,202602,0.0,0.0,0.0,0.0,1.26,1.0,0.0,0.0,-52.498523,0.709141,-52.118735,0.953142
+2026-09-07,BR632_0,protected_areas,Brazil,BR,RESERVA EXTRATIVISTA RIO IRIRI,,202602,0.0,0.0,26.37,1.0,0.0,0.0,0.0,0.0,-54.85662,-5.479029,-53.619801,-4.393811
+2026-09-07,BR804_0,protected_areas,Brazil,BR,RESERVA EXTRATIVISTA RIOZINHO DO ANFRÍSIO,,202602,0.0,0.0,86.99,1.0,0.0,0.0,0.0,0.0,-55.62339,-5.402201,-54.551277,-4.409431
+2026-09-07,BR532_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL DA REGIÃO METROLPOLITANA DE BELÉM,,202602,36.03,0.961,1.45,0.039,0.0,0.0,0.0,0.0,-48.459579,-1.478368,-48.337899,-1.383058
+2026-09-07,BR397_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL DE PRESIDENTE FIGUEIREDO - CAVERNA DO MOROAGA,,202602,0.0,0.0,9.97,1.0,0.0,0.0,0.0,0.0,-60.414698,-2.269339,-59.291394,-1.193128
+2026-09-07,BR1467_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL DO ARQUIPÉLAGO DO MARAJÓ,,202602,0.0,0.0,16.94,1.0,0.0,0.0,0.0,0.0,-51.433411,-1.912328,-48.389671,0.74687
+2026-09-07,BR1001_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL DO IGARAPÉ GELADO,,202602,0.0,0.0,23.97,1.0,0.0,0.0,0.0,0.0,-50.478762,-6.007085,-49.963972,-5.857079
+2026-09-07,BR1888_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL DO TAPAJÓS,,202602,3007.81,0.029,87505.45,0.856,9668.06,0.095,2003.2,0.02,-57.643398,-7.94041,-55.835609,-5.315793
+2026-09-07,BR2082_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL MARGEM DIREITA DO RIO NEGRO- SETOR PADUARI-SOLIMÕES,,202602,0.0,0.0,31.16,1.0,0.0,0.0,0.0,0.0,-61.515519,-3.315245,-59.985741,-2.103669
+2026-09-07,BR1625_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL MUNICIPAL DO ARICÁ-AÇU,,202602,0.0,0.0,304.61,1.0,0.0,0.0,0.0,0.0,-55.955914,-15.710804,-55.562025,-15.445315
+2026-09-07,BR597_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL NASCENTES DO RIO PARAGUAI,,202602,0.0,0.0,1239.87,0.898,9.82,0.007,131.45,0.095,-56.675269,-14.750271,-56.249994,-14.455139
+2026-09-07,BR1293_0,protected_areas,Brazil,BR,ÁREA DE PROTEÇÃO AMBIENTAL TRIUNFO DO XINGU,,202602,47.16,0.018,1383.24,0.518,1026.38,0.384,216.14,0.081,-53.938695,-7.213559,-51.978613,-5.618437
+2026-09-07,BR957_0,protected_areas,Brazil,BR,ÁREA DE PROTEçãO AMBIENTAL DA BAIXADA MARANHENSE,,202602,0.0,0.0,230.51,1.0,0.0,0.0,0.0,0.0,-45.532367,-4.0,-44.4,-1.983333
+2026-09-07,BR715_0,protected_areas,Brazil,BR,ÁREA DE PROTEçãO AMBIENTAL DAS REENTRâNCIAS MARANHENSES,,202602,0.0,0.0,2914.38,0.725,778.21,0.193,329.2,0.082,-46.162487,-2.583333,-44.3555,-1.042108
+2026-09-07,BR1399_0,protected_areas,Brazil,BR,ÁREA DE PROTEçãO AMBIENTAL DE UPAON-AçU / MIRITIBA / ALTO PREGUIçAS,,202602,0.0,0.0,41.77,1.0,0.0,0.0,0.0,0.0,-44.374602,-3.249627,-44.018961,-2.397906
+2026-09-07,CO55_0,protected_areas,Colombia,CO,Puinawai,REGISTRADA,202602,56.23,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-69.716703,1.729358,-68.669467,2.984338
+2026-09-07,CO146_0,protected_areas,Colombia,CO,Río Puré,REGISTRADA,202602,66.43,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-70.761183,-2.435497,-69.45939,-1.507474
+2026-09-07,ECv_fa210_snap_a.30_0,protected_areas,Ecuador,EC,EL ZARZA,EN REVISIÓN,202602,6.51,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-78.573303,-3.85428,-78.500897,-3.781537
+2026-09-07,ECv_fa210_snap_a.7_0,protected_areas,Ecuador,EC,SANGAY,EN REVISIÓN,202602,26.2,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-78.952218,-2.655804,-78.061676,-1.444489
+2026-09-07,GF12023_0,protected_areas,French Guiana,GF,Abattis et Montagne Kotika,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.329926,3.890352,-54.127079,4.109092
+2026-09-07,GF12318_0,protected_areas,French Guiana,GF,Kaw-Roura,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-52.422366,4.36521,-52.159095,4.856506
+2026-09-07,GF12019_0,protected_areas,French Guiana,GF,Lucifer Dékou-Dékou,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.070833,4.575953,-53.747965,4.995921
+2026-09-07,GF12033_0,protected_areas,French Guiana,GF,Nouragues,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-52.94262,3.861443,-52.561926,4.259573
+2026-09-07,GF12315_0,protected_areas,French Guiana,GF,Parc Amazonien de Guyane,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-54.602416,2.111076,-52.039153,4.468047
+2026-09-07,GF12317_0,protected_areas,French Guiana,GF,Parc Naturel Régional de la Guyane,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-53.994774,3.892776,-51.550323,6.023278
+2026-09-07,GF12001_0,protected_areas,French Guiana,GF,Trinité,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-53.434206,4.399861,-53.169334,4.744028
+2026-09-07,GY15001_0,protected_areas,Guyana,GY,Extended Kaieteur,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.642502,5.037339,-59.369002,5.317939
+2026-09-07,GY15003_0,protected_areas,Guyana,GY,Iwokrama,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-59.268613,4.12729,-58.483415,4.842061
+2026-09-07,PE27_0,protected_areas,Peru,PE,Amarakaeri,,202602,0.0,0.0,4.98,1.0,0.0,0.0,0.0,0.0,-71.332581,-13.277247,-70.49334,-12.308824
+2026-09-07,PERC03_0,protected_areas,Peru,PE,Amarakaeri - Buffer,,202602,1065.87,0.064,15340.0,0.918,112.74,0.007,188.0,0.011,-71.403461,-13.281401,-70.393596,-12.264114
+2026-09-07,PE17_0,protected_areas,Peru,PE,Bahuaja-Sonene,,202602,8.21,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-70.339633,-13.944255,-68.712302,-12.661179
+2026-09-07,PEPN08_0,protected_areas,Peru,PE,Bahuaja-Sonene - Buffer,,202602,2.11,0.0,5198.29,0.978,83.61,0.016,28.71,0.005,-70.39857,-14.119637,-68.939147,-12.93544
+2026-09-07,PERC02_0,protected_areas,Peru,PE,El Sira - Buffer,,202602,27.49,0.008,3003.1,0.888,9.84,0.003,342.9,0.101,-75.043228,-10.920531,-73.943791,-8.696266
+2026-09-07,PE821_0,protected_areas,Peru,PE,Gran Pajatén,,202602,0.0,0.0,11.68,1.0,0.0,0.0,0.0,0.0,-78.038154,-8.57016,-76.491884,-6.245584
+2026-09-07,PE359_0,protected_areas,Peru,PE,Los Amigos,,202602,1.61,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-70.100421,-12.586986,-70.082052,-12.570771
+2026-09-07,PE278_0,protected_areas,Peru,PE,Panguana,,202602,,,,,,,,,-74.938458,-9.634343,-74.9276,-9.606812
+2026-09-07,PE23_0,protected_areas,Peru,PE,Sierra del Divisor,,202602,5.85,1.0,0.0,0.0,0.0,0.0,0.0,0.0,-74.995073,-8.138547,-73.104041,-6.151844
+2026-09-07,PE46_0,protected_areas,Peru,PE,Tambopata,,202602,0.1,0.0,1441.46,0.999,0.0,0.0,1.45,0.001,-70.099871,-13.173034,-68.731513,-12.503938
+2026-09-07,PERN09_0,protected_areas,Peru,PE,Tambopata - Buffer,,202602,926.38,0.037,24239.45,0.961,4.75,0.0,40.23,0.002,-70.371533,-13.174004,-68.65278,-12.450849
+2026-09-07,SR7.0_0,protected_areas,Suriname,SR,Brinckheuvel,Created,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-55.384594,5.103567,-55.277597,5.210061
+2026-09-07,SR19.0_0,protected_areas,Suriname,SR,Brownsberg,Created,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-55.229746,4.803841,-55.130117,4.983567
+2026-09-07,VE55035_0,protected_areas,Venezuela,VE,Canaima,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-62.985738,4.68678,-60.673744,6.47978
+2026-09-07,VE55043_0,protected_areas,Venezuela,VE,Caura,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.760131,3.840267,-63.166667,7.483481
+2026-09-07,VE55005_0,protected_areas,Venezuela,VE,Cerro Guaiquinima,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-64.166667,5.5,-63.333333,6.166667
+2026-09-07,VE57007_0,protected_areas,Venezuela,VE,Dorado Tumeremo,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-61.618048,6.69726,-61.392683,7.127961
+2026-09-07,VE55038_0,protected_areas,Venezuela,VE,Duida Marahuaca,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.0,3.0,-65.0,4.0
+2026-09-07,VE57005_0,protected_areas,Venezuela,VE,El Frío,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-63.029456,6.746837,-62.552347,7.32454
+2026-09-07,VE57002_0,protected_areas,Venezuela,VE,Imataca,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-62.408081,5.962778,-59.806376,8.635377
+2026-09-07,VE57003_0,protected_areas,Venezuela,VE,La Paragua,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-63.91229,5.620843,-62.785323,6.915825
+2026-09-07,VE55018_0,protected_areas,Venezuela,VE,Macizo Cuao-Sipapo y Cerro Moriche,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.5,4.333333,-66.3,5.166667
+2026-09-07,VE55040_0,protected_areas,Venezuela,VE,Parima Tapirapeco,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.588615,1.133162,-63.354771,4.067163
+2026-09-07,VE57004_0,protected_areas,Venezuela,VE,San Pedro,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-62.906647,6.132083,-61.6183,7.297123
+2026-09-07,VE55041_0,protected_areas,Venezuela,VE,Serranía La Neblina,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-66.566459,0.646933,-64.997844,1.936139
+2026-09-07,VE55030_0,protected_areas,Venezuela,VE,Sierra Maigualida,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-65.666667,4.833333,-64.666667,6.5
+2026-09-07,VE57001_0,protected_areas,Venezuela,VE,Sipapo,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.803229,4.008099,-66.3848,5.772995
+2026-09-07,VE55042_0,protected_areas,Venezuela,VE,Yapacana,creada,202602,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,-67.037854,3.518354,-66.535112,4.170087
