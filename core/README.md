@@ -284,7 +284,7 @@ git clone https://github.com/facebookresearch/sam2.git
 cd sam2/
 pip install -e .
 ./checkpoints/download_ckpts.sh
-gsutil cp --billing-project=YOUR_PROJECT_ID gs://amazon-mining-watch/sam2/SAM_model_96_px_final.pth .   # 176MB file, expected cost is pennies
+gcloud storage cp --billing-project=YOUR_PROJECT_ID gs://amw-models/SAM_model_96_px_final.pth .   # 176MB file, expected cost is pennies
 ```
 
 By default `sam2_mask.py` expects the `sam2` checkout under `models/sam2` (re-run `pip install -e .` after moving the folder there). The path can also be set at run time.
@@ -353,13 +353,14 @@ Artifacts are **not** checked into git.
 [`data/outputs/MANIFEST.yaml`](../data/outputs/MANIFEST.yaml) is the in-repo
 catalogue of what lives where; keep it current.
 
-Three buckets, with distinct jobs:
+Four buckets, with distinct jobs:
 
 | bucket | holds | class |
 | --- | --- | --- |
 | `gs://amw-published` | the data store of record — published outputs only, object versioning on | Standard |
 | `gs://amw-dev/published/` | server-side copy of the above | Standard |
 | `gs://amw-image-caches` | Sentinel-2 caches, needed only to re-run a model or SAM2 | Archive |
+| `gs://amw-models` | **public read, requester pays.** The fine-tuned SAM2 weights, so that the `finetuned_weights` named in each published `config.txt` resolves to something a reader can fetch | Standard |
 
 Source Cooperative mirrors the public subset *from* `gs://amw-published`, never
 the reverse. If the two disagree, the bucket is correct.

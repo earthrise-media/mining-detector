@@ -2,13 +2,14 @@
      gcloud storage cp scripts/templates/amw_dev_README.md gs://amw-dev/README.md -->
 # gs://amw-dev — Amazon Mining Watch development store
 
-The working store for model development. Four stores divide the project:
+The working store for model development. Five stores divide the project:
 
 | | |
 | --- | --- |
 | `gs://amw-dev` | **this bucket** — training data, model weights, experimental and alternate outputs, and a backup of the published set |
 | `gs://amw-published` | the **data store of record**. Carries its own README. |
 | `gs://amw-archived` | the Sentinel-2 mosaics inference ran on, in ARCHIVE class for a future rebuild |
+| `gs://amw-models` | world-readable; the fine-tuned SAM2 weights, copied from here |
 | Source Cooperative | public mirror of a **subset** of `amw-published` — not a full mirror; the published bucket deliberately holds files that are not made public |
 
 Nothing in this bucket is the data of record. That does not make it expendable —
@@ -33,7 +34,9 @@ Extraction date and patch size are in each directory name. The data is regenerab
 ### `SAM2_finetuned_weights/`
 
 The weights that adapt generic SAM2 to mining-scar segmentation, and the only
-surviving artifact of that fine-tuning run.
+surviving artifact of that fine-tuning run. This is the master copy; the
+world-readable one at `gs://amw-models/` is pushed from here by hand, so a
+delete there is recoverable and a delete here is not.
 
 ### `published/`
 

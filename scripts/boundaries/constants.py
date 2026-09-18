@@ -23,7 +23,7 @@ MINING_DIFFERENCES_FILES = {
 MINING_YEARS_QUARTERS = sorted(MINING_DIFFERENCES_FILES.keys())
 first_mining_year_quarter, *_, last_mining_year_quarter = MINING_YEARS_QUARTERS
 
-# downloaded from https://source.coop/earthgenome/amazon-mining-watch/mining_scar_masks
+# downloaded from https://source.coop/earthgenome/amazon-mining-watch
 # Single raster where each pixel's value is the first-detection year/quarter
 # (e.g. 2018, 20262). 0 is nodata. Note that format is different from the standard
 # in the rest of the scripts.

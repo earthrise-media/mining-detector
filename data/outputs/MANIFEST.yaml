@@ -46,6 +46,27 @@ stores:
       the image caches that used to live here made that unaffordable, which is
       why the record was split out.
 
+  amw_models:
+    visibility: public, requester pays
+    root: gs://amw-models
+    location: us-central1
+    notes: >
+      Publicly readable, the only bucket that is. Holds the fine-tuned SAM2
+      weights and nothing else so far. Exists because the per-run
+      mask_config.txt names finetuned_weights by bare filename, which was
+      unresolvable while the only copy sat in gs://amw-dev.
+
+      Requester pays, so egress is the downloader's. That rules out anonymous
+      HTTPS — a reader needs a Google account and a billing-enabled project, and
+      passes --billing-project. Deliberate: the audience is people rebuilding
+      the segmentation, for whom that is not a barrier, and it removes any
+      denial-of-wallet exposure from making the file public. Documented in
+      core/README.md under Masking, which is the one public reference to it.
+
+      Not versioned: gs://amw-dev/SAM2_finetuned_weights/ is the master and this
+      is a hand-pushed copy, so there is no sync that could carry a bad overwrite
+      into the backup.
+
   amw_image_caches:
     visibility: internal
     root: gs://amw-image-caches
