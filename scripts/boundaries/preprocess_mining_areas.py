@@ -27,14 +27,17 @@ vector overlay differences.
 # ///
 
 import json
+import math
+import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+import shapely
 from constants import (
     COMBINED_MINING_FILE,
     ENTIRE_AMAZON_ID,
@@ -157,7 +160,9 @@ def quarantine_previous_outputs(dataset_files):
     print(f"Set aside {moved} outputs from the previous run as .stale")
 
 
-def split_by_national_boundaries(mining_gdf, national_admin_gdf):
+def split_by_national_boundaries(
+    mining_gdf, national_admin_gdf, chunk_size=2000, n_workers=None
+):
     """Split mining so every fragment lies in exactly one country.
 
     Adds `country_code_auth`: the country from the national layer, which is the
@@ -170,16 +175,26 @@ def split_by_national_boundaries(mining_gdf, national_admin_gdf):
     Mining outside every national polygon is dropped: a thin coastal fringe where
     the basin outline reaches past the land boundaries, and false positives over
     water.
+
+    The intersection runs through `parallel_intersection`; `chunk_size` and
+    `n_workers` are passed on to it.
     """
+    print("Splitting mining fragments by national boundaries")
+    started_at = time.time()
     countries = national_admin_gdf[national_admin_gdf["id"] != ENTIRE_AMAZON_ID]
     countries = countries[["country_code", "geometry"]].rename(
         columns={"country_code": "country_code_auth"}
     )
-    split = gpd.overlay(mining_gdf, countries, how="intersection")
+    split = parallel_intersection(
+        mining_gdf, countries, chunk_size=chunk_size, n_workers=n_workers
+    )
     # identifies a fragment across the overlays that follow, so the several rows
     # one fragment produces can be recognised as the same piece of ground
     split["mining_fragment_id"] = range(len(split))
-    print(f"Split {len(mining_gdf):,} mining fragments into {len(split):,} by country")
+    print(
+        f"Split {len(mining_gdf):,} mining fragments into {len(split):,} by country "
+        f"in {_format_duration(time.time() - started_at)}"
+    )
     return split
 
 
@@ -322,7 +337,14 @@ def assert_country_totals_tie(summary_yearly, tolerance_ha=50.0):
     print(f"Country totals tie to {ENTIRE_AMAZON_ID} within {tolerance_ha} ha in every period")
 
 
-def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect, mining_area_col_name):
+def intersect_and_calculate_areas(
+    mining_gdf, gdf_to_intersect, mining_area_col_name, chunk_size=2000, n_workers=None
+):
+    """Intersect mining with a boundary layer and scale the mined area to each piece.
+
+    The intersection runs through `parallel_intersection`; `chunk_size` and
+    `n_workers` are passed on to it.
+    """
     if mining_gdf.crs != gdf_to_intersect.crs:
         print(
             f"CRS mismatch: mining_gdf ({mining_gdf.crs}) vs gdf_to_intersect ({gdf_to_intersect.crs})"
@@ -336,10 +358,25 @@ def intersect_and_calculate_areas(mining_gdf, gdf_to_intersect, mining_area_col_
     print(mining_gdf["original_area_ha"].sum())
 
     print("Performing intersection...")
-    intersected = gpd.overlay(mining_gdf, gdf_to_intersect, how="intersection")
+    intersected = parallel_intersection(
+        mining_gdf,
+        gdf_to_intersect,
+        chunk_size=chunk_size,
+        n_workers=n_workers,
+        mark_unchanged=True,
+    )
 
     # calculate areas after intersection
-    intersected = calculate_area(intersected, "intersected_area_ha", "hectares")
+    # A fragment that came out of the intersection unchanged has its original area, so
+    # only the ones that were actually cut are re-measured. That saves reprojecting
+    # most of the dataset, which is slow at this size.
+    unchanged = intersected["_unchanged"].to_numpy(dtype=bool)
+    intersected = intersected.drop(columns="_unchanged")
+    intersected["intersected_area_ha"] = intersected["original_area_ha"]
+    if (~unchanged).any():
+        intersected.loc[~unchanged, "intersected_area_ha"] = calculate_area(
+            intersected.loc[~unchanged], "intersected_area_ha", "hectares"
+        )["intersected_area_ha"].to_numpy()
     print("Intersected mining area sum (ha):")
     print(intersected["intersected_area_ha"].sum())
 
@@ -588,14 +625,390 @@ def summarize_latest_snapshot(summary):
     return latest.set_index(group_cols)
 
 
+def _format_duration(seconds: float) -> str:
+    """Format a number of seconds as e.g. '1h 02m 05s', '3m 07s' or '42s'."""
+    if not math.isfinite(seconds):
+        return "?"
+    seconds = int(round(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+def _print_progress(label: str, done: int, total: int, started_at: float, width: int = 30):
+    """Print one progress line with a bar, percentage, elapsed time and ETA.
+
+    One line per call rather than a carriage-return bar, so the output stays readable
+    when the script's log is piped to a file.
+    """
+    elapsed = time.time() - started_at
+    fraction = done / total if total else 1.0
+    # simple linear extrapolation from the rate so far
+    eta = elapsed / done * (total - done) if done else float("nan")
+    filled = int(round(width * fraction))
+    bar = "#" * filled + "-" * (width - filled)
+    print(
+        f"  {label} [{bar}] {done:,}/{total:,} ({fraction:.1%}) "
+        f"| elapsed {_format_duration(elapsed)} | ETA {_format_duration(eta)}",
+        flush=True,
+    )
+
+
+def _polygonal_parts(geoms: gpd.GeoSeries) -> gpd.GeoSeries:
+    """Repair geometries and keep only their polygonal parts.
+
+    make_valid can turn a broken polygon into a GeometryCollection holding stray lines
+    or points, which gpd.overlay refuses to process.
+    """
+    geoms = geoms.make_valid()
+    is_collection = geoms.geom_type == "GeometryCollection"
+    if is_collection.any():
+        geoms.loc[is_collection] = geoms.loc[is_collection].apply(
+            lambda g: shapely.union_all(
+                [p for p in g.geoms if p.geom_type in ("Polygon", "MultiPolygon")]
+            )
+        )
+    return geoms
+
+
+# Set in each worker process by _init_worker, so the layer being overlaid (illegality
+# zones, countries) is sent to every worker once when the pool starts, instead of
+# again with every chunk.
+_WORKER_LAYER = None
+_WORKER_GEOMS = None
+
+
+def _init_worker(layer_gdf: gpd.GeoDataFrame, prepare: bool = False):
+    global _WORKER_LAYER, _WORKER_GEOMS
+    _WORKER_LAYER = layer_gdf
+    # build the spatial index up front, once per worker, rather than inside the first chunk
+    _WORKER_LAYER.sindex
+    _WORKER_GEOMS = layer_gdf.geometry.to_numpy()
+    if prepare:
+        # Prepared geometries answer predicates (intersects, contains) against many
+        # small polygons far faster. Preparation doesn't survive pickling, so it is
+        # done here, in each worker.
+        shapely.prepare(_WORKER_GEOMS)
+
+
+def _spatial_chunks(gdf: gpd.GeoDataFrame, chunk_size: int) -> list[gpd.GeoDataFrame]:
+    """Split a GeoDataFrame into chunks of nearby polygons.
+
+    Adds an `_input_order` column, so results can be put back in the input order.
+
+    Rows are sorted along a Hilbert curve, so each chunk is a compact patch of ground
+    rather than polygons scattered across the basin. That keeps each chunk's clipping
+    box small, which is where most of the speed-up from clipping comes from.
+    """
+    gdf = gdf.copy()
+    gdf["_input_order"] = np.arange(len(gdf))
+    if gdf.empty:
+        return []
+    hilbert = gdf.geometry.hilbert_distance().to_numpy()
+    gdf = gdf.iloc[np.argsort(hilbert, kind="stable")]
+    # range() and iloc need a whole number
+    chunk_size = max(1, int(chunk_size))
+    return [gdf.iloc[s : s + chunk_size] for s in range(0, len(gdf), chunk_size)]
+
+
+def _run_chunks(chunks, task, task_args, layer_gdf, n_workers, label, prepare_layer=False):
+    """Run `task(chunk, *task_args)` on every chunk and return the results in order.
+
+    Runs in worker processes that each hold `layer_gdf`, reporting progress as chunks
+    finish. With n_workers=1 everything runs in this process, which is easier to debug.
+    """
+    total = sum(len(chunk) for chunk in chunks)
+    if n_workers is None:
+        n_workers = os.cpu_count() or 1
+    # int(): multiprocessing needs a whole number, and a value computed with `/`
+    # (e.g. os.cpu_count() / 2) is a float even when it looks whole, like 4.0
+    n_workers = max(1, min(int(n_workers), len(chunks)))
+    print(
+        f"  Processing {total:,} {label} against {len(layer_gdf):,} polygons: "
+        f"{len(chunks):,} chunks, "
+        f"{n_workers} worker process{'es' if n_workers != 1 else ''}...",
+        flush=True,
+    )
+
+    results = [None] * len(chunks)
+    done = 0
+    started_at = time.time()
+    last_pct = -1
+    last_printed_at = started_at
+
+    def report(done):
+        # chunks can finish many times a second, so only print when the percentage
+        # moves, or at least once a minute so a slow stretch still shows signs of life
+        nonlocal last_pct, last_printed_at
+        if total == 0:
+            return
+        pct = int(100 * done / total)
+        now = time.time()
+        if done == total or pct > last_pct or now - last_printed_at >= 60:
+            _print_progress(label, done, total, started_at)
+            last_pct, last_printed_at = pct, now
+
+    if n_workers == 1:
+        _init_worker(layer_gdf, prepare_layer)
+        for i, chunk in enumerate(chunks):
+            results[i] = task(chunk, *task_args)
+            done += len(chunk)
+            report(done)
+        return results
+
+    # Processes rather than threads: overlay spends much of its time in Python code
+    # that holds the GIL, so threads would barely run in parallel.
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        initializer=_init_worker,
+        initargs=(layer_gdf, prepare_layer),
+    ) as executor:
+        futures = {
+            executor.submit(task, chunk, *task_args): i for i, chunk in enumerate(chunks)
+        }
+        try:
+            for future in as_completed(futures):
+                i = futures[future]
+                results[i] = future.result()
+                done += len(chunks[i])
+                report(done)
+        except BaseException:
+            # don't leave the rest of the queue running after a failure or Ctrl+C
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+    return results
+
+
+def _clip_layer_to_chunk(
+    layer: gpd.GeoDataFrame, chunk: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
+    """Return the layer's polygons near a chunk, cut down to the chunk's bounding box.
+
+    Layer polygons can be very large and detailed (a whole protected area, a whole
+    country), and every intersection and difference against one costs time in
+    proportion to its vertices. Only the part inside the chunk's extent can touch its
+    mining polygons, so the rest is cut away once per chunk instead of being processed
+    once per mining polygon.
+
+    This does not change the result: every mining polygon lies inside the box, so its
+    intersection with a layer polygon equals its intersection with the clipped part.
+    """
+    # bounding-box query only: cheap, and overlay does the exact test itself
+    _, positions = layer.sindex.query(chunk.geometry)
+    positions = np.unique(positions)
+    if len(positions) == 0:
+        return layer.iloc[[]]
+
+    minx, miny, maxx, maxy = chunk.total_bounds
+    # a margin, so the edge of the box never runs along a mining boundary
+    pad = max(maxx - minx, maxy - miny, 1e-6) * 0.01
+    bounds = (minx - pad, miny - pad, maxx + pad, maxy + pad)
+
+    local = layer.iloc[positions].copy()
+    geoms = local.geometry.to_numpy()
+    # clip_by_rect is much faster than a general intersection with a box, which matters
+    # for polygons as big as a country outline. Its output isn't guaranteed to be
+    # valid, so any invalid result is redone with the exact intersection.
+    clipped = shapely.clip_by_rect(geoms, *bounds)
+    invalid = ~shapely.is_valid(clipped)
+    if invalid.any():
+        clipped[invalid] = shapely.intersection(geoms[invalid], shapely.box(*bounds))
+    local["geometry"] = clipped
+    # clipping can leave stray lines or points where a polygon only touches the box
+    local["geometry"] = _polygonal_parts(local.geometry)
+    keep = local.geom_type.isin(["Polygon", "MultiPolygon"]) & ~local.geometry.is_empty
+    return local[keep]
+
+
+def _overlay_chunk(chunk: gpd.GeoDataFrame, max_col: str) -> gpd.GeoDataFrame:
+    """Overlay one chunk of mining polygons with the illegality zones held by this worker."""
+    zones = _clip_layer_to_chunk(_WORKER_LAYER, chunk)
+    if zones.empty:
+        # no zone anywhere near this chunk: "identity" would keep every polygon
+        # unchanged with no category, so skip the overlay altogether
+        piece = chunk.copy()
+        piece[max_col] = np.nan
+        return piece
+    # "identity" keeps all of the mining area: parts inside a zone get its category,
+    # parts outside every zone get NaN
+    return gpd.overlay(chunk, zones, how="identity", keep_geom_type=True)
+
+
+def _join_attributes(left_rows, right_rows, geometry, crs) -> gpd.GeoDataFrame:
+    """Pair up rows the way gpd.overlay does, with the given geometry for each pair.
+
+    Columns present on both sides get overlay's `_1`/`_2` suffixes, and come in the
+    same order (left, then right, then geometry), so these rows can be concatenated
+    with overlay output without any mismatch.
+    """
+    left = left_rows.drop(columns=left_rows.geometry.name).reset_index(drop=True)
+    right = right_rows.drop(columns=right_rows.geometry.name).reset_index(drop=True)
+    attrs = left.merge(
+        right, left_index=True, right_index=True, suffixes=("_1", "_2")
+    )
+    geometry = gpd.GeoSeries(np.asarray(geometry, dtype=object), crs=crs)
+    return gpd.GeoDataFrame(attrs, geometry=geometry)
+
+
+def _intersect_chunk(chunk: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Intersect one chunk of mining polygons with the layer held by this worker.
+
+    A polygon lying wholly inside every layer polygon it touches comes out of the
+    intersection unchanged, once per layer polygon, so those rows are built directly.
+    Everything else -- polygons crossing a boundary, or invalid ones -- goes through
+    gpd.overlay against the layer clipped to the chunk.
+
+    Adds an `_unchanged` column, True for the rows built directly.
+    """
+    layer = _WORKER_LAYER
+    layer_geoms = _WORKER_GEOMS
+    geoms = chunk.geometry.to_numpy()
+    # GEOS can fail or answer wrongly on invalid geometries, so those skip the tests
+    # below and go to the overlay, which repairs them
+    valid = shapely.is_valid(geoms)
+
+    chunk_pos, layer_pos = layer.sindex.query(chunk.geometry)
+    tested = valid[chunk_pos]
+    chunk_pos, layer_pos = chunk_pos[tested], layer_pos[tested]
+    # exact tests, fast because the layer geometries are prepared
+    hits = shapely.intersects(layer_geoms[layer_pos], geoms[chunk_pos])
+    chunk_pos, layer_pos = chunk_pos[hits], layer_pos[hits]
+    inside = shapely.contains_properly(layer_geoms[layer_pos], geoms[chunk_pos])
+    n_hits = np.bincount(chunk_pos, minlength=len(chunk))
+    n_inside = np.bincount(chunk_pos[inside], minlength=len(chunk))
+    whole_row = valid & (n_hits > 0) & (n_hits == n_inside)
+    # every pair left for such a row is a containing one
+    whole_pair = whole_row[chunk_pos]
+
+    pieces = []
+    if whole_pair.any():
+        piece = _join_attributes(
+            chunk.iloc[chunk_pos[whole_pair]],
+            layer.iloc[layer_pos[whole_pair]],
+            geoms[chunk_pos[whole_pair]],
+            chunk.crs,
+        )
+        piece["_unchanged"] = True
+        pieces.append(piece)
+
+    # polygons touching no layer polygon at all are left out, as the intersection would
+    needs_overlay = ~valid | ((n_hits > 0) & ~whole_row)
+    if needs_overlay.any():
+        rest = chunk.iloc[np.flatnonzero(needs_overlay)]
+        local = _clip_layer_to_chunk(layer, rest)
+        if not local.empty:
+            piece = gpd.overlay(rest, local, how="intersection", keep_geom_type=True)
+            piece["_unchanged"] = False
+            pieces.append(piece)
+
+    if not pieces:
+        return chunk.iloc[0:0]
+    return pd.concat(pieces, ignore_index=True)
+
+
+def parallel_intersection(
+    mining_gdf: gpd.GeoDataFrame,
+    layer_gdf: gpd.GeoDataFrame,
+    chunk_size: int = 2000,
+    n_workers: int | None = None,
+    mark_unchanged: bool = False,
+) -> gpd.GeoDataFrame:
+    """Same result as `gpd.overlay(mining_gdf, layer_gdf, how="intersection")`, faster.
+
+    - Most mining polygons lie wholly inside the layer polygons they touch, and
+      intersecting them would only hand them back unchanged. They are recognised with
+      prepared-geometry tests and paired with those layer polygons directly; only the
+      polygons that cross a boundary go through the overlay.
+    - The layer is cut down to each chunk's extent before that overlay, so it works
+      on a small piece of each boundary instead of the whole thing.
+    - Chunks run in parallel worker processes, with progress reported.
+
+    Rows come out in the order overlay gives them: by mining row, then by layer row.
+    With `mark_unchanged`, an `_unchanged` column says which rows still have their
+    mining polygon's exact geometry, so their area need not be measured again.
+    `chunk_size` and `n_workers` work as in `overlay_max_category`.
+    """
+    started_at = time.time()
+    layer = layer_gdf
+    if layer.crs != mining_gdf.crs:
+        layer = layer.to_crs(mining_gdf.crs)
+    # repaired once here, rather than by overlay again in every chunk
+    layer = layer.copy()
+    layer["geometry"] = _polygonal_parts(layer.geometry)
+    layer = layer[layer.geometry.notna() & ~layer.geometry.is_empty].reset_index(
+        drop=True
+    )
+    # lets the output be put back in the order a single overlay would give
+    layer["_layer_order"] = np.arange(len(layer))
+
+    # empty geometries would be dropped by the overlay anyway, and the Hilbert sort
+    # used for chunking can't place them
+    mining = mining_gdf[mining_gdf.geometry.notna() & ~mining_gdf.geometry.is_empty]
+
+    pieces = _run_chunks(
+        _spatial_chunks(mining, chunk_size),
+        task=_intersect_chunk,
+        task_args=(),
+        layer_gdf=layer,
+        n_workers=n_workers,
+        label="mining polygons",
+        prepare_layer=True,
+    )
+    pieces = [piece for piece in pieces if piece is not None and not piece.empty]
+    if pieces:
+        result = gpd.GeoDataFrame(
+            pd.concat(pieces, ignore_index=True), geometry="geometry", crs=mining_gdf.crs
+        )
+        result = result.sort_values(["_input_order", "_layer_order"], kind="stable")
+    else:
+        # nothing intersects: an empty frame with the columns overlay would give
+        empty_mining = mining.iloc[0:0].copy()
+        empty_mining["_input_order"] = pd.Series(dtype="int64")
+        result = _join_attributes(empty_mining, layer.iloc[0:0], [], mining_gdf.crs)
+        result["_unchanged"] = pd.Series(dtype=bool)
+
+    result = result.drop(columns=["_input_order", "_layer_order"]).reset_index(drop=True)
+    n_unchanged = int(result["_unchanged"].sum())
+    if not mark_unchanged:
+        result = result.drop(columns="_unchanged")
+    print(
+        f"  Intersection done in {_format_duration(time.time() - started_at)}: "
+        f"{len(result):,} rows, {n_unchanged:,} of them passed through without "
+        "needing the overlay",
+        flush=True,
+    )
+    return result
+
+
 def overlay_max_category(
     illegality_gdf: gpd.GeoDataFrame,
     mining_gdf: gpd.GeoDataFrame,
     category_col: str,
+    chunk_size: int = 500,
+    n_workers: int | None = None,
 ) -> gpd.GeoDataFrame:
     """
     Overlays illegality_gdf with mining_gdf and assigns to each polygon in mining_gdf the maximum value
     of `category_col` from overlapping polygons in illegality_gdf.
+
+    Mining polygons are split along the illegality boundaries, so every resulting fragment
+    lies within a single category and carries exactly that category's value. Where
+    illegality polygons overlap each other, the highest category wins. Parts of a mining
+    polygon outside every illegality polygon are kept, with a value of 0.
+
+    Splitting, rather than tagging each whole polygon, matters here because the mining
+    polygons are vectorized rasters: one connected patch can span several categories,
+    and the area is later summed by category.
+
+    The overlay is run in chunks of mining polygons, spread over several worker
+    processes, with progress reported as chunks finish. This gives the same result as
+    one big overlay: an "identity" overlay treats every mining polygon independently,
+    so splitting the input by rows does not change any output fragment. The output
+    rows are put back in the input order afterwards.
 
     Parameters
     ----------
@@ -605,54 +1018,105 @@ def overlay_max_category(
         Target GeoDataFrame to which max values will be added.
     category_col : str
         Column name in illegality_gdf containing numeric category values.
+    chunk_size : int, optional
+        Number of mining polygons overlaid per task. Smaller chunks cover less ground,
+        so the zones are clipped more tightly and the work is shared out more evenly
+        between workers, at the cost of more per-task overhead. Default 500.
+    n_workers : int, optional
+        Number of worker processes. Defaults to the number of CPU cores. Use 1 to run
+        everything in this process, which is easier to debug.
 
     Returns
     -------
     GeoDataFrame
-        mining_gdf with an additional column '{category_col}_max' containing the max values.
+        mining_gdf split along the illegality boundaries, with an additional column
+        '{category_col}_max'. The index is reset, and area columns are NOT updated for
+        the split fragments -- recalculate them afterwards.
     """
     print("Overlaying with illegality data...")
+    overall_start = time.time()
+    max_col = f"{category_col}_max"
 
     # Ensure both GeoDataFrames share the same CRS
     if illegality_gdf.crs != mining_gdf.crs:
         illegality_gdf = illegality_gdf.to_crs(mining_gdf.crs)
 
-    # Create spatial index for illegality_gdf if it doesn't exist
-    illegality_sindex = illegality_gdf.sindex
+    # Repair invalid geometries, which can give wrong intersection results.
+    # Only the category is taken from the illegality layer, so none of its other
+    # columns leak into the mining data and collide with the overlays downstream.
+    step_start = time.time()
+    print(f"  Repairing geometries of {len(illegality_gdf):,} illegality polygons...", flush=True)
+    illegality = illegality_gdf.loc[
+        illegality_gdf[category_col].notna(), [category_col, "geometry"]
+    ].copy()
+    illegality["geometry"] = _polygonal_parts(illegality.geometry)
+    print(f"  ...done in {_format_duration(time.time() - step_start)}", flush=True)
 
-    # Pre-extract geometries and values for faster access
-    illegality_geoms = illegality_gdf.geometry.values
-    illegality_vals = illegality_gdf[category_col].values
+    step_start = time.time()
+    print(f"  Repairing geometries of {len(mining_gdf):,} mining polygons...", flush=True)
+    mining = mining_gdf.drop(columns=[max_col], errors="ignore").copy()
+    mining["geometry"] = _polygonal_parts(mining.geometry)
+    mining = mining[mining.geometry.notna() & ~mining.geometry.is_empty]
+    print(f"  ...done in {_format_duration(time.time() - step_start)}", flush=True)
 
-    # Initialize result array with NaN
-    max_vals = np.full(len(mining_gdf), np.nan)
+    # Flatten the illegality layer into non-overlapping zones, one per category, going
+    # from the highest category down. Ground covered by several illegality polygons ends
+    # up in exactly one zone, under the highest category, so it is counted only once.
+    zones = []
+    claimed = None
+    categories = sorted(illegality[category_col].unique(), reverse=True)
+    zones_start = time.time()
+    print(f"  Building non-overlapping zones for {len(categories)} categories...", flush=True)
+    for i, value in enumerate(categories, start=1):
+        zone = shapely.union_all(
+            illegality.geometry[illegality[category_col] == value].values
+        )
+        if claimed is None:
+            claimed = zone
+        else:
+            zone = shapely.difference(zone, claimed)
+            claimed = shapely.union(claimed, zone)
+        zones.append({max_col: value, "geometry": zone})
+        _print_progress(f"zones (category {value})", i, len(categories), zones_start)
 
-    # Process each mining polygon
-    for idx, mining_geom in enumerate(mining_gdf.geometry):
-        # Use spatial index to find potential matches (bounding box intersection)
-        possible_matches_idx = list(illegality_sindex.intersection(mining_geom.bounds))
+    zones_gdf = gpd.GeoDataFrame(zones, geometry="geometry", crs=illegality.crs)
+    # explode to single polygons so the spatial index inside overlay can do its job,
+    # instead of testing every mining polygon against one basin-wide multipolygon.
+    # Differences can leave degenerate line/point pieces, which are dropped.
+    zones_gdf = zones_gdf.explode(index_parts=False).reset_index(drop=True)
+    zones_gdf = zones_gdf[zones_gdf.geom_type == "Polygon"].reset_index(drop=True)
 
-        if not possible_matches_idx:
-            continue
+    if zones_gdf.empty or mining.empty:
+        mining_gdf_out = mining.reset_index(drop=True)
+        mining_gdf_out[max_col] = 0
+        return mining_gdf_out
 
-        # Check actual intersections and find max value
-        max_val = np.nan
-        for ill_idx in possible_matches_idx:
-            if mining_geom.intersects(illegality_geoms[ill_idx]):
-                val = illegality_vals[ill_idx]
-                if np.isnan(max_val) or val > max_val:
-                    max_val = val
-
-        max_vals[idx] = max_val
-
-    # Copy mining_gdf and assign new column
-    mining_gdf_out = mining_gdf.copy()
-    mining_gdf_out[f"{category_col}_max"] = max_vals
+    pieces = _run_chunks(
+        _spatial_chunks(mining, chunk_size),
+        task=_overlay_chunk,
+        task_args=(max_col,),
+        layer_gdf=zones_gdf,
+        n_workers=n_workers,
+        label="mining polygons",
+    )
+    pieces = [piece for piece in pieces if piece is not None and not piece.empty]
+    mining_gdf_out = gpd.GeoDataFrame(
+        pd.concat(pieces, ignore_index=True), geometry="geometry", crs=mining.crs
+    )
+    # back to the input order; stable, so a polygon's fragments keep their relative order
+    mining_gdf_out = (
+        mining_gdf_out.sort_values("_input_order", kind="stable")
+        .drop(columns="_input_order")
+        .reset_index(drop=True)
+    )
     # We need to fill with 0 because the dataframe gets grouped by this column later,
     # and if it is null it will dissappear
-    mining_gdf_out[f"{category_col}_max"] = mining_gdf_out[
-        f"{category_col}_max"
-    ].fillna(0)
+    mining_gdf_out[max_col] = mining_gdf_out[max_col].fillna(0)
+    print(
+        f"Illegality overlay finished in {_format_duration(time.time() - overall_start)}: "
+        f"{len(mining):,} mining polygons -> {len(mining_gdf_out):,} fragments",
+        flush=True,
+    )
     return mining_gdf_out
 
 
@@ -718,12 +1182,27 @@ if __name__ == "__main__":
     # for illegality, use a cutoff date, which is when illegality data was produced
     mining_gdf_for_illegality = mining_gdf[mining_gdf.year <= ILLEGALITY_DATA_UPDATED_AT]
     # take the rest of the mining data and store in variable
-    mining_gdf_rest = mining_gdf[mining_gdf.year > ILLEGALITY_DATA_UPDATED_AT]
+    # (.copy() so the column added below is set on a real frame, not a slice)
+    mining_gdf_rest = mining_gdf[mining_gdf.year > ILLEGALITY_DATA_UPDATED_AT].copy()
 
     # overlay illegality data
     mining_gdf_with_illegality = overlay_max_category(
         illegality_areas_gdf, mining_gdf_for_illegality, "illegality"
     )
+    # the overlay splits mining polygons along the illegality boundaries, so the area
+    # must be recalculated for the fragments. The total should not change.
+    mining_gdf_with_illegality = calculate_area(
+        mining_gdf_with_illegality, "Mined area (ha)", "hectares"
+    )
+    print(
+        "Mining area before illegality split: "
+        f"{mining_gdf_for_illegality['Mined area (ha)'].sum():,.2f} ha, after: "
+        f"{mining_gdf_with_illegality['Mined area (ha)'].sum():,.2f} ha"
+    )
+
+    # # NOTE: save to file for debugging
+    # mining_gdf_with_illegality.to_file("mining_gdf_with_illegality.gpkg", driver="GPKG")
+
     # ensure the illegality_max column exists in rest gdf with a -1 value, to be ignored
     if len(mining_gdf_rest) > 0:
         mining_gdf_rest["illegality_max"] = -1
@@ -732,6 +1211,11 @@ if __name__ == "__main__":
     mining_gdf = gpd.pd.concat(
         [mining_gdf_with_illegality, mining_gdf_rest], ignore_index=True
     )
+    # the illegality split turned fragments into several pieces of distinct ground, so
+    # renumber: otherwise prefer_domestic_rows would treat them as duplicates of one
+    # fragment and could keep only the largest piece
+    if "mining_fragment_id" in mining_gdf.columns:
+        mining_gdf["mining_fragment_id"] = range(len(mining_gdf))
 
     # intersect mining with admin boundaries and calculate areas (once per mining file)
     intersected_with_admin = intersect_and_calculate_areas(
