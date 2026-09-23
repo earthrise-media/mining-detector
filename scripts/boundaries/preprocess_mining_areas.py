@@ -1157,6 +1157,8 @@ if __name__ == "__main__":
         all_mining_gdfs.append((current_year, current_gdf))
 
     combined_mining_gdf = gpd.GeoDataFrame(pd.concat(full_resolution_mining_gdfs, ignore_index=True))
+    # cast year as int for the website
+    combined_mining_gdf["year"] = combined_mining_gdf["year"].astype(int)
     ensure_output_path_exists(COMBINED_MINING_FILE)
     combined_mining_gdf.to_file(COMBINED_MINING_FILE, driver="GeoJSON")
 
