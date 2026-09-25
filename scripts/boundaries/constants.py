@@ -3,7 +3,7 @@ from pathlib import Path
 OUTPUTS_FOLDER = "data/outputs"
 WEBSITE_OUTPUTS_FOLDER = f"{OUTPUTS_FOLDER}/website"
 
-DATA_UPDATED_AT = "20260907"
+DATA_UPDATED_AT = "20260924"
 
 MINING_DIFFERENCES_FILES = {
     202602: f"{WEBSITE_OUTPUTS_FOLDER}/cumulative_dissolved/diffs/amazon_basin_growth_Q226-dissolved.geojson",

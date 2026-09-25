@@ -12,7 +12,7 @@ joins the identity metadata (`country`, `name`, `bbox`, ...) from the matching
 `*_impacts_unfiltered_dict.json` files, and writes two flat CSVs:
 
   mined_areas_by_jurisdiction.csv          one row per jurisdiction per year
-  illegality_analysis_by_jurisdiction.csv  one row per jurisdiction (for the latest year)
+  illegality_analysis_by_jurisdiction.csv  one row per jurisdiction (for ILLEGALITY_DATA_UPDATED_AT)
 
 The second file is separate because `illegality_areas` describes the latest period only.
 
@@ -39,7 +39,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import pandas as pd
-from constants import DATA_UPDATED_AT, ENTIRE_AMAZON_ID
+from constants import DATA_UPDATED_AT, ENTIRE_AMAZON_ID, ILLEGALITY_DATA_UPDATED_AT
 
 BASE = "https://media-amw.earthgenome.org"
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +97,15 @@ ILLEGALITY_COLUMNS = [
     for suffix in ("ha", "pct")
 ]
 
+# The part of the cumulative mined area that no illegality band accounts for,
+# i.e. the mined area we have no illegality measurement for. Derived in
+# illegality_table(), so it is not part of ILLEGALITY_COLUMNS.
+ILLEGALITY_NA_COLUMN = "illegality_na_affected_area_ha"
+
+# Bands can sum to slightly more than the cumulative total through float noise
+# alone; only an overshoot beyond this is worth a warning.
+ILLEGALITY_NA_TOLERANCE_HA = 0.01
+
 MINING_COLUMNS = [
     # Leads the row so a copy that has drifted away from this repo still says
     # which publish it came from. Reprocessing has restated past years before
@@ -127,7 +136,9 @@ ILLEGALITY_TABLE_COLUMNS = [
     "name",
     "status",
     "admin_year",
+    "intersected_area_ha_cumulative",
     *ILLEGALITY_COLUMNS,
+    ILLEGALITY_NA_COLUMN,
     "bbox_minx",
     "bbox_miny",
     "bbox_maxx",
@@ -309,28 +320,50 @@ def mining_areas_table(df: pd.DataFrame, decimals: int) -> pd.DataFrame:
 
 
 def illegality_table(df: pd.DataFrame, decimals: int) -> pd.DataFrame:
-    """One row per jurisdiction, carrying its latest year as the period label.
+    """One row per jurisdiction for ILLEGALITY_DATA_UPDATED_AT.
+
+    Carries the cumulative mined area at that year, its split across the
+    illegality bands, and `illegality_na_affected_area_ha`: the remainder with no
+    illegality measurement. A jurisdiction with no split at all has its whole
+    cumulative area in the remainder.
     """
-    dated = df[df["admin_year"].notna()]
-    if dropped := df["id"].nunique() - dated["id"].nunique():
-        print(f"  warning: {dropped} jurisdictions have no year and are omitted")
-
-    # Groups come out in order of first appearance and the frame is already
-    # sorted, so .loc keeps the row order set in collate().
-    latest = dated.groupby(["type", "id"], sort=False, observed=True)[
-        "admin_year"
-    ].idxmax()
-    out = df.loc[latest, ILLEGALITY_TABLE_COLUMNS].copy()
-
-    newest = out["admin_year"].max()
-    if stale := int(out["admin_year"].ne(newest).sum()):
+    current = df[df["admin_year"].eq(ILLEGALITY_DATA_UPDATED_AT)]
+    if dropped := df["id"].nunique() - current["id"].nunique():
         print(
-            f"  warning: {stale} jurisdictions end before {newest}; "
-            f"each row is labelled with that jurisdiction's own last year"
+            f"  warning: {dropped} jurisdictions have no data for "
+            f"{ILLEGALITY_DATA_UPDATED_AT} and are omitted"
         )
 
-    out[ILLEGALITY_AREA_COLUMNS] = out[ILLEGALITY_AREA_COLUMNS].round(decimals)
-    return out
+    if dupes := int(current.duplicated(["type", "id"]).sum()):
+        print(
+            f"  warning: {dupes} jurisdictions have more than one row for "
+            f"{ILLEGALITY_DATA_UPDATED_AT}"
+        )
+
+    # A boolean mask keeps the row order set in collate().
+    out = current.copy()
+
+    # Round before deriving the remainder, so the hectare columns of each row
+    # add up exactly to the cumulative total as written in the CSV.
+    hectares = ["intersected_area_ha_cumulative", *ILLEGALITY_AREA_COLUMNS]
+    out[hectares] = out[hectares].round(decimals)
+
+    # sum() skips blank bands, so a row with no split sums to 0 and its whole
+    # cumulative area counts as unmeasured.
+    remainder = out["intersected_area_ha_cumulative"] - out[
+        ILLEGALITY_AREA_COLUMNS
+    ].sum(axis=1)
+    if overshoot := int(remainder.lt(-ILLEGALITY_NA_TOLERANCE_HA).sum()):
+        print(
+            f"  warning: {overshoot} jurisdictions have illegality bands summing "
+            f"to more than their cumulative mined area; {ILLEGALITY_NA_COLUMN} "
+            f"is negative there"
+        )
+    # Re-round to clear float noise; adding 0.0 turns -0.0 into 0.0 so the CSV
+    # doesn't show "-0.0".
+    out[ILLEGALITY_NA_COLUMN] = remainder.round(decimals) + 0.0
+
+    return out.loc[:, ILLEGALITY_TABLE_COLUMNS]
 
 
 def write(df: pd.DataFrame, out: Path, label: str) -> None:

@@ -26,12 +26,19 @@ GEOJSONS_TO_PMTILES = [
     "data/boundaries/protected_areas_and_indigenous_territories/out/protected_areas_impacts_unfiltered.geojson",
 ]
 
+# Max zoom per file. Only the mining polygons need the extra detail; the boundary layers are fine at 11.
+DEFAULT_MAX_ZOOM = 11
+MAX_ZOOM = {
+    Path(COMBINED_MINING_FILE): 14,
+}
+
 
 def convert(filepath: str) -> tuple[str, bool]:
     input_path = REPO_ROOT / filepath
     output_path = input_path.with_suffix(".pmtiles")
+    max_zoom = MAX_ZOOM.get(Path(filepath), DEFAULT_MAX_ZOOM)
     result = subprocess.run(
-        ["tippecanoe", "-z14", "-Z2", "-o", output_path, "-b5", "-r1", "-pk", "-pf", "-f", "-l", input_path.stem, input_path]
+        ["tippecanoe", f"-z{max_zoom}", "-Z3", "-o", output_path, "-b5", "-r1", "-pk", "-pf", "-f", "-l", input_path.stem, input_path]
     )
     return filepath, result.returncode == 0
 
