@@ -42,7 +42,7 @@ MODEL = "48px_v4.10b-18d-20g-21a-22bc-ensemble"
 ALL_CURRENT_PERIODS: List[str] = [
     "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025",
     "Q125", "Q225", "Q325", "Q425",
-    "Q126", "Q226",
+    "Q126", "Q226", "Q326"
 ]
 
 #: The basin is inferred as six subregions, split at lon -66/-56 and lat -5.
