@@ -124,6 +124,7 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
     but renamed the detection folders to consumer names on the way out; the
     rename is reversed locally by the same table that applied it.
     """
+    base = BASE.relative_to(REPO)
     sam2 = SAM2.relative_to(REPO)
     inbox = INBOX.relative_to(REPO)
     return [
@@ -149,6 +150,39 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
         "#    Reports what the bucket was missing, which is the check that the tree",
         "#    is complete enough to run.",
         f"python scripts/stage_outputs.py --restore {inbox}",
+        "",
+        "# ---------------------------------------------------------------------",
+        "# WHERE THINGS LAND, once the above has run",
+        "#",
+        f"#   {base}/",
+        "#       <restored>  raw_detections/              basin, one file per period",
+        "#       <restored>  raw_detections/andes_supplemental/",
+        "#       <restored>  postprocessed_" + LOOSE_TAG + "/",
+        "#       <restored>  postprocessed_" + STRINGENT_TAG + "/",
+        "#       <restored>  cumulative/ + patch_diffs/   written by persist-detections",
+        "#       <restored>  cumulative_dissolved/ + diffs/",
+        "#",
+        f"#   {sam2}/",
+        "#       <restored>  one directory per period per prompt set, named after the",
+        "#                   detections file that prompted it, holding mask and logit",
+        "#                   tiles plus cog_outputs/ and mask_config.txt",
+        "#       <restored>  persistence_masks/           onset rasters + the basin tif",
+        "#",
+        "# NEW INFERENCE DOES NOT LAND IN raw_detections/.",
+        "#   inference_pipeline.py writes the six subregion parts to the top of the",
+        "#   model folder above -- Amazon_ACA_<n>_<model>_<thr>_<start>_<end>.geojson",
+        "#   -- and the andes supplemental beside them. `concat` and `filter` are what",
+        "#   move them into raw_detections/. So a VM that has just run inference has",
+        "#   loose files at the top of the model folder, and those are what to copy",
+        "#   off it.",
+        "#",
+        "#   sam2_mask.py likewise creates its own run directory under the sam2 folder,",
+        "#   named after the detections file it was given. After a mask job that one",
+        "#   new directory is the whole of what the VM produced.",
+        "#",
+        "# NOT RESTORED, because they are rebuilt rather than kept:",
+        "#   data/staging_gs/ and data/staging_source-coop/  -- `stage` assembles them",
+        f"#   {inbox}/  -- transient, safe to delete once step 3 reports clean",
     ]
 
 
