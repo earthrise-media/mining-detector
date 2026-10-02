@@ -37,10 +37,10 @@ sys.path.insert(0, str(REPO / "core"))
 
 from periods import Period
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_RAW_TAG, ANDES_TAG,
-                             ANDES_THRESHOLD, BASE, CORE, ISOLATION_KM, LOOSE,
-                             MODEL, NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
-                             INBOX, SCRIPTS, STRINGENT, SUBREGIONS,
-                             postprocess_tag)
+                             ANDES_THRESHOLD, BASE, CORE, GS, INBOX,
+                             ISOLATION_KM, LOOSE, MODEL, NEIGHBOURS, RAW_TAG,
+                             RAW_THRESHOLD, SAM2, SCRIPTS, SOURCE_COOP,
+                             STRINGENT, SUBREGIONS, postprocess_tag)
 
 LOOSE_TAG = postprocess_tag(*LOOSE)
 STRINGENT_TAG = postprocess_tag(*STRINGENT)
@@ -77,6 +77,16 @@ def cache_dir(tag: str) -> str:
 # --------------------------------------------------------------------------
 # emitted commands (human-run)
 # --------------------------------------------------------------------------
+
+def from_core(p: Path) -> str:
+    """A repo path as the emitted commands see it.
+
+    Every emitted command is run from ``core/`` -- the inference and masking ones
+    have to be, since they invoke scripts that live there, and the rest follow so
+    a user walking the sequence never has to change directory.
+    """
+    return str(Path("..") / p.relative_to(REPO))
+
 
 def cmds_review_config(periods: Sequence[str]) -> List[str]:
     """Stage 0: what a human sets, and where."""
@@ -124,9 +134,7 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
     but renamed the detection folders to consumer names on the way out; the
     rename is reversed locally by the same table that applied it.
     """
-    base = BASE.relative_to(REPO)
-    sam2 = SAM2.relative_to(REPO)
-    inbox = INBOX.relative_to(REPO)
+    base, sam2, inbox = from_core(BASE), from_core(SAM2), from_core(INBOX)
     return [
         "# 0b. Restore the working tree from the record bucket, gs://amw-published.",
         "#     Safe to re-run and safe when complete: rsync moves only what is",
@@ -149,7 +157,7 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
         "# 3. reverse the publish rename into the working tree. Local, no network.",
         "#    Reports what the bucket was missing, which is the check that the tree",
         "#    is complete enough to run.",
-        f"python scripts/stage_outputs.py --restore {inbox}",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --restore {inbox}",
         "",
         "# ---------------------------------------------------------------------",
         "# WHERE THINGS LAND, once the above has run",
@@ -181,7 +189,7 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
         "#   new directory is the whole of what the VM produced.",
         "#",
         "# NOT RESTORED, because they are rebuilt rather than kept:",
-        "#   data/staging_gs/ and data/staging_source-coop/  -- `stage` assembles them",
+        f"#   {from_core(GS)}/ and {from_core(SOURCE_COOP)}/ -- `stage` assembles them",
         f"#   {inbox}/  -- transient, safe to delete once step 3 reports clean",
     ]
 
@@ -275,12 +283,12 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "# 1. store of record",
         "# add -c if objects were pre-populated by cp: rsync compares mtime, cp",
         "# does not set it, so those objects re-upload however identical they are",
-        f"gsutil -m rsync -r data/staging_gs/ {record}/",
+        f"gsutil -m rsync -r {from_core(GS)}/ {record}/",
         "# Verify by name, not by count. Two different tools have silently",
         "# dropped files on this project: gsutil cp -I reported success having",
         "# copied 2 of 15,752, and aws s3 sync dropped 2 of 48. A count tells",
         "# you something is missing; this tells you which. Empty output = clean.",
-        f"diff <(cd data/staging_gs && find . -type f | sed 's|^\./||' | sort) \\",
+        f"diff <(cd {from_core(GS)} && find . -type f | sed 's|^\./||' | sort) \\",
         f"     <(gsutil ls '{record}/**' | sed 's|^{record}/||' | sort)",
         "",
         "# 2. backup, server-side (no egress, no local round trip)",
@@ -313,12 +321,12 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "#    removed from the staging tree stays on the bucket until deleted by",
         "#    hand, which is what keeps archived/ -- present on the bucket, absent",
         "#    from staging -- from being swept away.",
-        f"aws s3 sync data/staging_source-coop/ {coop}/",
+        f"aws s3 sync {from_core(SOURCE_COOP)}/ {coop}/",
         "# Same verification. archived/ is on the bucket and not in staging, so",
         "# it is excluded -- otherwise the comparison can never come out clean",
         "# and the check gets ignored. Empty output = clean; re-run the sync for",
         "# anything listed, which is what the 2-of-48 drop needed.",
-        f"diff <(cd data/staging_source-coop && find . -type f | sed 's|^\./||' | sort) \\",
+        f"diff <(cd {from_core(SOURCE_COOP)} && find . -type f | sed 's|^\./||' | sort) \\",
         f"     <(aws s3 ls --recursive {coop}/ | awk '{{print $4}}' \\",
         f"        | sed 's|^amazon-mining-watch/||' | grep -v '^archived/' | sort)",
     ]
