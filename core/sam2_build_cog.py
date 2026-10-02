@@ -10,8 +10,10 @@ import re
 import subprocess
 import shutil
 import sys
+import sysconfig
 import tempfile
 import xml.etree.ElementTree as ET
+from typing import Optional
 
 import geopandas as gpd
 import rasterio
@@ -24,6 +26,39 @@ from tqdm import tqdm
 # single-threaded, so cap warp threads rather than leaving them unbounded.
 os.environ.setdefault("GDAL_NUM_THREADS", "4")
 os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
+
+
+def _libpython() -> Optional[str]:
+    """The shared libpython GDAL loads to run a VRT pixel function.
+
+    GDAL dlopens it by guesswork and gives up with "Cannot find python/libpython"
+    when the guess misses, which it does on a Python built without --enable-shared:
+    sysconfig then advertises a static LDLIBRARY even where the .so is shipped
+    alongside it. Look for the real thing and name it, rather than relying on the
+    interpreter and GDAL agreeing about where it lives.
+    """
+    v = f"{sys.version_info.major}.{sys.version_info.minor}"
+    names = [sysconfig.get_config_var("INSTSONAME"),
+             sysconfig.get_config_var("LDLIBRARY"),
+             f"libpython{v}.so.1.0", f"libpython{v}.so"]
+    # LIBDIR, not sys.prefix: inside a venv the latter is the venv, which has no
+    # libpython at all. base_prefix covers a LIBDIR that is unset or stale.
+    roots = [sysconfig.get_config_var("LIBDIR"),
+             str(Path(sys.base_prefix) / "lib"),
+             str(Path(sys.prefix) / "lib")]
+    for root in filter(None, roots):
+        for name in filter(None, names):
+            if name.endswith(".a"):
+                continue
+            path = Path(root) / name
+            if path.is_file():
+                return str(path)
+    return None
+
+
+_so = _libpython()
+if _so:
+    os.environ.setdefault("PYTHONSO", _so)
 # GDAL's default block cache is 5% of RAM *per process*, so N cogging workers
 # will happily reserve 5N%. Chunked assembly needs very little of it -- the
 # 3370-tile group completes inside a hard 4 GB cap -- so pin it low and leave the
