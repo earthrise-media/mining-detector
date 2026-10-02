@@ -101,4 +101,9 @@ SCRIPTS = REPO / "scripts"
 BASE = REPO / "data/outputs" / MODEL
 SAM2 = REPO / "data/outputs/sam2"
 GS = REPO / "data/staging_gs"
+
+#: Where `pipeline.py pull` lands the record bucket before the publish rename is
+#: reversed into the working tree. Transient and gitignored; kept outside
+#: data/outputs so a half-finished pull cannot be mistaken for pipeline output.
+INBOX = REPO / "data/restore_inbox"
 SOURCE_COOP = REPO / "data/staging_source-coop"

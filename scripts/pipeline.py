@@ -39,19 +39,23 @@ from periods import Period
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_RAW_TAG, ANDES_TAG,
                              ANDES_THRESHOLD, BASE, CORE, ISOLATION_KM, LOOSE,
                              MODEL, NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
-                             SCRIPTS, STRINGENT, SUBREGIONS, postprocess_tag)
+                             INBOX, SCRIPTS, STRINGENT, SUBREGIONS,
+                             postprocess_tag)
 
 LOOSE_TAG = postprocess_tag(*LOOSE)
 STRINGENT_TAG = postprocess_tag(*STRINGENT)
 
-HUMAN = {"review-config", "inference", "mask-annual", "mask-quarterly", "publish"}
+HUMAN = {"review-config", "pull", "inference", "mask-annual",
+         "mask-quarterly", "publish"}
 
-#: These recompute from the whole history rather than from the periods named on
-#: the command line, so they read ALL_CURRENT_PERIODS. Passing them one period
-#: would compute onset with nothing to corroborate against.
-WHOLE_HISTORY = {"persist-detections", "persist-masks", "stage", "manifest"}
+#: These work from the whole history rather than from the periods named on the
+#: command line, so they read ALL_CURRENT_PERIODS. Passing one period would make
+#: persistence compute onset with nothing to corroborate against, and would have
+#: pull restore a tree too thin to run.
+WHOLE_HISTORY = {"pull", "persist-detections", "persist-masks", "stage", "manifest"}
 
-ORDER = ["review-config", "inference", "concat", "filter", "postprocess", "persist-detections",
+ORDER = ["review-config", "pull", "inference", "concat", "filter",
+         "postprocess", "persist-detections",
          "mask-annual", "mask-quarterly", "cog", "persist-masks", "stage",
          "manifest", "publish"]
 
@@ -108,6 +112,43 @@ def cmds_review_config(periods: Sequence[str]) -> List[str]:
         "#",
         "#    To explore a parameter rather than change the product, call the",
         "#    underlying script directly with --outdir somewhere separate.",
+    ]
+
+
+def cmds_pull(periods: Sequence[str]) -> List[str]:
+    """Stage 0b: fill the working tree from the record bucket.
+
+    A refresh on a fresh VM starts with an empty data/outputs/, and the
+    whole-history stages recompute from every prior period, so the run needs
+    everything before it. Two syncs because the record stores the masks verbatim
+    but renamed the detection folders to consumer names on the way out; the
+    rename is reversed locally by the same table that applied it.
+    """
+    sam2 = SAM2.relative_to(REPO)
+    inbox = INBOX.relative_to(REPO)
+    return [
+        "# 0b. Restore the working tree from the record bucket, gs://amw-published.",
+        "#     Safe to re-run and safe when complete: rsync moves only what is",
+        "#     missing or changed, and --restore never overwrites a local file that",
+        "#     differs from the bucket -- that is usually one this run recomputed.",
+        "#     ~19 GB in total, 16 GB of it the mask tree.",
+        "#",
+        "#     Add --checksums-only to either sync if objects were put on the bucket",
+        "#     by cp rather than rsync: cp sets no mtime, so they compare unequal",
+        "#     however identical they are.",
+        "",
+        "# 1. masks, verbatim -- no rename, so straight into place",
+        f"gcloud storage rsync --recursive "
+        f"gs://amw-published/mining_scar_masks/ {sam2}/",
+        "",
+        "# 2. detections and the cumulative series, under their published names",
+        f"gcloud storage rsync --recursive --exclude='^mining_scar_masks/' "
+        f"gs://amw-published/ {inbox}/",
+        "",
+        "# 3. reverse the publish rename into the working tree. Local, no network.",
+        "#    Reports what the bucket was missing, which is the check that the tree",
+        "#    is complete enough to run.",
+        f"python scripts/stage_outputs.py --restore {inbox}",
     ]
 
 
@@ -249,7 +290,7 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
     ]
 
 
-EMITTERS = {"review-config": cmds_review_config,
+EMITTERS = {"review-config": cmds_review_config, "pull": cmds_pull,
             "inference": cmds_inference, "mask-annual": cmds_mask_annual,
             "mask-quarterly": cmds_mask_quarterly, "publish": cmds_publish}
 

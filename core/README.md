@@ -67,6 +67,7 @@ same sequence of commands as a bulk rewrite — with one more tag in the period 
 ```
 python ../scripts/pipeline.py --list                    # stage order, and who runs each
 python ../scripts/pipeline.py review-config            # stage 0: the period list
+python ../scripts/pipeline.py pull                      # stage 0b: fill an empty tree
 python ../scripts/pipeline.py <stage> --periods Q226    # work on one period
 python ../scripts/pipeline.py <stage> --all --dry-run   # show what a rebuild would do
 ```
@@ -113,6 +114,10 @@ cd core
 # 0. the period list -- add what you are about to run, then carry on.
 python ../scripts/pipeline.py review-config
 
+# 0b. on a machine that does not already hold the prior periods, restore them
+#     from the record bucket. Skip it if data/outputs/ is already populated.
+python ../scripts/pipeline.py pull
+
 # 1. patch detections. Long VM job; launch under tmux and watch.
 python ../scripts/pipeline.py inference --all
 
@@ -129,6 +134,33 @@ python ../scripts/pipeline.py cog persist-masks stage manifest --all
 # 5. review the rasters, then push.
 python ../scripts/pipeline.py publish --all
 ```
+
+#### Starting on a machine that has nothing
+
+Every whole-history stage — `persist-detections`, `persist-masks`, `stage`,
+`manifest` — recomputes from the full period stack, so a refresh on a fresh VM
+needs everything before it. `pull` prints the three commands that fetch it from
+`gs://amw-published`, the store of record, and runs nothing itself.
+
+The masks sync verbatim into `data/outputs/sam2/`. The detection folders cannot:
+`stage` renamed them to consumer names on the way out, so they land in a
+gitignored inbox and `stage_outputs.py --restore` reverses the rename, walking the
+same table that applied it. About 19 GB in total, 16 GB of it masks.
+
+It is safe to run on a tree that is already complete, and safe to re-run after an
+interrupted transfer — `rsync` moves only what is missing or changed. Two
+behaviours are worth knowing:
+
+- **A local file that differs from the bucket is kept, not overwritten.** It is
+  usually one the current run has just recomputed, and reverting it would quietly
+  undo the run. The report names them; `--force` takes the bucket's version.
+- **A model mismatch aborts.** Published paths carry no model version, because the
+  bucket holds one vintage at a time, so nothing in the names could catch the
+  previous vintage being restored into a new model's folder. `restore` reads the
+  model from a `config.txt` sidecar and refuses if it disagrees with `MODEL`.
+
+The closing report — what was restored, what was already present, what the bucket
+was missing — is the check that the tree is complete enough to run.
 
 **Quarterly update.** Add the new tag to `ALL_CURRENT_PERIODS` in
 `pipeline_config.py`, then walk the same steps with `--periods Q326` in place of

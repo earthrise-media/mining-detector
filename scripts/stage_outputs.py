@@ -37,7 +37,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence, Set, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -73,7 +73,7 @@ class Product:
     name: str
     dest: Path                       # relative to each tree it appears in
     trees: Sequence[Path]
-    src_for: Callable[[str], Optional[Path]]   # period tag -> source file
+    path_for: Callable[[str], Path]            # period tag -> working-tree path
     rename: Callable[[str], str]               # period tag -> destination name
     per_period: bool = True
     sidecar: Optional[str] = None
@@ -89,50 +89,43 @@ def span(tag: str) -> str:
 # sources
 # --------------------------------------------------------------------------
 
-def raw_amazon(tag: str) -> Optional[Path]:
-    p = BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}.geojson"
-    return p if p.is_file() else None
+def raw_amazon(tag: str) -> Path:
+    return BASE / "raw_detections" / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}.geojson"
 
 
-def raw_andes(tag: str) -> Optional[Path]:
-    p = (BASE / "raw_detections" / "andes_supplemental"
-         / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{span(tag)}.geojson")
-    return p if p.is_file() else None
+def raw_andes(tag: str) -> Path:
+    return (BASE / "raw_detections" / "andes_supplemental"
+            / f"andes_supplemental_{MODEL}_{ANDES_TAG}_{span(tag)}.geojson")
 
 
 def postprocessed(tag: str, t_main: float = LOOSE[0], t_iso: float = LOOSE[1]
-                  ) -> Optional[Path]:
-    d = BASE / f"postprocessed_{postprocess_tag(t_main, t_iso)}"
-    p = d / (f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}"
-             f"_{postprocess_tag(t_main, t_iso)}.geojson")
-    return p if p.is_file() else None
+                  ) -> Path:
+    tag_ = postprocess_tag(t_main, t_iso)
+    return (BASE / f"postprocessed_{tag_}"
+            / f"Amazon_ACA_{MODEL}_{RAW_TAG}_{span(tag)}_{tag_}.geojson")
 
 
-def postprocessed_strict(tag: str) -> Optional[Path]:
+def postprocessed_strict(tag: str) -> Path:
     return postprocessed(tag, *STRINGENT)
 
 
-def cumulative(tag: str) -> Optional[Path]:
-    p = BASE / "cumulative" / f"Amazon_ACA_{MODEL}_cumulative2018-{tag}.geojson"
-    return p if p.is_file() else None
+def cumulative(tag: str) -> Path:
+    return BASE / "cumulative" / f"Amazon_ACA_{MODEL}_cumulative2018-{tag}.geojson"
 
 
-def cumulative_dissolved(tag: str) -> Optional[Path]:
-    p = (BASE / "cumulative_dissolved"
-         / f"Amazon_ACA_{MODEL}_cumulative2018-{tag}-dissolved.geojson")
-    return p if p.is_file() else None
+def cumulative_dissolved(tag: str) -> Path:
+    return (BASE / "cumulative_dissolved"
+            / f"Amazon_ACA_{MODEL}_cumulative2018-{tag}-dissolved.geojson")
 
 
-def dissolved_diff(tag: str) -> Optional[Path]:
-    p = (BASE / "cumulative_dissolved" / "diffs"
-         / f"Amazon_ACA_{MODEL}_growth_{tag}-dissolved.geojson")
-    return p if p.is_file() else None
+def dissolved_diff(tag: str) -> Path:
+    return (BASE / "cumulative_dissolved" / "diffs"
+            / f"Amazon_ACA_{MODEL}_growth_{tag}-dissolved.geojson")
 
 
-def patch_diff(tag: str) -> Optional[Path]:
-    p = (BASE / "cumulative" / "patch_diffs"
-         / f"Amazon_ACA_{MODEL}_growth_{tag}.geojson")
-    return p if p.is_file() else None
+def patch_diff(tag: str) -> Path:
+    return (BASE / "cumulative" / "patch_diffs"
+            / f"Amazon_ACA_{MODEL}_growth_{tag}.geojson")
 
 
 PRODUCTS = [
@@ -261,6 +254,128 @@ def copy(src: Path, dst: Path, dry_run: bool) -> str:
     return "copy"
 
 
+def inbox_model(inbox: Path) -> Optional[str]:
+    """The model the pulled bucket was written by, from any product sidecar."""
+    for rel in ("raw_detections/config.txt", "postprocessed/config.txt",
+                "mining_scar_masks/config.txt"):
+        f = inbox / rel
+        if not f.is_file():
+            continue
+        for line in f.read_text().splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() in ("model", "detection_model"):
+                return value.strip()
+    return None
+
+
+def restore(inbox: Path, periods: Sequence[str], dry_run: bool,
+            force: bool = False) -> int:
+    """Copy consumer-named files out of a pulled inbox into working-tree names.
+
+    The inverse of ``stage()``, walking the same ``PRODUCTS`` table, so the two
+    directions cannot disagree about which published name belongs to which
+    working file. Only the record tree is restored: it holds everything the
+    public subset does, and more.
+
+    A file already present locally is never overwritten unless ``force``. The
+    point is to fill an empty tree, and a local file that differs from the bucket
+    is usually a recomputed one the bucket has not caught up with -- restoring
+    over it would silently undo the run in progress. Differences are reported.
+
+    Comparison is by size. The bucket is the record, so a size match means the
+    local file is the one that was published, and the inbox carries download
+    mtimes that would make an mtime test re-copy everything every run.
+    """
+    placed = present = 0
+    absent: List[str] = []
+    differs: List[str] = []
+    seen: Set[Path] = set()
+
+    def place(src: Path, dst: Path) -> None:
+        nonlocal placed, present
+        seen.add(src)
+        if not src.is_file():
+            absent.append(str(src.relative_to(inbox)))
+            return
+        if dst.exists():
+            if dst.stat().st_size == src.stat().st_size:
+                present += 1
+                return
+            if not force:
+                differs.append(dst.name)
+                return
+        if not dry_run:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+        placed += 1
+
+    # Published names carry no model version -- the bucket holds one vintage at a
+    # time -- so the names cannot disagree with MODEL and a mismatch would land
+    # another model's outputs in this model's folder, silently. The sidecars are
+    # the only thing that records it.
+    found = inbox_model(inbox)
+    if found and found != MODEL:
+        raise SystemExit(
+            f"the pulled bucket was written by {found!r}, but this tree is "
+            f"configured for {MODEL!r}.\n"
+            f"  Published paths carry no model version, so nothing downstream "
+            f"would notice the mix.\n"
+            f"  Either point MODEL in core/pipeline_config.py at {found!r}, or "
+            f"pull from the bucket holding {MODEL!r} -- MANIFEST.yaml records "
+            f"which bucket that is.")
+    if not found:
+        print("  ! no config.txt sidecar in the inbox; cannot confirm the model "
+              "vintage matches")
+
+    print(f"restoring from {inbox}"
+          + ("  (dry run)" if dry_run else "")
+          + ("  (force: local files will be overwritten)" if force else ""))
+
+    def line(label: str, before: Tuple[int, int, int, int]) -> None:
+        d = (placed - before[0], present - before[1],
+             len(absent) - before[2], len(differs) - before[3])
+        print(f"  {label:<28} {d[0]:>3} restored {d[1]:>3} present"
+              + (f"  {d[2]} absent from bucket" if d[2] else "")
+              + (f"  {d[3]} DIFFER, kept local" if d[3] else ""))
+
+    for product in PRODUCTS:
+        if GS not in product.trees:
+            continue
+        before = (placed, present, len(absent), len(differs))
+        wanted = published_periods(periods) if product.published_only else periods
+        for tag in wanted:
+            place(inbox / product.dest / product.rename(tag), product.path_for(tag))
+        line(product.name, before)
+
+    before = (placed, present, len(absent), len(differs))
+    for dst, name, trees in singleton_items():
+        if GS in trees:
+            place(inbox / name, dst)
+    line("top-level layers", before)
+
+    # mining_scar_masks/ arrives by its own verbatim sync and is not this
+    # function's business; everything else in the inbox should be claimed.
+    strays = sorted(f for f in inbox.rglob("*")
+                    if f.is_file() and f not in seen
+                    and "mining_scar_masks" not in f.parts
+                    and f.name not in ("README.md", "config.txt")
+                    and not f.name.endswith(".aux.xml"))
+
+    print(f"\n  {placed} restored, {present} already present, "
+          f"{len(absent)} absent from the bucket, {len(differs)} differing")
+    if absent:
+        print(f"  absent from the bucket: {absent[:4]}"
+              f"{' ...' if len(absent) > 4 else ''}")
+    if differs:
+        print(f"  local copy kept, differs from the bucket: {differs[:4]}"
+              f"{' ...' if len(differs) > 4 else ''}")
+        print("  re-run with --force to take the bucket's version instead")
+    if strays:
+        print(f"  {len(strays)} inbox file(s) no product claims, "
+              f"e.g. {[x.name for x in strays[:3]]}")
+    return len(absent)
+
+
 def expected_relpaths(periods: Sequence[str]) -> dict:
     """Per tree, the set of relative paths stage() is responsible for.
 
@@ -281,7 +396,7 @@ def expected_relpaths(periods: Sequence[str]) -> dict:
         wanted = published_periods(periods) if product.published_only else periods
         for tree in product.trees:
             for tag in wanted:
-                if product.src_for(tag) is not None:
+                if product.path_for(tag).is_file():
                     trees[tree].add(str(product.dest / product.rename(tag)))
             if product.sidecar:
                 trees[tree].add(str(product.dest / "config.txt"))
@@ -334,8 +449,8 @@ def stage(periods: Sequence[str], dry_run: bool) -> int:
             missing: List[str] = []
             wanted = published_periods(periods) if product.published_only else periods
             for tag in wanted:
-                src = product.src_for(tag)
-                if src is None:
+                src = product.path_for(tag)
+                if not src.is_file():
                     missing.append(tag)
                     continue
                 action = copy(src, out / product.rename(tag), dry_run)
@@ -548,7 +663,21 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--periods", nargs="+", default=ALL_CURRENT_PERIODS)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--restore", type=Path, metavar="INBOX",
+                    help=("Restore working-tree files from a pulled copy of the "
+                          "record bucket, reversing the publish rename. Reports "
+                          "what the bucket was missing. See `pipeline.py pull`."))
+    ap.add_argument("--force", action="store_true",
+                    help="With --restore, overwrite local files that differ from "
+                         "the bucket. Off by default: a differing local file is "
+                         "usually one this run recomputed.")
     args = ap.parse_args()
+
+    if args.restore:
+        if not args.restore.is_dir():
+            raise SystemExit(f"no such inbox: {args.restore}")
+        raise SystemExit(1 if restore(args.restore, args.periods,
+                                      args.dry_run, args.force) else 0)
 
     print(f"staging {len(args.periods)} periods"
           f"{'  (dry run)' if args.dry_run else ''}\n")
