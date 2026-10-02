@@ -13,11 +13,10 @@ import rasterio
 from shapely.geometry import box
 from sklearn.metrics import confusion_matrix
 
-sys.path.insert(0, "/home/zu/Genome/mining-detector/core")
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "core"))
 from persistence import Period, PersistenceConfig, compute_onsets
 from postprocess import centroid_key
-
-ROOT = Path("/home/zu/Genome/mining-detector")
 DATA = ROOT / "data/training_patches2026-05-04T09:47"
 M = ROOT / "data/outputs/48px_v4.10b-18d-20g-21a-22bc-ensemble"
 STEM = "Amazon_ACA_48px_v4.10b-18d-20g-21a-22bc-ensemble_0.40"
