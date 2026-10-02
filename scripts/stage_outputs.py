@@ -37,7 +37,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -274,28 +274,30 @@ def restore(inbox: Path, periods: Sequence[str], dry_run: bool,
 
     The inverse of ``stage()``, walking the same ``PRODUCTS`` table, so the two
     directions cannot disagree about which published name belongs to which
-    working file. Only the record tree is restored: it holds everything the
+    working file. Only the record tree is restored; it holds everything the
     public subset does, and more.
 
-    A file already present locally is never overwritten unless ``force``. The
-    point is to fill an empty tree, and a local file that differs from the bucket
-    is usually a recomputed one the bucket has not caught up with -- restoring
-    over it would silently undo the run in progress. Differences are reported.
+    A file already present locally is kept unless ``force``: it is usually one a
+    run in progress has recomputed. Comparison is by size, since the inbox carries
+    download mtimes.
 
-    Comparison is by size. The bucket is the record, so a size match means the
-    local file is the one that was published, and the inbox carries download
-    mtimes that would make an mtime test re-copy everything every run.
+    Returns the number of periods the record holds in some products and not
+    others.
     """
     placed = present = 0
-    absent: List[str] = []
+    absent: Dict[str, List[str]] = {}    # period tag -> products lacking it
+    expected: Dict[str, int] = {}        # period tag -> products that should have it
     differs: List[str] = []
     seen: Set[Path] = set()
 
-    def place(src: Path, dst: Path) -> None:
+    def place(src: Path, dst: Path, tag: Optional[str] = None) -> None:
         nonlocal placed, present
         seen.add(src)
+        if tag:
+            expected[tag] = expected.get(tag, 0) + 1
         if not src.is_file():
-            absent.append(str(src.relative_to(inbox)))
+            if tag:
+                absent.setdefault(tag, []).append(src.parent.name)
             return
         if dst.exists():
             if dst.stat().st_size == src.stat().st_size:
@@ -309,10 +311,8 @@ def restore(inbox: Path, periods: Sequence[str], dry_run: bool,
             shutil.copy2(src, dst)
         placed += 1
 
-    # Published names carry no model version -- the bucket holds one vintage at a
-    # time -- so the names cannot disagree with MODEL and a mismatch would land
-    # another model's outputs in this model's folder, silently. The sidecars are
-    # the only thing that records it.
+    # Published names carry no model version, so only the sidecar can catch one
+    # vintage being restored into another's folder.
     found = inbox_model(inbox)
     if found and found != MODEL:
         raise SystemExit(
@@ -331,49 +331,68 @@ def restore(inbox: Path, periods: Sequence[str], dry_run: bool,
           + ("  (dry run)" if dry_run else "")
           + ("  (force: local files will be overwritten)" if force else ""))
 
-    def line(label: str, before: Tuple[int, int, int, int]) -> None:
-        d = (placed - before[0], present - before[1],
-             len(absent) - before[2], len(differs) - before[3])
+    def line(label: str, before: Tuple[int, int, int]) -> None:
+        d = (placed - before[0], present - before[1], len(differs) - before[2])
         print(f"  {label:<28} {d[0]:>3} restored {d[1]:>3} present"
-              + (f"  {d[2]} absent from bucket" if d[2] else "")
-              + (f"  {d[3]} DIFFER, kept local" if d[3] else ""))
+              + (f"  {d[2]} DIFFER, kept local" if d[2] else ""))
 
     for product in PRODUCTS:
         if GS not in product.trees:
             continue
-        before = (placed, present, len(absent), len(differs))
+        before = (placed, present, len(differs))
         wanted = published_periods(periods) if product.published_only else periods
         for tag in wanted:
-            place(inbox / product.dest / product.rename(tag), product.path_for(tag))
+            place(inbox / product.dest / product.rename(tag),
+                  product.path_for(tag), tag)
         line(product.name, before)
 
-    before = (placed, present, len(absent), len(differs))
+    before = (placed, present, len(differs))
     for dst, name, trees in singleton_items():
         if GS in trees:
             place(inbox / name, dst)
     line("top-level layers", before)
 
-    # mining_scar_masks/ arrives by its own verbatim sync and is not this
-    # function's business; everything else in the inbox should be claimed.
+    # mining_scar_masks/ arrives by its own verbatim sync.
     strays = sorted(f for f in inbox.rglob("*")
                     if f.is_file() and f not in seen
                     and "mining_scar_masks" not in f.parts
                     and f.name not in ("README.md", "config.txt")
                     and not f.name.endswith(".aux.xml"))
 
+    by_date = lambda t: Period.parse(t).sort_key
+    carried = sorted((t for t in periods
+                      if len(absent.get(t, [])) < expected.get(t, 0)), key=by_date)
+    partial = sorted((t for t, miss in absent.items()
+                      if 0 < len(miss) < expected.get(t, 0)), key=by_date)
+
+    untouched = sorted((t for t in periods
+                        if len(absent.get(t, [])) == expected.get(t, 0)
+                        and any(pr.path_for(t).is_file() for pr in PRODUCTS
+                                if GS in pr.trees)), key=by_date)
+
     print(f"\n  {placed} restored, {present} already present, "
-          f"{len(absent)} absent from the bucket, {len(differs)} differing")
-    if absent:
-        print(f"  absent from the bucket: {absent[:4]}"
-              f"{' ...' if len(absent) > 4 else ''}")
+          f"{len(differs)} differing")
+    if carried:
+        print(f"  the record covers {len(carried)} periods, "
+              f"{carried[0]} to {carried[-1]}")
+    if untouched:
+        print(f"  on disk but not on the record, left untouched: "
+              f"{', '.join(untouched)}")
+    if partial:
+        for t in partial:
+            print(f"  INCOMPLETE on the record: {t} missing from "
+                  f"{len(absent[t])} of {expected[t]} products "
+                  f"({', '.join(absent[t])})")
+        print("  the whole-history stages would recompute from less than they "
+              "should; fix the bucket before running them")
     if differs:
-        print(f"  local copy kept, differs from the bucket: {differs[:4]}"
+        print(f"  local copy kept, differs from the record: {differs[:4]}"
               f"{' ...' if len(differs) > 4 else ''}")
-        print("  re-run with --force to take the bucket's version instead")
+        print("  re-run with --force to take the record's version instead")
     if strays:
         print(f"  {len(strays)} inbox file(s) no product claims, "
               f"e.g. {[x.name for x in strays[:3]]}")
-    return len(absent)
+    return len(partial)
 
 
 def expected_relpaths(periods: Sequence[str]) -> dict:
