@@ -8,6 +8,8 @@ import math
 from pathlib import Path
 import re
 import subprocess
+import shutil
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -243,10 +245,13 @@ def run(cmd):
     """
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
+        # CalledProcessError.__str__ reports only the exit code -- its stderr
+        # attribute never reaches the traceback. Print before raising, or the
+        # capture above buys nothing.
+        detail = f"{proc.stderr.strip()}\n  command: {' '.join(map(str, cmd))}"
+        print(f"\nGDAL failed:\n  {detail}", file=sys.stderr, flush=True)
         raise subprocess.CalledProcessError(
-            proc.returncode, cmd,
-            output=proc.stdout,
-            stderr=f"{proc.stderr.strip()}\n  command: {' '.join(map(str, cmd))}")
+            proc.returncode, cmd, output=proc.stdout, stderr=detail)
 
 def _buildvrt_grid_args(extent, resolution, resampling, nodata):
     """gdalbuildvrt arguments pinning the output to the fixed lattice.
@@ -434,7 +439,12 @@ def build_cog(
     extent = resolve_extent(
         input_files, extent, resolution, label=Path(output_path).name)
 
-    with tempfile.TemporaryDirectory(prefix="sam2_build_cog_") as tmpdir:
+    # Not TemporaryDirectory: on failure the chunk VRTs and whatever GDAL managed
+    # to write are the only evidence, and these runs are hours long. Kept on
+    # error, with the path named so the failing command can be re-run by hand.
+    tmpdir = tempfile.mkdtemp(prefix="sam2_build_cog_")
+    keep = False
+    try:
         chunk_paths = build_chunk_rasters(
             input_files, extent, raster_type, resampling, nodata,
             resolution=resolution, chunk_px=chunk_px, tmpdir=tmpdir)
@@ -464,6 +474,15 @@ def build_cog(
             "-co", "NUM_THREADS=ALL_CPUS",
             "-a_nodata", str(nodata)
         ])
+    except BaseException:
+        keep = True
+        print(f"\n  working files kept for inspection: {tmpdir}",
+              file=sys.stderr, flush=True)
+        raise
+    finally:
+        if not keep:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers,
          extent_mode="union", raster_types=("mask",)):
