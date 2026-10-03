@@ -335,11 +335,18 @@ def verify(which: str) -> int:
             f"  credentials can read it. Do not re-run the sync on this.")
 
     missing = sorted(local - remote)
-    extra = sorted(k for k in remote - local
-                   if not any(k.startswith(pre) for pre in bucket_only))
+    surplus = remote - local
+    excluded = {k for k in surplus
+                if any(k.startswith(pre) for pre in bucket_only)}
+    extra = sorted(surplus - excluded)
 
     print(f"  {tree.name} vs {url}")
-    print(f"    {len(local):,} staged, {len(remote):,} on the bucket")
+    note = ""
+    if excluded:
+        where = (f"the folder {bucket_only[0]}" if len(bucket_only) == 1
+                 else f"the folders {', '.join(bucket_only)}")
+        note = f"  ({where} retains {len(excluded):,} older files)"
+    print(f"    {len(local):,} staged, {len(remote):,} on the bucket{note}")
     if not missing:
         print(f"    all staged files present")
     else:
