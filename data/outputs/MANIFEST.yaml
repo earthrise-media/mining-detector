@@ -12,7 +12,7 @@
 # path_map.source_coop values below are prefixes under the product root (not full URLs).
 
 schema_version: 1
-updated: 2026-08-19
+updated: 2026-10-03
 
 license: CC-BY-4.0
 contact: info@earthgenome.org
@@ -146,7 +146,7 @@ products:
         mask_attribution: bounded geodesic growth, cap 43 px (prior-implied)
     periods:
       years: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
-      quarters: [Q125, Q225, Q325, Q425, Q126, Q226]
+      quarters: [Q125, Q225, Q325, Q425, Q126, Q226, Q326]
     filename_grammar:
       # Consumer-facing names deliberately drop the model version and the
       # isolation parameters, which live here and in a config.txt sidecar

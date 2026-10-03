@@ -8,8 +8,12 @@ import math
 from pathlib import Path
 import re
 import subprocess
+import shutil
+import sys
+import sysconfig
 import tempfile
 import xml.etree.ElementTree as ET
+from typing import Optional
 
 import geopandas as gpd
 import rasterio
@@ -22,6 +26,39 @@ from tqdm import tqdm
 # single-threaded, so cap warp threads rather than leaving them unbounded.
 os.environ.setdefault("GDAL_NUM_THREADS", "4")
 os.environ.setdefault("GDAL_VRT_ENABLE_PYTHON", "YES")
+
+
+def _libpython() -> Optional[str]:
+    """The shared libpython GDAL loads to run a VRT pixel function.
+
+    GDAL dlopens it by guesswork and gives up with "Cannot find python/libpython"
+    when the guess misses, which it does on a Python built without --enable-shared:
+    sysconfig then advertises a static LDLIBRARY even where the .so is shipped
+    alongside it. Look for the real thing and name it, rather than relying on the
+    interpreter and GDAL agreeing about where it lives.
+    """
+    v = f"{sys.version_info.major}.{sys.version_info.minor}"
+    names = [sysconfig.get_config_var("INSTSONAME"),
+             sysconfig.get_config_var("LDLIBRARY"),
+             f"libpython{v}.so.1.0", f"libpython{v}.so"]
+    # LIBDIR, not sys.prefix: inside a venv the latter is the venv, which has no
+    # libpython at all. base_prefix covers a LIBDIR that is unset or stale.
+    roots = [sysconfig.get_config_var("LIBDIR"),
+             str(Path(sys.base_prefix) / "lib"),
+             str(Path(sys.prefix) / "lib")]
+    for root in filter(None, roots):
+        for name in filter(None, names):
+            if name.endswith(".a"):
+                continue
+            path = Path(root) / name
+            if path.is_file():
+                return str(path)
+    return None
+
+
+_so = _libpython()
+if _so:
+    os.environ.setdefault("PYTHONSO", _so)
 # GDAL's default block cache is 5% of RAM *per process*, so N cogging workers
 # will happily reserve 5N%. Chunked assembly needs very little of it -- the
 # 3370-tile group completes inside a hard 4 GB cap -- so pin it low and leave the
@@ -243,10 +280,13 @@ def run(cmd):
     """
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
+        # CalledProcessError.__str__ reports only the exit code -- its stderr
+        # attribute never reaches the traceback. Print before raising, or the
+        # capture above buys nothing.
+        detail = f"{proc.stderr.strip()}\n  command: {' '.join(map(str, cmd))}"
+        print(f"\nGDAL failed:\n  {detail}", file=sys.stderr, flush=True)
         raise subprocess.CalledProcessError(
-            proc.returncode, cmd,
-            output=proc.stdout,
-            stderr=f"{proc.stderr.strip()}\n  command: {' '.join(map(str, cmd))}")
+            proc.returncode, cmd, output=proc.stdout, stderr=detail)
 
 def _buildvrt_grid_args(extent, resolution, resampling, nodata):
     """gdalbuildvrt arguments pinning the output to the fixed lattice.
@@ -434,7 +474,12 @@ def build_cog(
     extent = resolve_extent(
         input_files, extent, resolution, label=Path(output_path).name)
 
-    with tempfile.TemporaryDirectory(prefix="sam2_build_cog_") as tmpdir:
+    # Not TemporaryDirectory: on failure the chunk VRTs and whatever GDAL managed
+    # to write are the only evidence, and these runs are hours long. Kept on
+    # error, with the path named so the failing command can be re-run by hand.
+    tmpdir = tempfile.mkdtemp(prefix="sam2_build_cog_")
+    keep = False
+    try:
         chunk_paths = build_chunk_rasters(
             input_files, extent, raster_type, resampling, nodata,
             resolution=resolution, chunk_px=chunk_px, tmpdir=tmpdir)
@@ -464,6 +509,15 @@ def build_cog(
             "-co", "NUM_THREADS=ALL_CPUS",
             "-a_nodata", str(nodata)
         ])
+    except BaseException:
+        keep = True
+        print(f"\n  working files kept for inspection: {tmpdir}",
+              file=sys.stderr, flush=True)
+        raise
+    finally:
+        if not keep:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 def main(input_dir, output_dir, index_out, stac_out, max_workers,
          extent_mode="union", raster_types=("mask",)):

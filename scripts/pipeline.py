@@ -25,6 +25,7 @@ Design and layout: docs/design/pipeline.md
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import glob
 import re
 import subprocess
@@ -37,21 +38,26 @@ sys.path.insert(0, str(REPO / "core"))
 
 from periods import Period
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_RAW_TAG, ANDES_TAG,
-                             ANDES_THRESHOLD, BASE, CORE, ISOLATION_KM, LOOSE,
-                             MODEL, NEIGHBOURS, RAW_TAG, RAW_THRESHOLD, SAM2,
-                             SCRIPTS, STRINGENT, SUBREGIONS, postprocess_tag)
+                             ANDES_THRESHOLD, BACKUP, BASE, COOP, CORE, GS, INBOX,
+                             ISOLATION_KM, LOOSE, MODEL, NEIGHBOURS, RAW_TAG,
+                             RAW_THRESHOLD, RECORD, SAM2, SCRIPTS, SOURCE_COOP,
+                             STRINGENT, SUBREGIONS, postprocess_tag)
 
 LOOSE_TAG = postprocess_tag(*LOOSE)
 STRINGENT_TAG = postprocess_tag(*STRINGENT)
 
-HUMAN = {"review-config", "inference", "mask-annual", "mask-quarterly", "publish"}
+HUMAN = {"review-config", "pull", "inference", "mask-annual",
+         "mask-quarterly", "publish"}
 
-#: These recompute from the whole history rather than from the periods named on
-#: the command line, so they read ALL_CURRENT_PERIODS. Passing them one period
-#: would compute onset with nothing to corroborate against.
-WHOLE_HISTORY = {"persist-detections", "persist-masks", "stage", "manifest"}
+#: These work from the whole history rather than from the periods named on the
+#: command line, so they read ALL_CURRENT_PERIODS. Passing one period would make
+#: persistence compute onset with nothing to corroborate against, and would have
+#: pull restore a tree too thin to run.
+WHOLE_HISTORY = {"review-config", "pull", "persist-detections", "persist-masks",
+                 "stage", "manifest", "publish"}
 
-ORDER = ["review-config", "inference", "concat", "filter", "postprocess", "persist-detections",
+ORDER = ["review-config", "pull", "inference", "concat", "filter",
+         "postprocess", "persist-detections",
          "mask-annual", "mask-quarterly", "cog", "persist-masks", "stage",
          "manifest", "publish"]
 
@@ -73,6 +79,16 @@ def cache_dir(tag: str) -> str:
 # --------------------------------------------------------------------------
 # emitted commands (human-run)
 # --------------------------------------------------------------------------
+
+def from_core(p: Path) -> str:
+    """A repo path as the emitted commands see it.
+
+    Every emitted command is run from ``core/`` -- the inference and masking ones
+    have to be, since they invoke scripts that live there, and the rest follow so
+    a user walking the sequence never has to change directory.
+    """
+    return str(Path("..") / p.relative_to(REPO))
+
 
 def cmds_review_config(periods: Sequence[str]) -> List[str]:
     """Stage 0: what a human sets, and where."""
@@ -108,6 +124,75 @@ def cmds_review_config(periods: Sequence[str]) -> List[str]:
         "#",
         "#    To explore a parameter rather than change the product, call the",
         "#    underlying script directly with --outdir somewhere separate.",
+    ]
+
+
+def cmds_pull(periods: Sequence[str]) -> List[str]:
+    """Stage 0b: fill the working tree from the record bucket.
+
+    A refresh on a fresh VM starts with an empty data/outputs/, and the
+    whole-history stages recompute from every prior period, so the run needs
+    everything before it. Two syncs because the record stores the masks verbatim
+    but renamed the detection folders to consumer names on the way out; the
+    rename is reversed locally by the same table that applied it.
+    """
+    base, sam2, inbox = from_core(BASE), from_core(SAM2), from_core(INBOX)
+    return [
+        f"# 0b. Restore the working tree from the record bucket, {RECORD}.",
+        "#     Safe to re-run and safe when complete: rsync moves only what is",
+        "#     missing or changed, and --restore never overwrites a local file that",
+        "#     differs from the bucket -- that is usually one this run recomputed.",
+        "#     ~19 GB in total, 16 GB of it the mask tree.",
+        "#",
+        "#     Add --checksums-only to either sync if objects were put on the bucket",
+        "#     by cp rather than rsync: cp sets no mtime, so they compare unequal",
+        "#     however identical they are.",
+        "",
+        "# 1. masks, verbatim -- no rename, so straight into place",
+        f"gcloud storage rsync --recursive "
+        f"{RECORD}/mining_scar_masks/ {sam2}/",
+        "",
+        "# 2. detections and the cumulative series, under their published names",
+        f"gcloud storage rsync --recursive --exclude='^mining_scar_masks/' "
+        f"{RECORD}/ {inbox}/",
+        "",
+        "# 3. reverse the publish rename into the working tree. Local, no network.",
+        "#    Reports what the bucket was missing, which is the check that the tree",
+        "#    is complete enough to run.",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --restore {inbox}",
+        "",
+        "# ---------------------------------------------------------------------",
+        "# WHERE THINGS LAND, once the above has run",
+        "#",
+        f"#   {base}/",
+        "#       <restored>  raw_detections/              basin, one file per period",
+        "#       <restored>  raw_detections/andes_supplemental/",
+        "#       <restored>  postprocessed_" + LOOSE_TAG + "/",
+        "#       <restored>  postprocessed_" + STRINGENT_TAG + "/",
+        "#       <restored>  cumulative/ + patch_diffs/   written by persist-detections",
+        "#       <restored>  cumulative_dissolved/ + diffs/",
+        "#",
+        f"#   {sam2}/",
+        "#       <restored>  one directory per period per prompt set, named after the",
+        "#                   detections file that prompted it, holding mask and logit",
+        "#                   tiles plus cog_outputs/ and mask_config.txt",
+        "#       <restored>  persistence_masks/           onset rasters + the basin tif",
+        "#",
+        "# NEW INFERENCE DOES NOT LAND IN raw_detections/.",
+        "#   inference_pipeline.py writes the six subregion parts to the top of the",
+        "#   model folder above -- Amazon_ACA_<n>_<model>_<thr>_<start>_<end>.geojson",
+        "#   -- and the andes supplemental beside them. `concat` and `filter` are what",
+        "#   move them into raw_detections/. So a VM that has just run inference has",
+        "#   loose files at the top of the model folder, and those are what to copy",
+        "#   off it.",
+        "#",
+        "#   sam2_mask.py likewise creates its own run directory under the sam2 folder,",
+        "#   named after the detections file it was given. After a mask job that one",
+        "#   new directory is the whole of what the VM produced.",
+        "#",
+        "# NOT RESTORED, because they are rebuilt rather than kept:",
+        f"#   {from_core(GS)}/ and {from_core(SOURCE_COOP)}/ -- `stage` assembles them",
+        f"#   {inbox}/  -- transient, safe to delete once step 3 reports clean",
     ]
 
 
@@ -166,9 +251,9 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
     # amw-published is the store of record and is versioned; amw-dev/published is
     # its backup, synced bucket-to-bucket so nothing round-trips through a laptop
     # -- every silent transfer failure we have hit was a local<->bucket sync.
-    record = "gs://amw-published"
-    backup = "gs://amw-dev/published"
-    coop = "s3://earthgenome/amazon-mining-watch"
+    record = RECORD
+    backup = BACKUP
+    coop = COOP
     warn: List[str] = []
     try:
         from stage_outputs import check_trees
@@ -198,18 +283,21 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "# review the rasters before running any of this",
         "",
         "# 1. store of record",
-        "# add -c if objects were pre-populated by cp: rsync compares mtime, cp",
-        "# does not set it, so those objects re-upload however identical they are",
-        f"gsutil -m rsync -r data/staging_gs/ {record}/",
-        "# Verify by name, not by count. Two different tools have silently",
-        "# dropped files on this project: gsutil cp -I reported success having",
-        "# copied 2 of 15,752, and aws s3 sync dropped 2 of 48. A count tells",
-        "# you something is missing; this tells you which. Empty output = clean.",
-        f"diff <(cd data/staging_gs && find . -type f | sed 's|^\./||' | sort) \\",
-        f"     <(gsutil ls '{record}/**' | sed 's|^{record}/||' | sort)",
+        "# --checksums-only because every run rewrites the whole stack: the",
+        "# persistence stages recompute from the full period stack, so even an",
+        "# unchanged 2018 layer gets a fresh mtime and rsync would re-upload all",
+        "# 19 GB. Comparing hashes moves only what actually differs, at the cost",
+        "# of reading the local tree to hash it.",
+        f"gcloud storage rsync --recursive --checksums-only "
+        f"{from_core(GS)}/ {record}/",
+        "",
+        "# Verify by name. A sync exiting 0 is not evidence -- two tools have",
+        "# silently dropped files here, and a count would not have caught either.",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --verify gs",
         "",
         "# 2. backup, server-side (no egress, no local round trip)",
-        f"gsutil -m rsync -r -d {record}/ {backup}/",
+        f"gcloud storage rsync --recursive "
+        f"--delete-unmatched-destination-objects {record}/ {backup}/",
         "",
         "# 3. public subset.",
         "#",
@@ -238,18 +326,19 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "#    removed from the staging tree stays on the bucket until deleted by",
         "#    hand, which is what keeps archived/ -- present on the bucket, absent",
         "#    from staging -- from being swept away.",
-        f"aws s3 sync data/staging_source-coop/ {coop}/",
-        "# Same verification. archived/ is on the bucket and not in staging, so",
-        "# it is excluded -- otherwise the comparison can never come out clean",
-        "# and the check gets ignored. Empty output = clean; re-run the sync for",
-        "# anything listed, which is what the 2-of-48 drop needed.",
-        f"diff <(cd data/staging_source-coop && find . -type f | sed 's|^\./||' | sort) \\",
-        f"     <(aws s3 ls --recursive {coop}/ | awk '{{print $4}}' \\",
-        f"        | sed 's|^amazon-mining-watch/||' | grep -v '^archived/' | sort)",
+        f"aws s3 sync {from_core(SOURCE_COOP)}/ {coop}/",
+        "",
+        "# Same check against the public bucket.",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --verify source-coop",
+        "",
+        "# 4. commit the manifest.",
+        f"#    {from_core(MANIFEST)} is the only tracked file a refresh changes,",
+        "#    and it is what tells the next person what the buckets now hold. The",
+        "#    manifest stage edits it; nothing commits it.",
     ]
 
 
-EMITTERS = {"review-config": cmds_review_config,
+EMITTERS = {"review-config": cmds_review_config, "pull": cmds_pull,
             "inference": cmds_inference, "mask-annual": cmds_mask_annual,
             "mask-quarterly": cmds_mask_quarterly, "publish": cmds_publish}
 
@@ -438,9 +527,52 @@ def stage_stage(periods, dry) -> int:
                 "--periods", *periods], dry)
 
 
+MANIFEST = REPO / "data/outputs/MANIFEST.yaml"
+
+
 def stage_manifest(periods, dry) -> int:
-    print("    MANIFEST.yaml is hand-maintained; update `updated`, `periods`,")
-    print("    and any path_map changes. See data/outputs/MANIFEST.yaml.")
+    """Bring MANIFEST.yaml's period list and date in step with the config.
+
+    Edited line by line rather than parsed and re-dumped: the file is mostly
+    prose explaining why each store exists, and a YAML round trip would discard
+    every comment in it.
+    """
+    text = MANIFEST.read_text()
+    annual = [p for p in periods if Period.parse(p).is_annual]
+    quarters = [p for p in periods if not Period.parse(p).is_annual]
+    wanted = {
+        "updated": f"updated: {date.today():%Y-%m-%d}",
+        "years": f"      years: [{', '.join(annual)}]",
+        "quarters": f"      quarters: [{', '.join(quarters)}]",
+    }
+    patterns = {"updated": r"^updated: .*$",
+                "years": r"^      years: \[.*\]$",
+                "quarters": r"^      quarters: \[.*\]$"}
+
+    changed = []
+    for key, pattern in patterns.items():
+        found = re.findall(pattern, text, flags=re.M)
+        if len(found) != 1:
+            raise SystemExit(
+                f"expected one {key!r} line in {MANIFEST.name}, found "
+                f"{len(found)}; the file's shape has changed and this stage "
+                f"edits it by line. Update it by hand and fix stage_manifest.")
+        if found[0] != wanted[key]:
+            changed.append(f"{found[0].strip()}  ->  {wanted[key].strip()}")
+            text = re.sub(pattern, wanted[key].replace("\\", "\\\\"), text,
+                          count=1, flags=re.M)
+
+    if not changed:
+        print("    MANIFEST.yaml already current")
+    else:
+        for line in changed:
+            print(f"    {line}")
+        if not dry:
+            MANIFEST.write_text(text)
+        print(f"    {'would update' if dry else 'updated'} {MANIFEST.name}"
+              f" -- tracked, so it wants committing")
+    print("    path_map and store notes are still hand-maintained; check them if "
+          "a bucket or product moved.")
     return 0
 
 
@@ -468,10 +600,21 @@ def main() -> None:
 
     if args.list or not args.stages:
         print("stages, in dependency order:\n")
+        print(f"  {'stage':<20} {'runs as':<10} {'works on'}")
         for s in ORDER:
-            who = "HUMAN (prints commands)" if s in HUMAN else "pipeline"
-            print(f"  {s:<20} {who}")
-        print("\nmask-quarterly depends on persist-detections: its prompts are "
+            who = "HUMAN" if s in HUMAN else "pipeline"
+            scope = (f"the whole period list ({len(ALL_CURRENT_PERIODS)})"
+                     if s in WHOLE_HISTORY else "--periods, or --all")
+            print(f"  {s:<20} {who:<10} {scope}")
+        print(f"\n  HUMAN stages print commands for you to run; the rest do the "
+              f"work themselves.")
+        print(f"  A whole-period-list stage ignores --periods: it recomputes from "
+              f"every period,")
+        print(f"  so passing one would leave it with nothing to corroborate "
+              f"against. Passing the")
+        print(f"  flag anyway is harmless -- it is read only by the stages that "
+              f"say --periods above.")
+        print("\n  mask-quarterly depends on persist-detections: its prompts are "
               "patch_diffs/.")
         return
 
@@ -481,10 +624,8 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
-    # review-config and the whole-history stages read ALL_CURRENT_PERIODS
-    # directly, so only the remaining stages need --periods.
-    consumers = [s for s in args.stages
-                 if s not in WHOLE_HISTORY and s != "review-config"]
+    # The whole-history stages read ALL_CURRENT_PERIODS directly.
+    consumers = [s for s in args.stages if s not in WHOLE_HISTORY]
 
     if args.use_all:
         working = list(ALL_CURRENT_PERIODS)

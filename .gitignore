@@ -48,3 +48,6 @@ scripts/boundaries/diffs/
 # scripts/templates/ -- edit those, not the staged copies.
 data/staging_gs/
 data/staging_source-coop/
+# Transient landing area for `pipeline.py pull`; reversed into the working
+# tree by stage_outputs.py --restore, then safe to delete.
+data/restore_inbox/
