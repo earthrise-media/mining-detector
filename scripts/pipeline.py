@@ -53,10 +53,8 @@ HUMAN = {"review-config", "pull", "inference", "mask-annual",
 #: command line, so they read ALL_CURRENT_PERIODS. Passing one period would make
 #: persistence compute onset with nothing to corroborate against, and would have
 #: pull restore a tree too thin to run.
-WHOLE_HISTORY = {"pull", "persist-detections", "persist-masks", "stage", "manifest"}
-
-#: Stages that read neither --periods nor the period list, for `--list` to show.
-SCOPE_NOTE = {"review-config": "-", "publish": "whole staging trees"}
+WHOLE_HISTORY = {"review-config", "pull", "persist-detections", "persist-masks",
+                 "stage", "manifest", "publish"}
 
 ORDER = ["review-config", "pull", "inference", "concat", "filter",
          "postprocess", "persist-detections",
@@ -333,6 +331,11 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         f"diff <(cd {from_core(SOURCE_COOP)} && find . -type f | sed 's|^\./||' | sort) \\",
         f"     <(aws s3 ls --recursive {coop}/ | awk '{{print $4}}' \\",
         f"        | sed 's|^amazon-mining-watch/||' | grep -v '^archived/' | sort)",
+        "",
+        "# 4. commit the manifest.",
+        f"#    {from_core(MANIFEST)} is the only tracked file a refresh changes,",
+        "#    and it is what tells the next person what the buckets now hold. The",
+        "#    manifest stage edits it; nothing commits it.",
     ]
 
 
@@ -567,7 +570,8 @@ def stage_manifest(periods, dry) -> int:
             print(f"    {line}")
         if not dry:
             MANIFEST.write_text(text)
-        print(f"    {'would update' if dry else 'updated'} {MANIFEST.name}")
+        print(f"    {'would update' if dry else 'updated'} {MANIFEST.name}"
+              f" -- tracked, so it wants committing")
     print("    path_map and store notes are still hand-maintained; check them if "
           "a bucket or product moved.")
     return 0
@@ -600,12 +604,8 @@ def main() -> None:
         print(f"  {'stage':<20} {'runs as':<10} {'works on'}")
         for s in ORDER:
             who = "HUMAN" if s in HUMAN else "pipeline"
-            if s in SCOPE_NOTE:
-                scope = SCOPE_NOTE[s]
-            elif s in WHOLE_HISTORY:
-                scope = f"the whole period list ({len(ALL_CURRENT_PERIODS)})"
-            else:
-                scope = "--periods, or --all"
+            scope = (f"the whole period list ({len(ALL_CURRENT_PERIODS)})"
+                     if s in WHOLE_HISTORY else "--periods, or --all")
             print(f"  {s:<20} {who:<10} {scope}")
         print(f"\n  HUMAN stages print commands for you to run; the rest do the "
               f"work themselves.")
@@ -625,10 +625,8 @@ def main() -> None:
     if unknown:
         raise SystemExit(f"unknown stage(s) {unknown}; see --list")
 
-    # review-config and the whole-history stages read ALL_CURRENT_PERIODS
-    # directly, so only the remaining stages need --periods.
-    consumers = [s for s in args.stages
-                 if s not in WHOLE_HISTORY and s != "review-config"]
+    # The whole-history stages read ALL_CURRENT_PERIODS directly.
+    consumers = [s for s in args.stages if s not in WHOLE_HISTORY]
 
     if args.use_all:
         working = list(ALL_CURRENT_PERIODS)
