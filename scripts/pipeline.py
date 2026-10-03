@@ -54,6 +54,9 @@ HUMAN = {"review-config", "pull", "inference", "mask-annual",
 #: pull restore a tree too thin to run.
 WHOLE_HISTORY = {"pull", "persist-detections", "persist-masks", "stage", "manifest"}
 
+#: Stages that read neither --periods nor the period list, for `--list` to show.
+SCOPE_NOTE = {"review-config": "-", "publish": "whole staging trees"}
+
 ORDER = ["review-config", "pull", "inference", "concat", "filter",
          "postprocess", "persist-detections",
          "mask-annual", "mask-quarterly", "cog", "persist-masks", "stage",
@@ -551,10 +554,25 @@ def main() -> None:
 
     if args.list or not args.stages:
         print("stages, in dependency order:\n")
+        print(f"  {'stage':<20} {'runs as':<10} {'works on'}")
         for s in ORDER:
-            who = "HUMAN (prints commands)" if s in HUMAN else "pipeline"
-            print(f"  {s:<20} {who}")
-        print("\nmask-quarterly depends on persist-detections: its prompts are "
+            who = "HUMAN" if s in HUMAN else "pipeline"
+            if s in SCOPE_NOTE:
+                scope = SCOPE_NOTE[s]
+            elif s in WHOLE_HISTORY:
+                scope = f"the whole period list ({len(ALL_CURRENT_PERIODS)})"
+            else:
+                scope = "--periods, or --all"
+            print(f"  {s:<20} {who:<10} {scope}")
+        print(f"\n  HUMAN stages print commands for you to run; the rest do the "
+              f"work themselves.")
+        print(f"  A whole-period-list stage ignores --periods: it recomputes from "
+              f"every period,")
+        print(f"  so passing one would leave it with nothing to corroborate "
+              f"against. Passing the")
+        print(f"  flag anyway is harmless -- it is read only by the stages that "
+              f"say --periods above.")
+        print("\n  mask-quarterly depends on persist-detections: its prompts are "
               "patch_diffs/.")
         return
 
