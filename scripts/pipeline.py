@@ -38,9 +38,9 @@ sys.path.insert(0, str(REPO / "core"))
 
 from periods import Period
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_RAW_TAG, ANDES_TAG,
-                             ANDES_THRESHOLD, BASE, CORE, GS, INBOX,
+                             ANDES_THRESHOLD, BACKUP, BASE, COOP, CORE, GS, INBOX,
                              ISOLATION_KM, LOOSE, MODEL, NEIGHBOURS, RAW_TAG,
-                             RAW_THRESHOLD, SAM2, SCRIPTS, SOURCE_COOP,
+                             RAW_THRESHOLD, RECORD, SAM2, SCRIPTS, SOURCE_COOP,
                              STRINGENT, SUBREGIONS, postprocess_tag)
 
 LOOSE_TAG = postprocess_tag(*LOOSE)
@@ -138,7 +138,7 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
     """
     base, sam2, inbox = from_core(BASE), from_core(SAM2), from_core(INBOX)
     return [
-        "# 0b. Restore the working tree from the record bucket, gs://amw-published.",
+        f"# 0b. Restore the working tree from the record bucket, {RECORD}.",
         "#     Safe to re-run and safe when complete: rsync moves only what is",
         "#     missing or changed, and --restore never overwrites a local file that",
         "#     differs from the bucket -- that is usually one this run recomputed.",
@@ -150,11 +150,11 @@ def cmds_pull(periods: Sequence[str]) -> List[str]:
         "",
         "# 1. masks, verbatim -- no rename, so straight into place",
         f"gcloud storage rsync --recursive "
-        f"gs://amw-published/mining_scar_masks/ {sam2}/",
+        f"{RECORD}/mining_scar_masks/ {sam2}/",
         "",
         "# 2. detections and the cumulative series, under their published names",
         f"gcloud storage rsync --recursive --exclude='^mining_scar_masks/' "
-        f"gs://amw-published/ {inbox}/",
+        f"{RECORD}/ {inbox}/",
         "",
         "# 3. reverse the publish rename into the working tree. Local, no network.",
         "#    Reports what the bucket was missing, which is the check that the tree",
@@ -251,9 +251,9 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
     # amw-published is the store of record and is versioned; amw-dev/published is
     # its backup, synced bucket-to-bucket so nothing round-trips through a laptop
     # -- every silent transfer failure we have hit was a local<->bucket sync.
-    record = "gs://amw-published"
-    backup = "gs://amw-dev/published"
-    coop = "s3://earthgenome/amazon-mining-watch"
+    record = RECORD
+    backup = BACKUP
+    coop = COOP
     warn: List[str] = []
     try:
         from stage_outputs import check_trees
@@ -283,18 +283,18 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "# review the rasters before running any of this",
         "",
         "# 1. store of record",
-        "# add -c if objects were pre-populated by cp: rsync compares mtime, cp",
-        "# does not set it, so those objects re-upload however identical they are",
-        f"gsutil -m rsync -r {from_core(GS)}/ {record}/",
-        "# Verify by name, not by count. Two different tools have silently",
-        "# dropped files on this project: gsutil cp -I reported success having",
-        "# copied 2 of 15,752, and aws s3 sync dropped 2 of 48. A count tells",
-        "# you something is missing; this tells you which. Empty output = clean.",
-        f"diff <(cd {from_core(GS)} && find . -type f | sed 's|^\./||' | sort) \\",
-        f"     <(gsutil ls '{record}/**' | sed 's|^{record}/||' | sort)",
+        "# add --checksums-only if objects were pre-populated by cp: rsync",
+        "# compares mtime, cp does not set it, so those objects re-upload however",
+        "# identical they are",
+        f"gcloud storage rsync --recursive {from_core(GS)}/ {record}/",
+        "",
+        "# Verify by name. A sync exiting 0 is not evidence -- two tools have",
+        "# silently dropped files here, and a count would not have caught either.",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --verify gs",
         "",
         "# 2. backup, server-side (no egress, no local round trip)",
-        f"gsutil -m rsync -r -d {record}/ {backup}/",
+        f"gcloud storage rsync --recursive "
+        f"--delete-unmatched-destination-objects {record}/ {backup}/",
         "",
         "# 3. public subset.",
         "#",
@@ -324,13 +324,9 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         "#    hand, which is what keeps archived/ -- present on the bucket, absent",
         "#    from staging -- from being swept away.",
         f"aws s3 sync {from_core(SOURCE_COOP)}/ {coop}/",
-        "# Same verification. archived/ is on the bucket and not in staging, so",
-        "# it is excluded -- otherwise the comparison can never come out clean",
-        "# and the check gets ignored. Empty output = clean; re-run the sync for",
-        "# anything listed, which is what the 2-of-48 drop needed.",
-        f"diff <(cd {from_core(SOURCE_COOP)} && find . -type f | sed 's|^\./||' | sort) \\",
-        f"     <(aws s3 ls --recursive {coop}/ | awk '{{print $4}}' \\",
-        f"        | sed 's|^amazon-mining-watch/||' | grep -v '^archived/' | sort)",
+        "",
+        "# Same check against the public bucket.",
+        f"python {from_core(SCRIPTS)}/stage_outputs.py --verify source-coop",
         "",
         "# 4. commit the manifest.",
         f"#    {from_core(MANIFEST)} is the only tracked file a refresh changes,",

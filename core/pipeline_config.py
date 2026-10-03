@@ -102,6 +102,13 @@ BASE = REPO / "data/outputs" / MODEL
 SAM2 = REPO / "data/outputs/sam2"
 GS = REPO / "data/staging_gs"
 
+#: The three destinations `publish` writes to. amw-published is the store of
+#: record and is versioned; amw-dev/published is its backup, the one leg that
+#: syncs with deletion so it mirrors faithfully.
+RECORD = "gs://amw-published"
+BACKUP = "gs://amw-dev/published"
+COOP = "s3://earthgenome/amazon-mining-watch"
+
 #: Where `pipeline.py pull` lands the record bucket before the publish rename is
 #: reversed into the working tree. Transient and gitignored; kept outside
 #: data/outputs so a half-finished pull cannot be mistaken for pipeline output.

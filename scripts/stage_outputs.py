@@ -46,8 +46,9 @@ sys.path.insert(0, str(REPO / "core"))
 from periods import Period
 from postprocess import PostprocessConfig
 from pipeline_config import (ALL_CURRENT_PERIODS, ANDES_TAG, ANDES_THRESHOLD,
-                             BASE, GS, LOOSE, MODEL, RAW_TAG, RAW_THRESHOLD,
-                             SAM2, SOURCE_COOP, STRINGENT, postprocess_tag)
+                             BASE, COOP, GS, LOOSE, MODEL, RAW_TAG,
+                             RAW_THRESHOLD, RECORD, SAM2, SOURCE_COOP,
+                             STRINGENT, postprocess_tag)
 
 RAW_THRESHOLD_G = "0.4"          # consumer-facing name, one decimal
 LOOSE_TAG = postprocess_tag(*LOOSE)
@@ -266,6 +267,95 @@ def inbox_model(inbox: Path) -> Optional[str]:
             if key.strip() in ("model", "detection_model"):
                 return value.strip()
     return None
+
+
+#: Each staging tree, the bucket it syncs to, and prefixes that live on the
+#: bucket but never in staging. archived/ is the January vintage, kept on Source
+#: Cooperative deliberately; publish uses no --delete so it survives.
+TREES = {
+    "gs": (GS, RECORD, ()),
+    "source-coop": (SOURCE_COOP, COOP, ("archived/",)),
+}
+
+
+def _bucket_keys(url: str) -> Set[str]:
+    """Relative paths of every object under ``url``."""
+    if url.startswith("gs://"):
+        cmd = ["gcloud", "storage", "ls", "--recursive", f"{url}/**"]
+        prefix = url.rstrip("/") + "/"
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise SystemExit(f"listing {url} failed:\n{proc.stderr.strip()}")
+        return {line[len(prefix):] for line in proc.stdout.splitlines()
+                if line.startswith(prefix) and not line.endswith("/")}
+
+    bucket, _, key_prefix = url[len("s3://"):].partition("/")
+    cmd = ["aws", "s3", "ls", "--recursive", f"s3://{bucket}/{key_prefix}/"]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise SystemExit(f"listing {url} failed:\n{proc.stderr.strip()}")
+    out = set()
+    for line in proc.stdout.splitlines():
+        parts = line.split(None, 3)          # date, time, size, key
+        if len(parts) == 4 and parts[2].isdigit():
+            key = parts[3]
+            if key.startswith(key_prefix + "/"):
+                key = key[len(key_prefix) + 1:]
+            if key and not key.endswith("/"):
+                out.add(key)
+    return out
+
+
+def verify(which: str) -> int:
+    """Check every staged file reached the bucket.
+
+    A sync exiting 0 is not evidence: gsutil cp -I has reported success having
+    copied 2 of 15,752 objects here, and aws s3 sync has dropped 2 of 48. Compare
+    by name, so the answer says which file rather than how many.
+
+    Only one direction is an error. Objects on the bucket that staging does not
+    have are expected -- publish uses no --delete, so a superseded layer lingers
+    until removed by hand.
+    """
+    tree, url, bucket_only = TREES[which]
+    if not tree.is_dir():
+        raise SystemExit(f"no staging tree at {tree}")
+    local = {str(f.relative_to(tree)) for f in tree.rglob("*") if f.is_file()}
+    remote = _bucket_keys(url)
+
+    # An empty listing is a listing problem, not a transfer problem. Reported as
+    # "everything is missing" it reads as a catastrophic sync and invites a 19 GB
+    # re-upload to fix what is usually a URL or a credential.
+    if local and not remote:
+        raise SystemExit(
+            f"{url} listed no objects at all, while {tree.name} holds "
+            f"{len(local):,} files.\n"
+            f"  That is a listing failure rather than a failed sync -- check the "
+            f"URL and that the\n"
+            f"  credentials can read it. Do not re-run the sync on this.")
+
+    missing = sorted(local - remote)
+    extra = sorted(k for k in remote - local
+                   if not any(k.startswith(pre) for pre in bucket_only))
+
+    print(f"  {tree.name} vs {url}")
+    print(f"    {len(local):,} staged, {len(remote):,} on the bucket")
+    if not missing:
+        print(f"    all staged files present")
+    else:
+        print(f"    {len(missing)} staged file(s) MISSING from the bucket:")
+        for k in missing[:10]:
+            print(f"      {k}")
+        if len(missing) > 10:
+            print(f"      ... and {len(missing) - 10} more")
+        print(f"    re-run the sync; this is what a silent drop looks like")
+    if extra:
+        print(f"    {len(extra)} on the bucket and not in staging, left alone:")
+        for k in extra[:5]:
+            print(f"      {k}")
+        if len(extra) > 5:
+            print(f"      ... and {len(extra) - 5} more")
+    return len(missing)
 
 
 def restore(inbox: Path, periods: Sequence[str], dry_run: bool,
@@ -686,11 +776,17 @@ def main() -> None:
                     help=("Restore working-tree files from a pulled copy of the "
                           "record bucket, reversing the publish rename. Reports "
                           "what the bucket was missing. See `pipeline.py pull`."))
+    ap.add_argument("--verify", choices=sorted(TREES),
+                    help="Check every file in a staging tree reached its bucket. "
+                         "Lists the bucket, so it needs credentials.")
     ap.add_argument("--force", action="store_true",
                     help="With --restore, overwrite local files that differ from "
                          "the bucket. Off by default: a differing local file is "
                          "usually one this run recomputed.")
     args = ap.parse_args()
+
+    if args.verify:
+        raise SystemExit(1 if verify(args.verify) else 0)
 
     if args.restore:
         if not args.restore.is_dir():
