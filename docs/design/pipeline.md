@@ -4,10 +4,10 @@
 by someone who did not build it. `core/README.md` is the operator's version of this;
 this document is why it is shaped that way.
 
-`scripts/pipeline.py` is the driver. Every scripted stage has been exercised, the
-staged trees have been built end to end, and the argument handling and command
-construction are verified — but **the full chain has never been driven from
-`inference` through `publish` in one pass.** That is the next quarterly refresh.
+`scripts/pipeline.py` is the driver. **The full chain was driven from `inference`
+through `publish` in one pass for the first time on 2026-10-02/03, refreshing
+Q3 2026.** It worked, and it found nine faults that reading the code had not —
+see "What the first full run turned up".
 
 ## Constraints that shape the design
 
@@ -186,11 +186,45 @@ The build order this document opened with, as it stands:
 5. `pipeline.py` — done.
 6. `core/README.md` — rewritten.
 
-Two things worth knowing before the next run:
+## What the first full run turned up
 
-- **The full chain has never run in one pass.** Scripted stages have been exercised
-  individually and the staged trees built end to end, but always with the human
-  stages performed out of band. The first true test is the next quarterly refresh.
+Q3 2026, run 2026-10-02/03. The chain held — every stage did what it claimed, and
+the output verified clean against both buckets. What it exposed was a layer of
+faults that only appear when a person drives the thing:
+
+- **`publish` demanded `--periods` and then honoured it.** Given one period it
+  built its expected-file set from that period alone and declared the other 108
+  staged files unexpected, advising their removal. Following that would have
+  deleted the published product. It is whole-history now; the trees are assembled
+  from the whole list, so they can only be checked against it.
+- **Emitted paths disagreed about where they stood.** `inference` and the masking
+  stages wrote `../data/...`, correct from `core/`; `publish` wrote `data/...`,
+  correct only from the repo root. Following the README's `cd core` would have
+  pointed it at nothing. One helper now decides.
+- **GDAL failures were illegible.** `CalledProcessError` prints the exit code and
+  never its `stderr` attribute, so a captured message was discarded at the last
+  step and a failed cog looked like a bare status. The working directory was a
+  `TemporaryDirectory`, so the evidence went with the exception that needed it,
+  after an hour of masking.
+- **The cause, once visible, was libpython.** Mosaics run a Python pixel function
+  through a `VRTDerivedRasterBand`, so `gdalwarp` must load libpython, and nothing
+  said where it is. A Python built without `--enable-shared` advertises a static
+  `LDLIBRARY` even where the `.so` sits beside it, and inside a venv `sys.prefix`
+  holds no libpython at all.
+- **Every run re-uploaded 19 GB.** The persistence stages recompute from the whole
+  stack, so an unchanged 2018 layer gets a fresh mtime and rsync moves it.
+  `--checksums-only` is the normal case here, not an edge case.
+- **A stale product sat in staging for six weeks.** `amazon_basin_mining_scar_masks_first_year.tif`,
+  63 MB, from before the August rename. `stage` only ever adds, and `check_trees`
+  registers `mining_scar_masks/` as an opaque prefix, so nothing beneath it is
+  ever examined. **Still open:** that prefix is a blind spot, and this is the
+  second stale publish candidate it has produced.
+- Smaller: the manifest stage described an edit it could make itself; `--list` did
+  not say which stages read `--periods`; `restore` measured the bucket against the
+  configured period list and reported the period in progress as missing.
+
+One thing still worth knowing before the next run:
+
 - **A quarterly update means editing `ALL_CURRENT_PERIODS` in
   `core/pipeline_config.py`,** then naming the new period with `--periods`. The
   flag is required and its values must be members of that list, because
