@@ -25,6 +25,7 @@ Design and layout: docs/design/pipeline.md
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import glob
 import re
 import subprocess
@@ -524,9 +525,51 @@ def stage_stage(periods, dry) -> int:
                 "--periods", *periods], dry)
 
 
+MANIFEST = REPO / "data/outputs/MANIFEST.yaml"
+
+
 def stage_manifest(periods, dry) -> int:
-    print("    MANIFEST.yaml is hand-maintained; update `updated`, `periods`,")
-    print("    and any path_map changes. See data/outputs/MANIFEST.yaml.")
+    """Bring MANIFEST.yaml's period list and date in step with the config.
+
+    Edited line by line rather than parsed and re-dumped: the file is mostly
+    prose explaining why each store exists, and a YAML round trip would discard
+    every comment in it.
+    """
+    text = MANIFEST.read_text()
+    annual = [p for p in periods if Period.parse(p).is_annual]
+    quarters = [p for p in periods if not Period.parse(p).is_annual]
+    wanted = {
+        "updated": f"updated: {date.today():%Y-%m-%d}",
+        "years": f"      years: [{', '.join(annual)}]",
+        "quarters": f"      quarters: [{', '.join(quarters)}]",
+    }
+    patterns = {"updated": r"^updated: .*$",
+                "years": r"^      years: \[.*\]$",
+                "quarters": r"^      quarters: \[.*\]$"}
+
+    changed = []
+    for key, pattern in patterns.items():
+        found = re.findall(pattern, text, flags=re.M)
+        if len(found) != 1:
+            raise SystemExit(
+                f"expected one {key!r} line in {MANIFEST.name}, found "
+                f"{len(found)}; the file's shape has changed and this stage "
+                f"edits it by line. Update it by hand and fix stage_manifest.")
+        if found[0] != wanted[key]:
+            changed.append(f"{found[0].strip()}  ->  {wanted[key].strip()}")
+            text = re.sub(pattern, wanted[key].replace("\\", "\\\\"), text,
+                          count=1, flags=re.M)
+
+    if not changed:
+        print("    MANIFEST.yaml already current")
+    else:
+        for line in changed:
+            print(f"    {line}")
+        if not dry:
+            MANIFEST.write_text(text)
+        print(f"    {'would update' if dry else 'updated'} {MANIFEST.name}")
+    print("    path_map and store notes are still hand-maintained; check them if "
+          "a bucket or product moved.")
     return 0
 
 
