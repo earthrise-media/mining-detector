@@ -21,13 +21,18 @@ Existing outputs are skipped unless --overwrite is passed.
 # dependencies = [
 #     "geopandas",
 #     "numpy",
+#     "pyogrio",
 #     "rasterio",
+#     "shapely>=2",
 # ]
 # ///
 
 import argparse
+import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from bisect import bisect_right
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import geopandas as gpd
@@ -39,7 +44,11 @@ from constants import (
     generate_vectorized_raster_filename,
 )
 from rasterio.features import shapes
+from rasterio.windows import Window
 from shapely.geometry import shape
+
+# Rank value for pixels that are nodata or don't match any known period.
+SENTINEL_RANK = 255
 
 
 def year_quarter_to_pixel_value(year_quarter):
@@ -54,62 +63,91 @@ def year_quarter_to_pixel_value(year_quarter):
     return year * 10 + quarter
 
 
-def pixel_values_through(year_quarter):
-    """Return the pixel values for every period at or before `year_quarter`.
+def build_rank_lut(periods):
+    """Build a lookup table mapping raw pixel value -> period rank.
 
     The raster's compact encoding is not monotonic across the year/quarter
     boundary -- a full year 2027 encodes as 2027, which is numerically *less*
     than the quarter 202602 encoded as 20262 -- so pixel values cannot be
     thresholded directly. The canonical 6-digit YYYYQQ keys do sort correctly,
-    so we filter those and then map the survivors to their pixel encoding.
+    so each pixel value is mapped to the index of its period in the sorted
+    YYYYQQ list. "Cumulative through period i" then becomes `rank <= i`.
+
+    The extra last slot holds SENTINEL_RANK and is used for out-of-range values.
     """
-    periods = [p for p in MINING_RASTER_YEARS_QUARTERS if p <= year_quarter]
-    return sorted({year_quarter_to_pixel_value(p) for p in periods})
+    if len(periods) >= SENTINEL_RANK:
+        raise ValueError(f"Too many periods ({len(periods)}) for uint8 ranks")
+    pixel_values = [year_quarter_to_pixel_value(p) for p in periods]
+    lut = np.full(max(pixel_values) + 2, SENTINEL_RANK, dtype=np.uint8)
+    for rank, value in enumerate(pixel_values):
+        lut[value] = rank
+    return lut
 
 
-def raster_to_gdf(raster_path, include_values):
-    print(
-        f"Converting {raster_path} "
-        f"({len(include_values)} pixel values, up to {include_values[-1]}) to gdf..."
-    )
+def pixel_ranks(block, lut):
+    """Convert a block of raw pixel values to period ranks (uint8)."""
+    if not np.issubdtype(block.dtype, np.integer):
+        block = np.where(np.isfinite(block), block, -1).astype(np.int64)
+    # Nodata and unknown values (negative, or larger than any period value)
+    # point at the sentinel slot at the end of the LUT.
+    oob = lut.size - 1
+    idx = np.where((block >= 0) & (block < oob), block, oob)
+    return lut[idx]
+
+
+def iter_windows(width, height, size):
+    for row_off in range(0, height, size):
+        for col_off in range(0, width, size):
+            yield Window(
+                col_off,
+                row_off,
+                min(size, width - col_off),
+                min(size, height - row_off),
+            )
+
+
+def vectorize_chunk(window, raster_path, lut, needed):
+    """Vectorize one chunk for every needed period.
+
+    Returns {period_index: [geometries]}. The chunk is only polygonized once per
+    distinct rank actually present in it; periods with no new pixels in this
+    chunk reuse the previous period's geometries.
+    """
     try:
         with rasterio.open(raster_path) as src:
-            print("Opened. Bands available:", src.count)
-            print("Reported shape:", src.height, src.width)
-            print("Reported dtype:", src.dtypes)
-            print("Block shapes:", src.block_shapes)
+            block = src.read(1, window=window)
+            block_transform = src.window_transform(window)
 
-            nodata = src.nodata
-            geoms = []
+        ranks = pixel_ranks(block, lut)
 
-            # np.isin is much faster against a sorted ndarray of candidates
-            include_values = np.asarray(include_values, dtype=src.dtypes[0])
+        # Skip chunks that have no matching pixels at all
+        present = np.unique(ranks)
+        present = present[present != SENTINEL_RANK].tolist()
+        if not present:
+            return {}
 
-            for _, window in src.block_windows(1):
-                block = src.read(1, window=window)
-
-                # Skip blocks that are entirely nodata or have no matching pixels
-                if nodata is not None and np.all(block == nodata):
-                    continue
-                mask = np.isin(block, include_values)
-                if not mask.any():
-                    continue
-
+        by_rank = {}
+        result = {}
+        for i in needed:
+            k = bisect_right(present, i) - 1
+            if k < 0:
+                continue  # nothing detected in this chunk yet as of period i
+            r = present[k]
+            if r not in by_rank:
+                mask = ranks <= r
                 # Vectorize a binary mask rather than the raw block: otherwise
                 # shapes() would emit a separate polygon per year value and a
                 # contiguous mining area would come back split along year seams.
                 binary = mask.astype(np.uint8)
-
-                block_transform = src.window_transform(window)
-                for geom, val in shapes(binary, mask=mask, transform=block_transform):
-                    if val == 1:
-                        geoms.append(shape(geom))
-
-            gdf = gpd.GeoDataFrame(geometry=geoms, crs=src.crs)
-
-        return gdf
+                by_rank[r] = [
+                    shape(geom)
+                    for geom, val in shapes(binary, mask=mask, transform=block_transform)
+                    if val == 1
+                ]
+            result[i] = by_rank[r]
+        return result
     except Exception as e:
-        print(f"ERROR in raster_to_gdf: {type(e).__name__}: {e}")
+        print(f"ERROR in vectorize_chunk {window}: {type(e).__name__}: {e}")
         raise  # re-raise so it still propagates
 
 
@@ -118,36 +156,77 @@ def ensure_output_path_exists(output_file):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def process_raster(year, overwrite=False):
+def write_period(year, geoms, crs):
     output_file = generate_vectorized_raster_filename(year)
 
-    if Path(output_file).exists() and not overwrite:
-        print(f"Skipping {year}, {output_file} already exists (use --overwrite)")
+    if not geoms:
+        print(f"No pixels found through {year}, skipping output.")
         return output_file
 
-    print(f"Processing period: {year}")
-    # Pixel values in the raster use a compact encoding (YYYY or YYYYQ),
-    # not the 6-digit YYYYQQ keys, so map before filtering. Cumulative
-    # snapshot: every period at or before `year` is included.
-    pixel_values = pixel_values_through(year)
-
-    if not pixel_values:
-        print(f"No periods at or before {year}, skipping output.")
-        return output_file
-
-    gdf = raster_to_gdf(MINING_FIRST_YEAR_RASTER_FILE, include_values=pixel_values)
-
-    if gdf.empty:
-        print(f"No pixels found through {year} (pixel values {pixel_values}), skipping output.")
-        return output_file
-
+    gdf = gpd.GeoDataFrame(geometry=geoms, crs=crs)
     gdf["value"] = year  # period this cumulative snapshot represents
     gdf["year"] = year  # add year column
 
     ensure_output_path_exists(output_file)
-    gdf.to_file(output_file, driver="GeoJSON")
-    print(f"Created: {output_file}")
+    gdf.to_file(output_file, driver="GeoJSON", engine="pyogrio")
+    print(f"Created: {output_file} ({len(gdf)} polygons)")
     return output_file
+
+
+def main(overwrite=False, workers=None, chunk_size=4096):
+    periods = sorted(set(MINING_RASTER_YEARS_QUARTERS))
+
+    needed = []
+    for i, year in enumerate(periods):
+        output_file = generate_vectorized_raster_filename(year)
+        if Path(output_file).exists() and not overwrite:
+            print(f"Skipping {year}, {output_file} already exists (use --overwrite)")
+        else:
+            needed.append(i)
+
+    if not needed:
+        print("Nothing to do.")
+        return
+
+    lut = build_rank_lut(periods)
+
+    with rasterio.open(MINING_FIRST_YEAR_RASTER_FILE) as src:
+        print("Opened. Bands available:", src.count)
+        print("Reported shape:", src.height, src.width)
+        print("Reported dtype:", src.dtypes)
+        print("Block shapes:", src.block_shapes)
+        crs = src.crs
+        windows = list(iter_windows(src.width, src.height, chunk_size))
+
+    print(
+        f"Vectorizing {len(needed)} period(s) across {len(windows)} chunk(s) "
+        f"of up to {chunk_size}x{chunk_size} px..."
+    )
+
+    period_geoms = {i: [] for i in needed}
+    worker = partial(
+        vectorize_chunk,
+        raster_path=MINING_FIRST_YEAR_RASTER_FILE,
+        lut=lut,
+        needed=needed,
+    )
+
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        # map() keeps results in window order, so output is deterministic
+        for n, chunk_result in enumerate(pool.map(worker, windows), 1):
+            for i, geoms in chunk_result.items():
+                period_geoms[i].extend(geoms)
+            if n % 50 == 0 or n == len(windows):
+                print(f"  {n}/{len(windows)} chunks done")
+
+    # GeoJSON writing is I/O-heavy and pyogrio releases the GIL, so threads help
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(
+            pool.map(
+                lambda i: write_period(periods[i], period_geoms[i], crs),
+                needed,
+            )
+        )
 
 
 if __name__ == "__main__":
@@ -159,14 +238,20 @@ if __name__ == "__main__":
         action="store_true",
         help="Re-vectorize and overwrite existing vector files.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=os.cpu_count(),
+        help="Number of worker processes (default: all CPUs).",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=4096,
+        help="Chunk edge length in pixels (default: 4096).",
+    )
     args = parser.parse_args()
 
     start = time.time()
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        list(
-            pool.map(
-                lambda year: process_raster(year, overwrite=args.overwrite),
-                MINING_RASTER_YEARS_QUARTERS,
-            )
-        )
+    main(overwrite=args.overwrite, workers=args.workers, chunk_size=args.chunk_size)
     print(f"Raster conversion took {time.time() - start:.1f}s")
