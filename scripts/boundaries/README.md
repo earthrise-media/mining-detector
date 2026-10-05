@@ -12,6 +12,14 @@ These scripts prepare boundaries for use in the AMW website:
 
 Besides the python libraries required in each of the scripts, you'll need to have [tippecanoe](https://github.com/mapbox/tippecanoe) installed.
 
+## Updating mining data
+
+If you are updating mining data:
+
+1. Update the `DATA_UPDATED_AT` variable in `scripts/boundaries/constants.py`, using the `YYYYMMDD` format. This ensures you will not overwrite previous data when uploading to S3
+2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
+3. Run the scrips below, skipping the `standardize_` scripts if admin areas, ITs, PAs, and illegality areas have not changed
+
 ## Pipeline
 
 To get a full refresh of the data, run the following scripts sequentially:
@@ -27,20 +35,16 @@ python scripts/boundaries/standardize_national_admin_areas.py
 python scripts/boundaries/standardize_it_and_pa_areas.py
 python scripts/boundaries/standardize_illegality_areas.py
 
+# if there are new datasets, you can copy them from
+gcloud storage cp gs://AMW_GS_BUCKET_HERE/amazon_basin_mining_scar_masks.tif data/outputs/rasters/amazon_basin_mining_scar_masks.tif
+gcloud storage rsync --recursive gs://AMW_GS_BUCKET_HERE/cumulative_dissolved/diffs/ data/outputs/website/cumulative_dissolved/diffs/
+
 python scripts/boundaries/convert_rasters_to_vector.py
 python scripts/boundaries/preprocess_mining_areas.py
 python scripts/boundaries/convert_geojsons_to_pmtiles.py
 python scripts/boundaries/upload_data_to_s3.py
 python scripts/boundaries/upload_tiles_to_s3.py
 ```
-
-## Updating mining data
-
-If you are updating mining data:
-
-1. Update the `DATA_UPDATED_AT` variable in `scripts/boundaries/constants.py`, using the `YYYYMMDD` format. This ensures you will not overwrite previous data when uploading to S3
-2. Update the references to your mining files in `scripts/boundaries/constants.py`, `MINING_DIFFERENCES_FILES` variable
-3. Run the scrips above, skipping the `standardize_` scripts if admin areas, ITs, PAs, and illegality areas have not changed
 
 ## Collated area summaries
 
