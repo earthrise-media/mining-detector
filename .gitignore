@@ -51,3 +51,5 @@ data/staging_source-coop/
 # Transient landing area for `pipeline.py pull`; reversed into the working
 # tree by stage_outputs.py --restore, then safe to delete.
 data/restore_inbox/
+data/outputs/rasters
+data/outputs/cumulative_detections
