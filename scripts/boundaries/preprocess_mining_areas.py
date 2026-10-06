@@ -625,6 +625,30 @@ def summarize_latest_snapshot(summary):
     return latest.set_index(group_cols)
 
 
+def prepare_locations_per_year(summary):
+    """
+    Build the Mining Calculator locations for every period, keyed by area id and
+    then by admin_year.
+
+    Each period uses only its own snapshot, which is already the cumulative extent
+    at that period, so nothing is summed across years.
+
+    Returns {id: {admin_year (as str): [locations]}}. A year only appears for an id
+    when that id has mining in that period's snapshot. Year keys are strings so the
+    dict serialises to JSON cleanly (numpy integer keys would not).
+    """
+    locations_per_year = {}
+    years = sorted(summary.index.get_level_values("admin_year").unique())
+    for year in years:
+        # xs drops the admin_year level, leaving the shape of summary that
+        # prepare_for_mining_calculator_and_save expects
+        year_summary = summary.xs(year, level="admin_year")
+        year_result = prepare_for_mining_calculator_and_save(year_summary)
+        for area_id, v in year_result.items():
+            locations_per_year.setdefault(area_id, {})[str(year)] = v["locations"]
+    return locations_per_year
+
+
 def _format_duration(seconds: float) -> str:
     """Format a number of seconds as e.g. '1h 02m 05s', '3m 07s' or '42s'."""
     if not math.isfinite(seconds):
@@ -1332,9 +1356,15 @@ if __name__ == "__main__":
             orient="records",
         )
 
-        result = prepare_for_mining_calculator_and_save(summary_latest)
+        # locations for every period, from the per-year snapshots. Not needed for
+        # the national dataset.
+        locations_per_year = (
+            prepare_locations_per_year(summary)
+            if dataset["name"] != "national_admin"
+            else None
+        )
 
-        # transform json result into dataframe
+        # build one row per area of interest
         summary_mining_affected_area_ha = summary_latest.groupby("id")[
             "intersected_area_ha"
         ].sum()
@@ -1342,8 +1372,7 @@ if __name__ == "__main__":
             [
                 {
                     "id": id,
-                    "locations": v["locations"],
-                    "mining_affected_area_ha": summary_mining_affected_area_ha[id],
+                    "mining_affected_area_ha": area_ha,
                     "illegality_areas": [
                         {
                             **x,
@@ -1358,7 +1387,7 @@ if __name__ == "__main__":
                         for x in illegality_by_id.get(id, [])
                     ],
                 }
-                for id, v in result.items()
+                for id, area_ha in summary_mining_affected_area_ha.items()
             ]
         )
 
@@ -1378,7 +1407,16 @@ if __name__ == "__main__":
 
             return list(grouped.values())
 
-        result_df["locations"] = result_df["locations"].apply(group_and_sum_locations)
+        if locations_per_year is not None:
+            # applied to each period separately
+            result_df["locations_per_year"] = result_df["id"].map(
+                lambda area_id: {
+                    year: group_and_sum_locations(year_locations)
+                    for year, year_locations in locations_per_year.get(
+                        area_id, {}
+                    ).items()
+                }
+            )
 
         # round results
         result_df["mining_affected_area_ha"] = result_df[
@@ -1410,7 +1448,7 @@ if __name__ == "__main__":
         )
         ref = ref.drop(
             columns=[
-                "locations",
+                "locations_per_year",
                 "mining_affected_area_ha",
                 "geometry",
                 "illegality_areas",

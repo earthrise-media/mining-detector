@@ -53,3 +53,4 @@ data/staging_source-coop/
 data/restore_inbox/
 data/outputs/rasters
 data/outputs/cumulative_detections
+scripts/boundaries/ruff.toml
