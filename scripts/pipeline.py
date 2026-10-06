@@ -335,6 +335,20 @@ def cmds_publish(periods: Sequence[str]) -> List[str]:
         f"#    {from_core(MANIFEST)} is the only tracked file a refresh changes,",
         "#    and it is what tells the next person what the buckets now hold. The",
         "#    manifest stage edits it; nothing commits it.",
+        "",
+        "# 5. the jurisdiction areas are NOT part of this pipeline, and publishing",
+        "#    does not update them. Downstream of here, whoever maintains the",
+        "#    website data rebuilds it from what you just published -- setting",
+        "#    DATA_UPDATED_AT in scripts/boundaries/constants.py to a new date,",
+        "#    re-running the boundaries scripts, uploading the result and its",
+        "#    tiles to S3 -- and then regenerates the public CSVs with",
+        "#    scripts/boundaries/collate_jurisdiction_areas.py.",
+        "#",
+        "#    Both halves are theirs; nothing here triggers either. Tell them the",
+        "#    publish is done, then check that data/public/*.csv carries the new",
+        "#    date_published once they are finished. If the site shows the new",
+        "#    quarter and those files still show the old one, the second half did",
+        "#    not run -- nothing errors in that case, the numbers just disagree.",
     ]
 
 
