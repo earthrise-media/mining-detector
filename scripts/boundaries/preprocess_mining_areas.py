@@ -605,7 +605,21 @@ def prepare_for_mining_calculator_and_save(summary):
 def summarize_latest_snapshot(summary):
     """
     Since the summary is built from cumulative snapshots, summing across all years
-    would double-count. Reduce to the latest snapshot per group instead.
+    would double-count. Reduce to the latest snapshot per area of interest instead.
+
+    The latest period is chosen per `id`, and all of that area's rows from that one
+    period are kept. Choosing it per (region, illegality category) group instead
+    would mix periods: periods after ILLEGALITY_DATA_UPDATED_AT carry category -1,
+    so the cutoff period's categorised rows and the newest period's -1 rows would
+    both count as "latest", nearly doubling the area. It would also keep stale rows
+    for regions or categories that no longer appear in the newest snapshot.
+
+    Per `id`, rather than one period for the whole dataset, so the result matches
+    the last value of the yearly timeseries, which carries an area's value forward
+    through periods where it has no rows.
+
+    To get the latest period that has illegality data, pass the summary with the
+    -1 rows already removed.
     """
     flat = summary.reset_index()
     group_cols = [
@@ -616,13 +630,34 @@ def summarize_latest_snapshot(summary):
         "admin_id_field",
         "admin_illegality_max",
     ]
-    latest = (
-        flat.sort_values("admin_year")
-        .groupby(group_cols, as_index=False)
-        .last()
-        .drop(columns=["admin_year"])
-    )
+    latest_year = flat.groupby("id")["admin_year"].transform("max")
+    latest = flat[flat["admin_year"] == latest_year].drop(columns=["admin_year"])
+    # rows within one period are unique on the remaining columns, so this index is too
     return latest.set_index(group_cols)
+
+
+def prepare_locations_per_year(summary):
+    """
+    Build the Mining Calculator locations for every period, keyed by area id and
+    then by admin_year.
+
+    Each period uses only its own snapshot, which is already the cumulative extent
+    at that period, so nothing is summed across years.
+
+    Returns {id: {admin_year (as str): [locations]}}. A year only appears for an id
+    when that id has mining in that period's snapshot. Year keys are strings so the
+    dict serialises to JSON cleanly (numpy integer keys would not).
+    """
+    locations_per_year = {}
+    years = sorted(summary.index.get_level_values("admin_year").unique())
+    for year in years:
+        # xs drops the admin_year level, leaving the shape of summary that
+        # prepare_for_mining_calculator_and_save expects
+        year_summary = summary.xs(year, level="admin_year")
+        year_result = prepare_for_mining_calculator_and_save(year_summary)
+        for area_id, v in year_result.items():
+            locations_per_year.setdefault(area_id, {})[str(year)] = v["locations"]
+    return locations_per_year
 
 
 def _format_duration(seconds: float) -> str:
@@ -1294,8 +1329,14 @@ if __name__ == "__main__":
         # snapshots are cumulative, so totals come from the latest period only
         summary_latest = summarize_latest_snapshot(summary)
 
+        # periods after ILLEGALITY_DATA_UPDATED_AT have no illegality data (-1), so
+        # the illegality breakdown comes from the latest period that does have it
+        summary_illegality_latest = summarize_latest_snapshot(
+            summary[summary.index.get_level_values("admin_illegality_max") != -1]
+        )
+
         summary_illegality = (
-            summary_latest.groupby(["id", "admin_illegality_max"])[
+            summary_illegality_latest.groupby(["id", "admin_illegality_max"])[
                 "intersected_area_ha"
             ]
             .sum()
@@ -1332,9 +1373,15 @@ if __name__ == "__main__":
             orient="records",
         )
 
-        result = prepare_for_mining_calculator_and_save(summary_latest)
+        # locations for every period, from the per-year snapshots. Not needed for
+        # the national dataset.
+        locations_per_year = (
+            prepare_locations_per_year(summary)
+            if dataset["name"] != "national_admin"
+            else None
+        )
 
-        # transform json result into dataframe
+        # build one row per area of interest
         summary_mining_affected_area_ha = summary_latest.groupby("id")[
             "intersected_area_ha"
         ].sum()
@@ -1342,8 +1389,7 @@ if __name__ == "__main__":
             [
                 {
                     "id": id,
-                    "locations": v["locations"],
-                    "mining_affected_area_ha": summary_mining_affected_area_ha[id],
+                    "mining_affected_area_ha": area_ha,
                     "illegality_areas": [
                         {
                             **x,
@@ -1358,7 +1404,7 @@ if __name__ == "__main__":
                         for x in illegality_by_id.get(id, [])
                     ],
                 }
-                for id, v in result.items()
+                for id, area_ha in summary_mining_affected_area_ha.items()
             ]
         )
 
@@ -1378,7 +1424,16 @@ if __name__ == "__main__":
 
             return list(grouped.values())
 
-        result_df["locations"] = result_df["locations"].apply(group_and_sum_locations)
+        if locations_per_year is not None:
+            # applied to each period separately
+            result_df["locations_per_year"] = result_df["id"].map(
+                lambda area_id: {
+                    year: group_and_sum_locations(year_locations)
+                    for year, year_locations in locations_per_year.get(
+                        area_id, {}
+                    ).items()
+                }
+            )
 
         # round results
         result_df["mining_affected_area_ha"] = result_df[
@@ -1410,7 +1465,7 @@ if __name__ == "__main__":
         )
         ref = ref.drop(
             columns=[
-                "locations",
+                "locations_per_year",
                 "mining_affected_area_ha",
                 "geometry",
                 "illegality_areas",
