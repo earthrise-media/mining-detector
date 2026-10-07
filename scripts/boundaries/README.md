@@ -73,21 +73,20 @@ so a date read off the CSV can be pasted straight back in to rebuild it.
 
 We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. That now includes everything under `data/boundaries/*/out/` — the standardized boundary layers as well as the impacts and timeseries derived from them — and everything under `data/outputs/website/`. They are gitignored, so keep your local copies current by syncing; a stale checkout will silently produce stale numbers. The stable reference boundaries outside those folders (`Amazon_ACA.geojson` and similar) stay in the repo.
 
-Instead, you can use our S3 bucket to sync it with your local dev folder:
+Instead, you can use our S3 bucket to sync it with your local dev folder. The sync script covers `data/boundaries`, `data/outputs/website` and `data/outputs/rasters`, skips `.DS_Store` and `.pmtiles` files, and requires you to choose a direction explicitly — running it with no flag is an error.
 
-```bash
-aws s3 sync ./data/boundaries s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/boundaries --exclude "*/.DS_Store" --exclude ".DS_Store"
-aws s3 sync ./data/outputs/website s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/outputs/ --exclude "*/.DS_Store" --exclude ".DS_Store"website
-```
-
-Or you can use the python script instead to upload:
-
-```bash
-python scripts/boundaries/sync_source_data_to_s3.py
-```
-
-Or download:
+To download (pulls files you don't have and refreshes any local file whose size or ETag differs from the bucket copy; never uploads):
 
 ```bash
 python scripts/boundaries/sync_source_data_to_s3.py --download
+# add --dry-run to preview the changes
 ```
+
+To upload (pushes new or modified local files, compared by size; never downloads):
+
+```bash
+python scripts/boundaries/sync_source_data_to_s3.py --upload
+# add --dry-run to preview the changes
+```
+
+Always run `--download` before `--upload`. Uploading overwrites the bucket copy with whatever you have locally, so uploading from a stale checkout will clobber the backup with old data.
