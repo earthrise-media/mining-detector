@@ -605,7 +605,21 @@ def prepare_for_mining_calculator_and_save(summary):
 def summarize_latest_snapshot(summary):
     """
     Since the summary is built from cumulative snapshots, summing across all years
-    would double-count. Reduce to the latest snapshot per group instead.
+    would double-count. Reduce to the latest snapshot per area of interest instead.
+
+    The latest period is chosen per `id`, and all of that area's rows from that one
+    period are kept. Choosing it per (region, illegality category) group instead
+    would mix periods: periods after ILLEGALITY_DATA_UPDATED_AT carry category -1,
+    so the cutoff period's categorised rows and the newest period's -1 rows would
+    both count as "latest", nearly doubling the area. It would also keep stale rows
+    for regions or categories that no longer appear in the newest snapshot.
+
+    Per `id`, rather than one period for the whole dataset, so the result matches
+    the last value of the yearly timeseries, which carries an area's value forward
+    through periods where it has no rows.
+
+    To get the latest period that has illegality data, pass the summary with the
+    -1 rows already removed.
     """
     flat = summary.reset_index()
     group_cols = [
@@ -616,12 +630,9 @@ def summarize_latest_snapshot(summary):
         "admin_id_field",
         "admin_illegality_max",
     ]
-    latest = (
-        flat.sort_values("admin_year")
-        .groupby(group_cols, as_index=False)
-        .last()
-        .drop(columns=["admin_year"])
-    )
+    latest_year = flat.groupby("id")["admin_year"].transform("max")
+    latest = flat[flat["admin_year"] == latest_year].drop(columns=["admin_year"])
+    # rows within one period are unique on the remaining columns, so this index is too
     return latest.set_index(group_cols)
 
 
@@ -1318,8 +1329,14 @@ if __name__ == "__main__":
         # snapshots are cumulative, so totals come from the latest period only
         summary_latest = summarize_latest_snapshot(summary)
 
+        # periods after ILLEGALITY_DATA_UPDATED_AT have no illegality data (-1), so
+        # the illegality breakdown comes from the latest period that does have it
+        summary_illegality_latest = summarize_latest_snapshot(
+            summary[summary.index.get_level_values("admin_illegality_max") != -1]
+        )
+
         summary_illegality = (
-            summary_latest.groupby(["id", "admin_illegality_max"])[
+            summary_illegality_latest.groupby(["id", "admin_illegality_max"])[
                 "intersected_area_ha"
             ]
             .sum()
