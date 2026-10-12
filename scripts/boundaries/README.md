@@ -41,10 +41,53 @@ gcloud storage rsync --recursive gs://AMW_GS_BUCKET_HERE/cumulative_dissolved/di
 
 python scripts/boundaries/convert_rasters_to_vector.py
 python scripts/boundaries/preprocess_mining_areas.py
+# check the outputs before publishing them, see "Validating outputs" below
+python scripts/boundaries/test_preprocess_mining_outputs.py
 python scripts/boundaries/convert_geojsons_to_pmtiles.py
 python scripts/boundaries/upload_data_to_s3.py
 python scripts/boundaries/upload_tiles_to_s3.py
 ```
+
+## Validating outputs
+
+`test_preprocess_mining_outputs.py` runs data-quality tests on the outputs of
+`preprocess_mining_areas.py` (the `_yearly.json`, `_impacts_unfiltered_dict.json`,
+`.geojson` and `_impacts_yearly.csv` files of every dataset, plus the simplified mining
+files). Run it after preprocessing and before uploading:
+
+```bash
+uv run scripts/boundaries/test_preprocess_mining_outputs.py
+# or, with pytest arguments, e.g. only the yearly checks, stopping at the first failure
+uv run scripts/boundaries/test_preprocess_mining_outputs.py -k yearly -x
+```
+
+Besides checking each file on its own (unique ids, every period present, no negative
+or missing values), it ties the files to each other: the totals, the illegality
+breakdown and the Mining Calculator locations all come from the same per-period
+snapshots as the yearly timeseries, so they must agree up to rounding. Small
+discrepancies that can have legitimate causes, such as a cumulative value dipping by a
+fraction of a hectare, show up as warnings in the summary instead of failing the run.
+The thresholds are constants at the top of the file.
+
+The console shows a short message per failure and warning, with the first few areas
+involved (id, name, type). Everything else goes to a Markdown report,
+`logs/preprocess_outputs_report.md` (gitignored; set `AMW_REPORT_PATH` to write it
+elsewhere): a summary, every failure and warning with the test's description and the
+complete tables, and a checklist of all tests. The console formatting lives in
+`conftest.py`, next to the tests.
+
+To also compare against the previously published data on the CDN (past periods
+shouldn't move much, and the newest total shouldn't drop):
+
+```bash
+AMW_COMPARE_PUBLISHED=latest uv run scripts/boundaries/test_preprocess_mining_outputs.py
+# or a specific publish folder
+AMW_COMPARE_PUBLISHED=20261005 uv run scripts/boundaries/test_preprocess_mining_outputs.py
+```
+
+`latest` is the newest publish folder older than `DATA_UPDATED_AT`, so a run that was
+already uploaded isn't compared with itself. The folder used, and the newest period in
+it, are printed at the end of the run and in the report.
 
 ## Collated area summaries
 
