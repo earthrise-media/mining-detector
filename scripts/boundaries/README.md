@@ -91,3 +91,17 @@ Or download:
 ```bash
 python scripts/boundaries/sync_source_data_to_s3.py --download
 ```
+
+> **`--download` is not read-only.** It runs the upload pass first and pulls down
+> only the files you are *missing*, so a file that exists locally but is out of
+> date is never refreshed — it is uploaded over the remote copy instead. Running
+> it from a stale or partial checkout overwrites good data on the bucket, and
+> `data/outputs/rasters` is in its sync list.
+>
+> To fetch a layer without any chance of writing, read it from the CDN, which
+> needs no credentials:
+>
+> ```bash
+> curl -fSL --create-dirs -o data/boundaries/<path> \
+>   https://media-amw.earthgenome.org/mining-detector-repo-backups/data/boundaries/<path>
+> ```

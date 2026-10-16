@@ -12,7 +12,7 @@
 # path_map.source_coop values below are prefixes under the product root (not full URLs).
 
 schema_version: 1
-updated: 2026-10-03
+updated: 2026-10-16
 
 license: CC-BY-4.0
 contact: info@earthgenome.org
@@ -69,9 +69,9 @@ stores:
 
   amw_image_caches:
     visibility: internal
-    root: gs://amw-image-caches
+    root: gs://amw-archived
     storage_class: archive
-    status: planned — caches move here after the current dev cycle
+    status: done — caches moved here
     notes: >
       Sentinel-2 image caches, ~1 TB per period, ~14 TB total. Useful only for
       re-running inference or SAM2 against a new model; Earth Engine can
