@@ -133,3 +133,12 @@ python scripts/boundaries/sync_source_data_to_s3.py --upload
 ```
 
 Always run `--download` before `--upload`. Uploading overwrites the bucket copy with whatever you have locally, so uploading from a stale checkout will clobber the backup with old data.
+
+Uploads compare files by size only, so an edited file that happens to keep the same size will not be uploaded.
+
+To fetch a single file without AWS credentials, read it from the CDN:
+
+```bash
+curl -fSL --create-dirs -o data/boundaries/<path> \
+  https://media-amw.earthgenome.org/mining-detector-repo-backups/data/boundaries/<path>
+```

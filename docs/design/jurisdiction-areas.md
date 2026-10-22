@@ -181,6 +181,30 @@ impossible. It is not worth it:
 The repair keeps the same heuristic confined to derived numbers, never to published
 boundaries.
 
+### Clipping IT/PA to the basin — considered and closed
+
+A related proposal, on the `clip-admin-areas` branch in 2026-08: in
+`standardize_it_and_pa_areas.py`, replace the filter that keeps any territory
+*intersecting* the ACA limits with `.clip()`, truncating each territory at the
+basin boundary.
+
+It changes no mining figure. Mining is basin-only, so `mining ∩ territory` is
+identical whether the territory polygon is truncated or whole. What it changes is
+published geometry: bounding boxes shrink for territories straddling the limits,
+which drives the website's zoom-to-area, the tiles must be rebuilt, and the
+jurisdiction id set can shift slightly because `.clip()` drops a polygon that
+merely touches the boundary where the filter kept it.
+
+The argument for was presentational: a whole-territory polygon implies the
+statistics cover the whole territory, when they cover only the basin portion.
+
+**Decision, 2026-10-06: closed, not deferred.** These boundaries are partners'
+data. Publishing a territory in truncated form means circulating a shape that
+differs from the partner's own, which is a bigger claim to make about someone
+else's data than the presentational gain is worth. Same reasoning as Part 3 above.
+The branch was deleted unmerged; the change survives only as a local commit and is
+not being pursued.
+
 ## Measured, not fixed: mining that reaches no jurisdiction
 
 Stage 1 clips mining to the subnational calculator layer, so that layer's coverage
@@ -354,6 +378,12 @@ This supersedes a good part of what is on `area_revisions`. That is the honest
 assessment: January's plan — raster as the underlying data, no splitting — was
 right, and the pipeline adopted only half of it, vectorising the raster and then
 doing vector overlays that reintroduce every geometry problem the raster avoids.
+
+**Decision, 2026-10-06: deferred.** Ed and Bernardo agreed the argument holds but
+the work waits. The vector route is correct as it stands — countries tie to the
+basin, nothing is double-counted — so this buys simplicity and a class of bug that
+cannot recur, not better numbers. Revisit when the attribution code next needs
+substantial change, or when the per-run cost of vectorising starts to matter.
 
 ## Republishing: what it actually costs
 

@@ -8,17 +8,14 @@
 [![Sensor](https://img.shields.io/badge/Sensor%F0%9F%9B%B0%EF%B8%8F-Sentinel2-blue)](https://www.esa.int/Applications/Observing_the_Earth/Copernicus/Sentinel-2)
 [![Format](https://img.shields.io/badge/Format-GeoJSON%20%F0%9F%8C%8E%EF%B8%8F-blue)](https://geojson.org/)
 
-**Updated ${updated}.** Model `${model}`, annual periods ${years} and quarters ${quarters}.
-
 This repository contains automated detections of artisanal gold mine scars in
 Sentinel-2 satellite imagery.
 
-The data is licensed under the [creative commons 4.0](https://creativecommons.org/licenses/by/4.0/)
-international license which, in essence, only requires attribution.
+The data is licensed under the [creative commons 4.0](https://creativecommons.org/licenses/by/4.0/) international license. Code, description of the machine-learning models that generated the detections, and additional versions of this data are available at the [Amazon Mining Watch Github repository](https://github.com/earthrise-media/mining-detector).
 
-Code, description of the machine-learning models that generated the detections,
-and additional versions of this data are available at the
-[Amazon Mining Watch Github repository](https://github.com/earthrise-media/mining-detector).
+**Updated ${updated}.** Model `${model}`, annual periods ${years} and quarters ${quarters}.
+
+**16 October 2026.** Corrected a coordinate-grid misalignment in subregion 3's 2025 annual detections (~56–44°W, 5°S–6°N) that had prevented some 2024-vintage mining from confirming in that area; most of the affected locations had already appeared in quarterly updates, so this corrects their confirmed date, not their presence.
 
 ## Data
 
