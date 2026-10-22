@@ -132,7 +132,7 @@ python scripts/boundaries/sync_source_data_to_s3.py --upload
 # add --dry-run to preview the changes
 ```
 
-Always run `--download` before `--upload`. Uploading overwrites the bucket copy with whatever you have locally, so uploading from a stale checkout will clobber the backup with old data.
+Uploading overwrites the bucket copy with whatever you have locally, so uploading from a stale checkout will clobber the backup with old data. In that case, you should run `--download` before `--upload`. 
 
 Uploads compare files by size only, so an edited file that happens to keep the same size will not be uploaded.
 
