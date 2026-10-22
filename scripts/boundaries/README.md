@@ -36,10 +36,10 @@ python scripts/boundaries/standardize_it_and_pa_areas.py
 python scripts/boundaries/standardize_illegality_areas.py
 
 # if there are new datasets, you can copy them from
-gcloud storage cp gs://AMW_GS_BUCKET_HERE/amazon_basin_mining_scar_masks.tif data/outputs/rasters/amazon_basin_mining_scar_masks.tif
-gcloud storage rsync --recursive gs://AMW_GS_BUCKET_HERE/cumulative_dissolved/diffs/ data/outputs/website/cumulative_dissolved/diffs/
+gcloud storage cp gs://amw-published/amazon_basin_mining_scar_masks.tif data/outputs/rasters/amazon_basin_mining_scar_masks.tif # tif
+gcloud storage rsync --recursive gs://amw-published/cumulative_dissolved/diffs/ data/outputs/website/cumulative_dissolved/diffs/ # geojson diffs
 
-python scripts/boundaries/convert_rasters_to_vector.py
+python scripts/boundaries/convert_rasters_to_vector.py --overwrite
 python scripts/boundaries/preprocess_mining_areas.py
 # check the outputs before publishing them, see "Validating outputs" below
 python scripts/boundaries/test_preprocess_mining_outputs.py
