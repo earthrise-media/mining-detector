@@ -36,15 +36,58 @@ python scripts/boundaries/standardize_it_and_pa_areas.py
 python scripts/boundaries/standardize_illegality_areas.py
 
 # if there are new datasets, you can copy them from
-gcloud storage cp gs://AMW_GS_BUCKET_HERE/amazon_basin_mining_scar_masks.tif data/outputs/rasters/amazon_basin_mining_scar_masks.tif
-gcloud storage rsync --recursive gs://AMW_GS_BUCKET_HERE/cumulative_dissolved/diffs/ data/outputs/website/cumulative_dissolved/diffs/
+gcloud storage cp gs://amw-published/amazon_basin_mining_scar_masks.tif data/outputs/rasters/amazon_basin_mining_scar_masks.tif # tif
+gcloud storage rsync --recursive gs://amw-published/cumulative_dissolved/diffs/ data/outputs/website/cumulative_dissolved/diffs/ # geojson diffs
 
-python scripts/boundaries/convert_rasters_to_vector.py
+python scripts/boundaries/convert_rasters_to_vector.py --overwrite
 python scripts/boundaries/preprocess_mining_areas.py
+# check the outputs before publishing them, see "Validating outputs" below
+python scripts/boundaries/test_preprocess_mining_outputs.py
 python scripts/boundaries/convert_geojsons_to_pmtiles.py
 python scripts/boundaries/upload_data_to_s3.py
 python scripts/boundaries/upload_tiles_to_s3.py
 ```
+
+## Validating outputs
+
+`test_preprocess_mining_outputs.py` runs data-quality tests on the outputs of
+`preprocess_mining_areas.py` (the `_yearly.json`, `_impacts_unfiltered_dict.json`,
+`.geojson` and `_impacts_yearly.csv` files of every dataset, plus the simplified mining
+files). Run it after preprocessing and before uploading:
+
+```bash
+uv run scripts/boundaries/test_preprocess_mining_outputs.py
+# or, with pytest arguments, e.g. only the yearly checks, stopping at the first failure
+uv run scripts/boundaries/test_preprocess_mining_outputs.py -k yearly -x
+```
+
+Besides checking each file on its own (unique ids, every period present, no negative
+or missing values), it ties the files to each other: the totals, the illegality
+breakdown and the Mining Calculator locations all come from the same per-period
+snapshots as the yearly timeseries, so they must agree up to rounding. Small
+discrepancies that can have legitimate causes, such as a cumulative value dipping by a
+fraction of a hectare, show up as warnings in the summary instead of failing the run.
+The thresholds are constants at the top of the file.
+
+The console shows a short message per failure and warning, with the first few areas
+involved (id, name, type). Everything else goes to a Markdown report,
+`logs/preprocess_outputs_report.md` (gitignored; set `AMW_REPORT_PATH` to write it
+elsewhere): a summary, every failure and warning with the test's description and the
+complete tables, and a checklist of all tests. The console formatting lives in
+`conftest.py`, next to the tests.
+
+To also compare against the previously published data on the CDN (past periods
+shouldn't move much, and the newest total shouldn't drop):
+
+```bash
+AMW_COMPARE_PUBLISHED=latest uv run scripts/boundaries/test_preprocess_mining_outputs.py
+# or a specific publish folder
+AMW_COMPARE_PUBLISHED=20261005 uv run scripts/boundaries/test_preprocess_mining_outputs.py
+```
+
+`latest` is the newest publish folder older than `DATA_UPDATED_AT`, so a run that was
+already uploaded isn't compared with itself. The folder used, and the newest period in
+it, are printed at the end of the run and in the report.
 
 ## Collated area summaries
 
@@ -73,35 +116,29 @@ so a date read off the CSV can be pasted straight back in to rebuild it.
 
 We've stopped saving the outputs (and never saved source data) to the Github repo because it was too large and changed too often. That now includes everything under `data/boundaries/*/out/` — the standardized boundary layers as well as the impacts and timeseries derived from them — and everything under `data/outputs/website/`. They are gitignored, so keep your local copies current by syncing; a stale checkout will silently produce stale numbers. The stable reference boundaries outside those folders (`Amazon_ACA.geojson` and similar) stay in the repo.
 
-Instead, you can use our S3 bucket to sync it with your local dev folder:
+Instead, you can use our S3 bucket to sync it with your local dev folder. The sync script covers `data/boundaries`, `data/outputs/website` and `data/outputs/rasters`, skips `.DS_Store` and `.pmtiles` files, and requires you to choose a direction explicitly — running it with no flag is an error.
 
-```bash
-aws s3 sync ./data/boundaries s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/boundaries --exclude "*/.DS_Store" --exclude ".DS_Store"
-aws s3 sync ./data/outputs/website s3://AWS_BUCKET_NAME_HERE/mining-detector-repo-backups/data/outputs/ --exclude "*/.DS_Store" --exclude ".DS_Store"website
-```
-
-Or you can use the python script instead to upload:
-
-```bash
-python scripts/boundaries/sync_source_data_to_s3.py
-```
-
-Or download:
+To download (pulls files you don't have and refreshes any local file whose size or ETag differs from the bucket copy; never uploads):
 
 ```bash
 python scripts/boundaries/sync_source_data_to_s3.py --download
+# add --dry-run to preview the changes
 ```
 
-> **`--download` is not read-only.** It runs the upload pass first and pulls down
-> only the files you are *missing*, so a file that exists locally but is out of
-> date is never refreshed — it is uploaded over the remote copy instead. Running
-> it from a stale or partial checkout overwrites good data on the bucket, and
-> `data/outputs/rasters` is in its sync list.
->
-> To fetch a layer without any chance of writing, read it from the CDN, which
-> needs no credentials:
->
-> ```bash
-> curl -fSL --create-dirs -o data/boundaries/<path> \
->   https://media-amw.earthgenome.org/mining-detector-repo-backups/data/boundaries/<path>
-> ```
+To upload (pushes new or modified local files, compared by size; never downloads):
+
+```bash
+python scripts/boundaries/sync_source_data_to_s3.py --upload
+# add --dry-run to preview the changes
+```
+
+Uploading overwrites the bucket copy with whatever you have locally, so uploading from a stale checkout will clobber the backup with old data. In that case, you should run `--download` before `--upload`. 
+
+Uploads compare files by size only, so an edited file that happens to keep the same size will not be uploaded.
+
+To fetch a single file without AWS credentials, read it from the CDN:
+
+```bash
+curl -fSL --create-dirs -o data/boundaries/<path> \
+  https://media-amw.earthgenome.org/mining-detector-repo-backups/data/boundaries/<path>
+```
