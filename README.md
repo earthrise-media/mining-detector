@@ -150,7 +150,9 @@ The most recent periods have no later year to corroborate against. Recent quarte
 
 Provisional detections are not a draft of the confirmed record. A notable proportion of provisionals will be struck from the record, and likewise, some of the eventual confirmed annual increment will not have been seen in the quarterly updates. Largely due to clouds, quarterly and annual composites see different views of the ground. The expected turnover on annual revision is a few percent of the total record, mostly at the edges of mines that appear either way.
 
-We recommend using the confirmed annual detections to analyze trends through time. Provisional quarterly data are for monitoring recent developments. Quarters are not comparable to each other, due to clouds: the third quarter (generally clearest) always sees more detections than the first quarter (generally cloudiest), when only a fraction of the ground area is visible.
+We recommend using the confirmed annual detections to analyze trends through time. Provisional quarterly data are for monitoring recent developments. 
+
+Quarters are not comparable to each other, due to clouds: the third quarter (generally clearest) always sees more detections than the first quarter (cloudiest), when only a fraction of the ground area is visible.
 
 For 2024, the last period with confirmed detections at time of
 writing, the cumulative detections return the following scores with
