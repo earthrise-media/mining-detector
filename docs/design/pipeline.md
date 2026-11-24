@@ -96,6 +96,23 @@ data/staging_gs/                   # internal: the above, plus
 mirrored to Source Cooperative; the front end pulls them from `gs://amw-published`
 and converts to pmtiles.
 
+**The website's Download button renders `amazon_basin_detections.geojson` in the
+tab rather than saving it, and that is not fixable from this end.** `aws s3 sync`
+types `.geojson` as `application/geo+json` from the extension, and browsers treat
+any `*/*+json` as text; the `.tif` saves properly only because `image/tiff` is not
+a type they render. The standard fix is `Content-Disposition: attachment` on the
+object, and it does not work here. Tested 2026-11-24 with a 43-byte probe object:
+`aws s3 cp --content-disposition attachment` signs and sends the header, the
+object uploads, and `data.source.coop` serves it back with no `content-disposition`
+at all. The proxy drops it on the write path or the read path — which one is not
+visible from [`source-cooperative/data.source.coop`](https://github.com/source-cooperative/data.source.coop),
+since the header filtering lives in its `multistore` dependency. Stored
+`content-type` does survive the proxy, so the one remaining lever is mislabelling
+the type (`application/octet-stream` downloads everywhere) — rejected: that breaks
+the type for every honest consumer of a public product, and cannot ride on the bulk
+sync, where `--content-type` would mislabel the `.tif` too. Left as an upstream
+gap to report, not a thing to work around. Do not re-derive this next quarter.
+
 **Per-band onset rasters are kept**, not just the master COG: 25 MB against
 61 minutes to rebuild, and they are the intermediate the master is mosaicked
 from, so a single band can be redone without redoing 23.
