@@ -152,11 +152,9 @@ Provisional detections are not a draft of the confirmed record. A notable propor
 
 We recommend using the confirmed annual detections to analyze trends through time. Provisional quarterly data are for monitoring recent developments. 
 
-Quarters are not comparable to each other, due to clouds: the third quarter (generally clearest) always sees more detections than the first quarter (cloudiest), when only a fraction of the ground area is visible.
+Quarters are not comparable to each other, due to seasonal variations in cloud cover: the third quarter (generally clearest) regularly sees more detections than the first quarter (cloudiest, when only a fraction of the ground area is visible). Quarters two and four fall in between.
 
-For 2024, the last period with confirmed detections at time of
-writing, the cumulative detections return the following scores with
-respect to the evaluation locations used above:
+For 2024, the last period with confirmed detections at time of writing, the cumulative detections return the following scores with respect to the evaluation locations used above:
 
 * Venezuela holdout: specificity **0.976**, sensitivity **0.991**
 * Combined validation + two geographic holdouts: specificity **0.991**, sensitivity **0.989**
